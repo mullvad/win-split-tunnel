@@ -1,0 +1,86 @@
+;
+; mullvad-split-tunnel.inf
+;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=WFPCALLOUTS
+ClassGuid={57465043-616C-6C6F-7574-5F636C617373}
+Provider=%ManufacturerName%
+CatalogFile=mullvad-split-tunnel.cat
+DriverVer= ; TODO: set DriverVer in stampinf property pages
+
+[DestinationDirs]
+DefaultDestDir = 12
+mullvad-split-tunnel_Device_CoInstaller_CopyFiles = 11
+
+; ================= Class section =====================
+
+[ClassInstall32]
+Addreg=SampleClassReg
+
+[SampleClassReg]
+HKR,,,0,%ClassName%
+HKR,,Icon,,-5
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+mullvad-split-tunnel.sys  = 1,,
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName%=Standard,NT$ARCH$
+
+[Standard.NT$ARCH$]
+%mullvad-split-tunnel.DeviceDesc%=mullvad-split-tunnel_Device, Root\mullvad-split-tunnel ; TODO: edit hw-id
+
+[mullvad-split-tunnel_Device.NT]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+mullvad-split-tunnel.sys
+
+;-------------- Service installation
+[mullvad-split-tunnel_Device.NT.Services]
+AddService = mullvad-split-tunnel,%SPSVCINST_ASSOCSERVICE%, mullvad-split-tunnel_Service_Inst
+
+; -------------- mullvad-split-tunnel driver install sections
+[mullvad-split-tunnel_Service_Inst]
+DisplayName    = %mullvad-split-tunnel.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\mullvad-split-tunnel.sys
+
+;
+;--- mullvad-split-tunnel_Device Coinstaller installation ------
+;
+
+[mullvad-split-tunnel_Device.NT.CoInstallers]
+AddReg=mullvad-split-tunnel_Device_CoInstaller_AddReg
+CopyFiles=mullvad-split-tunnel_Device_CoInstaller_CopyFiles
+
+[mullvad-split-tunnel_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[mullvad-split-tunnel_Device_CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[mullvad-split-tunnel_Device.NT.Wdf]
+KmdfService =  mullvad-split-tunnel, mullvad-split-tunnel_wdfsect
+[mullvad-split-tunnel_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+ManufacturerName="Mullvad AB"
+ClassName="Mullvad Split Tunnel"
+DiskName = "mullvad-split-tunnel Installation Disk"
+mullvad-split-tunnel.DeviceDesc = "mullvad-split-tunnel Device"
+mullvad-split-tunnel.SVCDESC = "mullvad-split-tunnel Service"

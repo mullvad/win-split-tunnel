@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
+    <TestCertificate>CN="WDKTestCert ows,132331367255868792" | AB1F44671CD9AC6627903B038BC24440536F572F</TestCertificate>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
+    <TestCertificate>CN="WDKTestCert ows,132331367255868792" | AB1F44671CD9AC6627903B038BC24440536F572F</TestCertificate>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <TestCertificate>CN="WDKTestCert ows,132331367255868792" | AB1F44671CD9AC6627903B038BC24440536F572F</TestCertificate>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <TestCertificate>CN="WDKTestCert ows,132331367255868792" | AB1F44671CD9AC6627903B038BC24440536F572F</TestCertificate>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <TestCertificate>CN="WDKTestCert ows,132331367255868792" | AB1F44671CD9AC6627903B038BC24440536F572F</TestCertificate>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <TestCertificate>CN="WDKTestCert ows,132331367255868792" | AB1F44671CD9AC6627903B038BC24440536F572F</TestCertificate>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <TestCertificate>CN="WDKTestCert ows,132331367255868792" | AB1F44671CD9AC6627903B038BC24440536F572F</TestCertificate>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <TestCertificate>CN="WDKTestCert ows,132331367255868792" | AB1F44671CD9AC6627903B038BC24440536F572F</TestCertificate>
+  </PropertyGroup>
+</Project>
