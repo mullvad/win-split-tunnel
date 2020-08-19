@@ -1,0 +1,3 @@
+mullvad-split-tunnel/bin/*
+mullvad-split-tunnel/x64/*
+mullvad-split-tunnel/.vs/*
