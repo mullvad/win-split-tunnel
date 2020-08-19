@@ -129,4 +129,7 @@ enum ST_DRIVER_STATE
 	// IP addresses are registered.
 	// A valid configuration is registered.
 	ST_DRIVER_STATE_ENGAGED = 4,
+
+	// Driver is unloading.
+	ST_DRIVER_STATE_TERMINATING = 5,
 };
