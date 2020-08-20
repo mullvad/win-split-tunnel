@@ -11,7 +11,7 @@
 
 typedef struct tag_ST_DRIVER_STATE_MGMT
 {
-	WDFWAITLOCK Lock;
+	EX_SPIN_LOCK Lock;
 	ST_DRIVER_STATE State;
 }
 ST_DRIVER_STATE_MGMT;
@@ -62,6 +62,9 @@ ST_IP_ADDRESS_MGMT;
 typedef struct tag_ST_DEVICE_CONTEXT
 {
 	ST_DRIVER_STATE_MGMT DriverState;
+
+	// Serialized queue for processing of most IOCTLs.
+	WDFQUEUE IoCtlQueue;
 
 	ST_REGISTERED_IMAGE_MGMT RegisteredImage;
 	ST_PROCESS_REGISTRY_MGMT ProcessRegistry;

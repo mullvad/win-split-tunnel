@@ -13,8 +13,16 @@ extern "C"
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-typedef BOOLEAN (NTAPI *ST_FW_ACQUIRE_OPERATION_LOCK)(VOID *Context);
-typedef VOID (NTAPI *ST_FW_RELEASE_OPERATION_LOCK)(VOID *Context);
+//
+// ST_FW_ACQUIRE_OPERATION_LOCK
+//
+// Accepts a general context that client code will use for orientation.
+// This is passed from client code back into client code.
+//
+// Returns a specific context for the current operation.
+//
+typedef bool (NTAPI *ST_FW_ACQUIRE_OPERATION_LOCK)(void *Context, void **DerivedContext);
+typedef void (NTAPI *ST_FW_RELEASE_OPERATION_LOCK)(void *Context, void *DerivedContext);
 
 enum ST_FW_PROCESS_SPLIT_VERDICT
 {
@@ -30,7 +38,7 @@ ST_FW_PROCESS_SPLIT_VERDICT
 (NTAPI *ST_FW_QUERY_PROCESS)
 (
 	HANDLE ProcessId,
-	VOID *Context
+	void *Context
 );
 
 typedef struct tag_ST_FW_CALLBACKS
@@ -38,7 +46,7 @@ typedef struct tag_ST_FW_CALLBACKS
 	ST_FW_ACQUIRE_OPERATION_LOCK AcquireOperationLock;
 	ST_FW_RELEASE_OPERATION_LOCK ReleaseOperationLock;
 	ST_FW_QUERY_PROCESS QueryProcess;
-	VOID *Context;
+	void *Context;
 }
 ST_FW_CALLBACKS;
 

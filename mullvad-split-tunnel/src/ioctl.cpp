@@ -141,76 +141,6 @@ StPropagateApplySplitSetting
     return true;
 }
 
-//
-// StEnterEngagedState()
-//
-// The following lock must be held when entering this function:
-//   Driver state lock
-//
-NTSTATUS
-StEnterEngagedState
-(
-    ST_DEVICE_CONTEXT *Context
-)
-{
-    //
-    // Update state first.
-    // Because firewall module uses callbacks that in turn depend on the state.
-    //
-
-    Context->DriverState.State = ST_DRIVER_STATE_ENGAGED;
-
-    const auto status = StFwActivate(&Context->IpAddresses.Addresses);
-
-    if (NT_SUCCESS(status))
-    {
-        DbgPrint("Successfully transitioned into engaged state\n");
-
-        return STATUS_SUCCESS;
-    }
-
-    //
-    // Restore old state.
-    // Which could not have been anything other than "ready".
-    //
-
-    DbgPrint("Failed to enter engaged state\n");
-    DbgPrint("StFwActivate() failed 0x%X\n", status);
-
-    Context->DriverState.State = ST_DRIVER_STATE_READY;
-
-    return status;
-}
-
-//
-// StLeaveEngagedState()
-//
-// The following lock must be held when entering this function:
-//   Driver state lock
-//
-NTSTATUS
-StLeaveEngagedState
-(
-    ST_DEVICE_CONTEXT *Context
-)
-{
-    const auto status = StFwPause();
-
-    if (NT_SUCCESS(status))
-    {
-        DbgPrint("Successfully left engaged state\n");
-
-        Context->DriverState.State = ST_DRIVER_STATE_READY;
-
-        return STATUS_SUCCESS;
-    }
-
-    DbgPrint("Failed to leave engaged state\n");
-    DbgPrint("StFwPause() failed 0x%X\n", status);
-
-    return status;
-}
-
 struct CONFIGURATION_COMPUTE_LENGTH_CONTEXT
 {
     SIZE_T NumEntries;
@@ -276,48 +206,52 @@ GetConfigurationSerialize
     return true;
 }
 
-
-BOOLEAN
+bool
+NTAPI
 StCbAcquireOperationLock
 (
-    VOID *RawContext
+    void *RawContext,
+    void **DerivedContext
 )
 {
     auto context = (ST_DEVICE_CONTEXT*)RawContext;
 
     if (context->DriverState.State != ST_DRIVER_STATE_ENGAGED)
     {
-        return FALSE;
+        return false;
     }
 
-    WdfWaitLockAcquire(context->DriverState.Lock, NULL);
+    auto oldIrql = ExAcquireSpinLockShared(&context->DriverState.Lock);
 
     if (context->DriverState.State != ST_DRIVER_STATE_ENGAGED)
     {
-        WdfWaitLockRelease(context->DriverState.Lock);
+        ExReleaseSpinLockShared(&context->DriverState.Lock, oldIrql);
 
-        return FALSE;
+        return false;
     }
 
-    return TRUE;
+    *DerivedContext = (void*)oldIrql;
+
+    return true;
 }
 
-VOID
+void
 StCbReleaseOperationLock
 (
-    VOID *RawContext
+    void *RawContext,
+    void *OperationContext
 )
 {
     auto context = (ST_DEVICE_CONTEXT*)RawContext;
 
-    WdfWaitLockRelease(context->DriverState.Lock);
+    ExReleaseSpinLockShared(&context->DriverState.Lock, (KIRQL)(ULONG_PTR)OperationContext);
 }
 
 ST_FW_PROCESS_SPLIT_VERDICT
 StCbQueryProcess
 (
 	HANDLE ProcessId,
-	VOID *RawContext
+	void *RawContext
 )
 {
     auto context = (ST_DEVICE_CONTEXT*)RawContext;
@@ -450,8 +384,8 @@ StIoControlInitialize()
     }
 
     //
-    // No need to use the associated lock.
-    // Because the various subsystems are not fully activated yet.
+    // No locking necessary.
+    // This is still initialization.
     //
     context->DriverState.State = ST_DRIVER_STATE_INITIALIZED;
 
@@ -460,10 +394,18 @@ StIoControlInitialize()
     return STATUS_SUCCESS;
 }
 
+//
+// StIoControlSetConfigurationPrepare()
+//
+// Validate and repackage configuration data into new registered image instance.
+//
+// This runs at PASSIVE, in order to be able to downcase the strings.
+//
 NTSTATUS
-StIoControlSetConfiguration
+StIoControlSetConfigurationPrepare
 (
-    WDFREQUEST Request
+    WDFREQUEST Request,
+    ST_REGISTERED_IMAGE_SET **Imageset
 )
 {
     PVOID buffer;
@@ -474,12 +416,14 @@ StIoControlSetConfiguration
 
     if (!NT_SUCCESS(status))
     {
+        DbgPrint("Could not access configuration buffer provided to IOCTL: 0x%X", status);
+
         return status;
     }
 
     if (!ValidateUserBufferConfiguration(buffer, bufferLength))
     {
-        DbgPrint("Invalid configuration data provided to IOCTL_ST_SET_CONFIGURATION\n");
+        DbgPrint("Invalid configuration data in buffer provided to IOCTL\n");
 
         return STATUS_INVALID_PARAMETER;
     }
@@ -488,8 +432,15 @@ StIoControlSetConfiguration
     auto entry = (ST_CONFIGURATION_ENTRY*)(header + 1);
     auto stringBuffer = (UCHAR*)(entry + header->NumEntries);
 
+    if (header->NumEntries == 0)
+    {
+        DbgPrint("Cannot assign empty configuration\n");
+
+        return STATUS_INVALID_PARAMETER;
+    }
+
     //
-    // Create temporary instance for storing image names.
+    // Create new instance for storing image names.
     //
 
     ST_REGISTERED_IMAGE_SET *imageset;
@@ -498,6 +449,8 @@ StIoControlSetConfiguration
 
     if (!NT_SUCCESS(status))
     {
+        DbgPrint("Could not create new registered image instance: 0x%X\n", status);
+
         return status;
     }
 
@@ -517,19 +470,35 @@ StIoControlSetConfiguration
 
         if (!NT_SUCCESS(status))
         {
+            DbgPrint("Could not insert new entry into registered image instance: 0x%X\n", status);
+
             StRegisteredImageDelete(imageset);
 
             return status;
         }
     }
 
-    //
-    // Acquire the state lock since we might update the state.
-    //
+    *Imageset = imageset;
 
+    return STATUS_SUCCESS;
+}
+
+//
+// StIoControlSetConfiguration()
+//
+// Store updated configuration and update process registry to reflect.
+// Evaluate prerequisites for engaged state.
+//
+// N.B. Upon entry, the state lock is held in exclusive mode.
+//
+NTSTATUS
+StIoControlSetConfiguration
+(
+    ST_REGISTERED_IMAGE_SET *Imageset,
+    bool *ShouldEngage
+)
+{
     auto context = DeviceGetSplitTunnelContext(g_Device);
-
-    WdfWaitLockAcquire(context->DriverState.Lock, NULL);
 
     //
     // Replace active imageset instance.
@@ -539,7 +508,7 @@ StIoControlSetConfiguration
 
     StRegisteredImageDelete(context->RegisteredImage.Instance);
 
-    context->RegisteredImage.Instance = imageset;
+    context->RegisteredImage.Instance = Imageset;
 
     StRegisteredImageForEach
     (
@@ -561,38 +530,23 @@ StIoControlSetConfiguration
     WdfSpinLockRelease(context->RegisteredImage.Lock);
 
     //
-    // Conditionally update state.
+    // Determine if we should update state.
     //
 
-    if (context->DriverState.State != ST_DRIVER_STATE_ENGAGED)
-    {
-        WdfSpinLockAcquire(context->IpAddresses.Lock);
+    WdfSpinLockAcquire(context->IpAddresses.Lock);
 
-        const auto vpnActive = StHasInternetIpv4Address(&context->IpAddresses.Addresses)
-            && StHasTunnelIpv4Address(&context->IpAddresses.Addresses);
+    *ShouldEngage = StHasInternetIpv4Address(&context->IpAddresses.Addresses)
+        && StHasTunnelIpv4Address(&context->IpAddresses.Addresses);
 
-        WdfSpinLockRelease(context->IpAddresses.Lock);
+    WdfSpinLockRelease(context->IpAddresses.Lock);
 
-        if (vpnActive)
-        {
-            status = StEnterEngagedState(context);
-
-            if (!NT_SUCCESS(status))
-            {
-                goto Cleanup;
-            }
-        }
-    }
+    //
+    // Finish off.
+    //
 
     DbgPrint("Successfully processed IOCTL_ST_SET_CONFIGURATION\n");
 
-    status = STATUS_SUCCESS;
-
-Cleanup:
-
-    WdfWaitLockRelease(context->DriverState.Lock);
-
-    return status;
+    return STATUS_SUCCESS;
 }
 
 void
@@ -706,23 +660,17 @@ Complete:
     WdfRequestCompleteWithInformation(Request, status, info);
 }
 
+//
+// StIoControlClearConfiguration()
+//
+// Clear configuration and reflect changes in the process registry.
+//
 NTSTATUS
 StIoControlClearConfiguration
 (
 )
 {
     auto context = DeviceGetSplitTunnelContext(g_Device);
-
-    WdfWaitLockAcquire(context->DriverState.Lock, NULL);
-
-    auto status = StLeaveEngagedState(context);
-
-    if (!NT_SUCCESS(status))
-    {
-        WdfWaitLockRelease(context->DriverState.Lock);
-
-        return status;
-    }
 
     //
     // Clear configuration.
@@ -749,12 +697,6 @@ StIoControlClearConfiguration
 
     WdfSpinLockRelease(context->ProcessRegistry.Lock);
 
-    //
-    // Finish up.
-    //
-
-    WdfWaitLockRelease(context->DriverState.Lock);
-
     return STATUS_SUCCESS;
 }
 
@@ -764,11 +706,6 @@ StIoControlRegisterProcesses
     WDFREQUEST Request
 )
 {
-    //
-    // This is still initialization.
-    // Locking is superfluous.
-    //
-
     PVOID buffer;
     size_t bufferLength;
 
@@ -854,7 +791,8 @@ StIoControlRegisterProcesses
     }
 
     //
-    // Do not use associated lock.
+    // No locking necessary.
+    // This is still initialization.
     //
     context->DriverState.State = ST_DRIVER_STATE_READY;
 
@@ -863,10 +801,19 @@ StIoControlRegisterProcesses
     return STATUS_SUCCESS;
 }
 
+//
+// StIoControlRegisterIpAddresses()
+//
+// Store updated set of IP addresses.
+// Evaluate prerequisites for engaged state.
+//
+// N.B. Upon entry, the state lock is held in exclusive mode.
+//
 NTSTATUS
 StIoControlRegisterIpAddresses
 (
-    WDFREQUEST Request
+    WDFREQUEST Request,
+    bool *ShouldEngage
 )
 {
     PVOID buffer;
@@ -893,45 +840,32 @@ StIoControlRegisterIpAddresses
 
     auto context = DeviceGetSplitTunnelContext(g_Device);
 
-    WdfWaitLockAcquire(context->DriverState.Lock, NULL);
-
     WdfSpinLockAcquire(context->IpAddresses.Lock);
 
     RtlCopyMemory(&context->IpAddresses.Addresses, buffer, sizeof(context->IpAddresses.Addresses));
 
+    const auto vpnActive = StHasInternetIpv4Address(&context->IpAddresses.Addresses)
+        && StHasTunnelIpv4Address(&context->IpAddresses.Addresses);
+
     WdfSpinLockRelease(context->IpAddresses.Lock);
 
     //
-    // Update state.
+    // Evaluate whether we should enter the engaged state.
     // Keep in mind that either IP may have just been cleared.
     //
-
-    const auto vpnActive = StHasInternetIpv4Address(&context->IpAddresses.Addresses)
-        && StHasTunnelIpv4Address(&context->IpAddresses.Addresses);
 
     if (vpnActive)
     {
         WdfSpinLockAcquire(context->RegisteredImage.Lock);
 
-        const auto hasConfig = !StRegisteredImageIsEmpty(context->RegisteredImage.Instance);
+        *ShouldEngage = !StRegisteredImageIsEmpty(context->RegisteredImage.Instance);
 
         WdfSpinLockRelease(context->RegisteredImage.Lock);
 
-        if (hasConfig)
-        {
-            status = StEnterEngagedState(context);
-        }
     }
     else
     {
-        status = StLeaveEngagedState(context);
-    }
-
-    WdfWaitLockRelease(context->DriverState.Lock);
-
-    if (!NT_SUCCESS(status))
-    {
-        return status;
+        *ShouldEngage = false;
     }
 
     DbgPrint("Successfully processed IOCTL_ST_REGISTER_IP_ADDRESSES\n");
@@ -1001,6 +935,8 @@ StIoControlGetStateComplete
 
     if (!NT_SUCCESS(status))
     {
+        DbgPrint("Unable to retrieve client buffer or invalid buffer size\n");
+
         WdfRequestComplete(Request, status);
 
         return;
@@ -1008,6 +944,9 @@ StIoControlGetStateComplete
 
     auto context = DeviceGetSplitTunnelContext(g_Device);
 
+    //
+    // No locking, just sample the state.
+    //
     *(SIZE_T*)buffer = context->DriverState.State;
 
     WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, sizeof(SIZE_T));

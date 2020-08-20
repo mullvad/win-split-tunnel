@@ -10,6 +10,7 @@
 #include "public.h"
 #include "globals.h"
 #include "ioctl.h"
+#include "fw.h"
 
 extern "C"
 DRIVER_INITIALIZE DriverEntry;
@@ -40,6 +41,9 @@ StCreateProcessNotifyRoutineEx
 
 extern "C"
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL StEvtIoDeviceControl;
+
+extern "C"
+EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL StEvtIoDeviceControlSerial;
 
 extern "C"
 EVT_WDF_DRIVER_UNLOAD StEvtDriverUnload;
@@ -125,15 +129,7 @@ DriverEntry
 
     auto context = DeviceGetSplitTunnelContext(g_Device);
 
-    status = WdfWaitLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &context->DriverState.Lock);
-
-    if (!NT_SUCCESS(status))
-    {
-        DbgPrint("WdfWaitLockCreate() failed 0x%X\n", status);
-
-        return status;
-    }
-
+    context->DriverState.Lock = 0;
     context->DriverState.State = ST_DRIVER_STATE_STARTED;
 
     //
@@ -269,6 +265,43 @@ StCreateDevice
     }
 
     //
+    // Create a secondary queue that is serialized.
+    // Commands that need to be serialized can then be forwarded to this queue.
+    //
+
+    WDF_IO_QUEUE_CONFIG_INIT
+    (
+        &queueConfig,
+        WdfIoQueueDispatchSequential
+    );
+
+    queueConfig.EvtIoDeviceControl = StEvtIoDeviceControlSerial;
+    queueConfig.PowerManaged = WdfFalse;
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    attributes.ExecutionLevel = WdfExecutionLevelPassive;
+
+    WDFQUEUE serialQueue;
+
+    status = WdfIoQueueCreate
+    (
+        wdfDevice,
+        &queueConfig,
+        &attributes,
+        &serialQueue
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint("WdfIoQueueCreate() for secondary queue failed 0x%X\n", status);
+        goto Cleanup;
+    }
+
+    auto context = DeviceGetSplitTunnelContext(wdfDevice);
+
+    context->IoCtlQueue = serialQueue;
+
+    //
     // Store global reference to device.
     // So code that is not activated through KMDF can access it.
     //
@@ -314,7 +347,6 @@ StEvtIoDeviceControl
     ULONG IoControlCode
 )
 {
-    UNREFERENCED_PARAMETER(Queue);
     UNREFERENCED_PARAMETER(OutputBufferLength);
     UNREFERENCED_PARAMETER(InputBufferLength);
 
@@ -336,17 +368,169 @@ StEvtIoDeviceControl
     // it's always valid for the client to attempt to dequeue an event.
     //
 
-    if (context->DriverState.State >= ST_DRIVER_STATE_INITIALIZED
-        && IoControlCode == IOCTL_ST_DEQUEUE_EVENT)
+    if (IoControlCode == IOCTL_ST_DEQUEUE_EVENT)
     {
-        StDequeueEventComplete(Request);
+        auto oldIrql = ExAcquireSpinLockShared(&context->DriverState.Lock);
+
+        if (context->DriverState.State >= ST_DRIVER_STATE_INITIALIZED
+            && context->DriverState.State < ST_DRIVER_STATE_TERMINATING)
+        {
+            StDequeueEventComplete(Request);
+        }
+        else
+        {
+            DbgPrint("Cannot dequeue event at current driver state\n");
+
+            WdfRequestComplete(Request, STATUS_INVALID_DEVICE_REQUEST);
+        }
+
+        ExReleaseSpinLockShared(&context->DriverState.Lock, oldIrql);
 
         return;
     }
 
     //
-    // Check current state to determine how processing should continue.
+    // Forward to serialized queue.
     //
+
+    auto status = WdfRequestForwardToIoQueue(Request, context->IoCtlQueue);
+
+    if (NT_SUCCESS(status))
+    {
+        return;
+    }
+
+    DbgPrint("Failed to forward request to serialized queue\n");
+
+    WdfRequestComplete(Request, status);
+}
+
+//
+// StUpdateState()
+//
+// Update state (READY -> ENGAGED and vice versa) according to argument `ShouldEngage`.
+// State lock is held exclusively when called, and lock ownership is passed to this function.
+//
+NTSTATUS
+StUpdateState
+(
+    ST_DEVICE_CONTEXT *Context,
+    bool ShouldEngage,
+    KIRQL OldIrql
+)
+{
+    NT_ASSERT((Context->DriverState.State == ST_DRIVER_STATE_READY)
+        || (Context->DriverState.State == ST_DRIVER_STATE_ENGAGED));
+
+    //
+    // Abort if current state is same as target state.
+    //
+
+    if ((ShouldEngage && Context->DriverState.State == ST_DRIVER_STATE_ENGAGED)
+        || (!ShouldEngage && Context->DriverState.State == ST_DRIVER_STATE_READY))
+    {
+        ExReleaseSpinLockExclusive(&Context->DriverState.Lock, OldIrql);
+
+        DbgPrint("Not updating state - target state is already active\n");
+
+        //
+        // TODO: Change the code to be smarter/better.
+        // We have to notify the fw module about potentially updated IP addresses.
+        //
+        // Don't need to check the return value for this hack.
+        // The fw module only stores the addresses if already engaged.
+        //
+
+        if (Context->DriverState.State == ST_DRIVER_STATE_ENGAGED)
+        {
+            StFwActivate(&Context->IpAddresses.Addresses);
+        }
+
+        return STATUS_SUCCESS;
+    }
+
+    if (ShouldEngage)
+    {
+        Context->DriverState.State = ST_DRIVER_STATE_ENGAGED;
+
+        ExReleaseSpinLockExclusive(&Context->DriverState.Lock, OldIrql);
+
+        //
+        // It's safe to not lock the IP addresses structure here.
+        // Because there are no other writers.
+        //
+
+        const auto status = StFwActivate(&Context->IpAddresses.Addresses);
+
+        if (NT_SUCCESS(status))
+        {
+            DbgPrint("Successfully transitioned into engaged state\n");
+
+            return STATUS_SUCCESS;
+        }
+
+        DbgPrint("Failed to enter engaged state\n");
+        DbgPrint("StFwActivate() failed 0x%X\n", status);
+
+        auto oldIrql = ExAcquireSpinLockExclusive(&Context->DriverState.Lock);
+
+        Context->DriverState.State = ST_DRIVER_STATE_READY;
+
+        ExReleaseSpinLockExclusive(&Context->DriverState.Lock, oldIrql);
+
+        return status;
+    }
+
+    //
+    // ENGAGED -> READY
+    //
+
+    Context->DriverState.State = ST_DRIVER_STATE_READY;
+
+    ExReleaseSpinLockExclusive(&Context->DriverState.Lock, OldIrql);
+
+    const auto status = StFwPause();
+
+    if (NT_SUCCESS(status))
+    {
+        DbgPrint("Successfully left engaged state\n");
+
+        return STATUS_SUCCESS;
+    }
+
+    DbgPrint("Failed to leave engaged state\n");
+    DbgPrint("StFwPause() failed 0x%X\n", status);
+
+    auto oldIrql = ExAcquireSpinLockExclusive(&Context->DriverState.Lock);
+
+    Context->DriverState.State = ST_DRIVER_STATE_ENGAGED;
+
+    ExReleaseSpinLockExclusive(&Context->DriverState.Lock, oldIrql);
+
+    return status;
+}
+
+extern "C"
+VOID
+StEvtIoDeviceControlSerial
+(
+    WDFQUEUE Queue,
+    WDFREQUEST Request,
+    size_t OutputBufferLength,
+    size_t InputBufferLength,
+    ULONG IoControlCode
+)
+{
+    UNREFERENCED_PARAMETER(Queue);
+    UNREFERENCED_PARAMETER(OutputBufferLength);
+    UNREFERENCED_PARAMETER(InputBufferLength);
+
+    auto context = DeviceGetSplitTunnelContext(WdfIoQueueGetDevice(Queue));
+
+    //
+    // Calls to this function are serialized.
+    // So there's never a need to acquire the state lock in shared mode.
+    // 
 
     switch (context->DriverState.State)
     {
@@ -399,7 +583,28 @@ StEvtIoDeviceControl
 
             if (IoControlCode == IOCTL_ST_REGISTER_IP_ADDRESSES)
             {
-                WdfRequestComplete(Request, StIoControlRegisterIpAddresses(Request));
+                auto oldIrql = ExAcquireSpinLockExclusive(&context->DriverState.Lock);
+
+                bool shouldEngage = false;
+
+                auto status = StIoControlRegisterIpAddresses(Request, &shouldEngage);
+
+                if (!NT_SUCCESS(status))
+                {
+                    ExReleaseSpinLockExclusive(&context->DriverState.Lock, oldIrql);
+
+                    WdfRequestComplete(Request, status);
+
+                    return;
+                }
+
+                //
+                // Lock ownership is transferred here.
+                //
+
+                status = StUpdateState(context, shouldEngage, oldIrql);
+
+                WdfRequestComplete(Request, status);
 
                 return;
             }
@@ -413,7 +618,39 @@ StEvtIoDeviceControl
 
             if (IoControlCode == IOCTL_ST_SET_CONFIGURATION)
             {
-                WdfRequestComplete(Request, StIoControlSetConfiguration(Request));
+                ST_REGISTERED_IMAGE_SET *imageset;
+
+                auto status = StIoControlSetConfigurationPrepare(Request, &imageset);
+
+                if (!NT_SUCCESS(status))
+                {
+                    WdfRequestComplete(Request, status);
+
+                    return;
+                }
+
+                auto oldIrql = ExAcquireSpinLockExclusive(&context->DriverState.Lock);
+
+                bool shouldEngage = false;
+
+                status = StIoControlSetConfiguration(imageset, &shouldEngage);
+
+                if (!NT_SUCCESS(status))
+                {
+                    ExReleaseSpinLockExclusive(&context->DriverState.Lock, oldIrql);
+
+                    WdfRequestComplete(Request, status);
+
+                    return;
+                }
+
+                //
+                // Lock ownership is transferred here.
+                //
+
+                status = StUpdateState(context, shouldEngage, oldIrql);
+
+                WdfRequestComplete(Request, status);
 
                 return;
             }
@@ -427,7 +664,23 @@ StEvtIoDeviceControl
 
             if (IoControlCode == IOCTL_ST_CLEAR_CONFIGURATION)
             {
-                WdfRequestComplete(Request, StIoControlClearConfiguration());
+                //
+                // The updated state will always be READY.
+                // If either of the operations fail enforce the new state anyway.
+                //
+
+                auto oldIrql = ExAcquireSpinLockExclusive(&context->DriverState.Lock);
+
+                context->DriverState.State = ST_DRIVER_STATE_READY;
+
+                ExReleaseSpinLockExclusive(&context->DriverState.Lock, oldIrql);
+
+                const auto status1 = StFwPause();
+                const auto status2 = StIoControlClearConfiguration();
+
+                const auto status = NT_SUCCESS(status1) && NT_SUCCESS(status2) ? STATUS_SUCCESS : status1;
+
+                WdfRequestComplete(Request, status);
 
                 return;
             }
@@ -440,10 +693,6 @@ StEvtIoDeviceControl
 
     WdfRequestComplete(Request, STATUS_INVALID_DEVICE_REQUEST);
 }
-
-
-
-
 
 
 

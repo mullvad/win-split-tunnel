@@ -424,12 +424,6 @@ StFwCalloutClassifyBind
 	UNREFERENCED_PARAMETER(LayerData);
 	UNREFERENCED_PARAMETER(FlowContext);
 
-	//
-	// Leave this here to see if things break.
-	// The bind redirect callout *should* be invoked at PASSIVE_LEVEL.
-	//
-	PAGED_CODE()
-
 	NT_ASSERT
 	(
 		FixedValues->layerId == FWPS_LAYER_ALE_BIND_REDIRECT_V4
@@ -445,7 +439,9 @@ StFwCalloutClassifyBind
 
 	const ST_FW_CALLBACKS &callbacks = g_FwContext.Callbacks;
 
-	if (!callbacks.AcquireOperationLock(callbacks.Context))
+	void *operationContext;
+
+	if (!callbacks.AcquireOperationLock(callbacks.Context, &operationContext))
 	{
 		return;
 	}
@@ -476,7 +472,7 @@ StFwCalloutClassifyBind
 		DbgPrint("Bind redirect callout invoked for unknown process\n");
 	}
 
-	callbacks.ReleaseOperationLock(callbacks.Context);
+	callbacks.ReleaseOperationLock(callbacks.Context, operationContext);
 }
 
 //
