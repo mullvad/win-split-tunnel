@@ -244,11 +244,11 @@ StAllocateCopyDowncaseString
 
 	RtlCopyMemory(finalBuffer, lower.Buffer, lower.Length);
 
-	RtlFreeUnicodeString(&lower);
-
 	Out->Length = lower.Length;
 	Out->MaximumLength = lower.Length;
 	Out->Buffer = finalBuffer;
+
+	RtlFreeUnicodeString(&lower);
 
 	return STATUS_SUCCESS;
 }
