@@ -36,6 +36,9 @@
 #define IOCTL_ST_GET_STATE \
 	CTL_CODE(ST_DEVICE_TYPE, 9, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
+#define IOCTL_ST_QUERY_PROCESS \
+	CTL_CODE(ST_DEVICE_TYPE, 10, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
 //
 // Structures produced by the driver.
 //
@@ -70,7 +73,7 @@ typedef struct tag_ST_CONFIGURATION_HEADER
 ST_CONFIGURATION_HEADER;
 
 //
-// Processes related to initial process registration.
+// Structures related to initial process registration.
 //
 
 typedef struct tag_ST_PROCESS_DISCOVERY_ENTRY
@@ -98,7 +101,7 @@ typedef struct tag_ST_PROCESS_DISCOVERY_HEADER
 ST_PROCESS_DISCOVERY_HEADER;
 
 //
-// Processes related to IP address registration.
+// Structures related to IP address registration.
 //
 
 typedef struct tag_ST_IP_ADDRESSES
@@ -110,6 +113,34 @@ typedef struct tag_ST_IP_ADDRESSES
 	IN6_ADDR InternetIpv6;
 }
 ST_IP_ADDRESSES;
+
+//
+// Structures related to querying process information.
+//
+
+typedef struct tag_ST_QUERY_PROCESS
+{
+	HANDLE ProcessId;
+}
+ST_QUERY_PROCESS;
+
+typedef struct tag_ST_QUERY_PROCESS_RESPONSE
+{
+	HANDLE ProcessId;
+	HANDLE ParentProcessId;
+
+	BOOLEAN Split;
+
+	// Byte length for non-null terminated wide char string.
+	USHORT ImageNameLength;
+
+	WCHAR ImageName[ANYSIZE_ARRAY];
+}
+ST_QUERY_PROCESS_RESPONSE;
+
+//
+// All possible states in the driver.
+//
 
 enum ST_DRIVER_STATE
 {

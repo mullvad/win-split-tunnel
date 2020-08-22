@@ -579,6 +579,7 @@ StEvtIoDeviceControlSerial
             // IOCTL_ST_SET_CONFIGURATION
             // IOCTL_ST_GET_CONFIGURATION
             // IOCTL_ST_CLEAR_CONFIGURATION
+            // IOCTL_ST_QUERY_PROCESS
             //
 
             if (IoControlCode == IOCTL_ST_REGISTER_IP_ADDRESSES)
@@ -681,6 +682,13 @@ StEvtIoDeviceControlSerial
                 const auto status = NT_SUCCESS(status1) && NT_SUCCESS(status2) ? STATUS_SUCCESS : status1;
 
                 WdfRequestComplete(Request, status);
+
+                return;
+            }
+
+            if (IoControlCode == IOCTL_ST_QUERY_PROCESS)
+            {
+                StIoControlQueryProcessComplete(Request);
 
                 return;
             }

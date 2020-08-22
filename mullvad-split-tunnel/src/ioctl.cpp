@@ -26,6 +26,8 @@ enum class ST_MIN_REQUEST_SIZE
 	REGISTER_IP_ADDRESSES = sizeof(ST_IP_ADDRESSES),
 	GET_IP_ADDRESSES = sizeof(ST_IP_ADDRESSES),
 	GET_STATE = sizeof(SIZE_T),
+    QUERY_PROCESS = sizeof(ST_QUERY_PROCESS),
+    QUERY_PROCESS_RESPONSE = sizeof(ST_QUERY_PROCESS_RESPONSE),
 };
 
 namespace
@@ -950,6 +952,129 @@ StIoControlGetStateComplete
     *(SIZE_T*)buffer = context->DriverState.State;
 
     WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, sizeof(SIZE_T));
+}
+
+void
+StIoControlQueryProcessComplete
+(
+    WDFREQUEST Request
+)
+{
+    PVOID buffer;
+    size_t bufferLength;
+
+    auto status = WdfRequestRetrieveInputBuffer
+    (
+        Request,
+        (size_t)ST_MIN_REQUEST_SIZE::QUERY_PROCESS,
+        &buffer,
+        &bufferLength
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint("Unable to retrieve input buffer or buffer too small\n");
+
+        WdfRequestComplete(Request, status);
+
+        return;
+    }
+
+    if (bufferLength != (size_t)ST_MIN_REQUEST_SIZE::QUERY_PROCESS)
+    {
+        DbgPrint("Invalid buffer size\n");
+
+        WdfRequestComplete(Request, STATUS_INVALID_BUFFER_SIZE);
+
+        return;
+    }
+
+    auto processId = ((ST_QUERY_PROCESS*)buffer)->ProcessId;
+
+    //
+    // Get the output buffer.
+    //
+    // We can't validate the buffer length just yet, because we don't know the
+    // length of the process image name.
+    //
+
+    status = WdfRequestRetrieveOutputBuffer
+    (
+        Request,
+        (size_t)ST_MIN_REQUEST_SIZE::QUERY_PROCESS_RESPONSE,
+        &buffer,
+        &bufferLength
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint("Unable to retrieve output buffer or buffer too small\n");
+
+        WdfRequestComplete(Request, status);
+
+        return;
+    }
+
+    //
+    // Look up process.
+    //
+
+    auto context = DeviceGetSplitTunnelContext(g_Device);
+
+    WdfSpinLockAcquire(context->ProcessRegistry.Lock);
+
+    auto record = StProcessRegistryFindEntry(context->ProcessRegistry.Instance, processId);
+
+    if (record == NULL)
+    {
+        WdfSpinLockRelease(context->ProcessRegistry.Lock);
+
+        DbgPrint("Process query for unknown process\n");
+
+        WdfRequestComplete(Request, STATUS_INVALID_HANDLE);
+
+        return;
+    }
+
+    //
+    // Definitively validate output buffer.
+    //
+
+    auto requiredLength = sizeof(ST_QUERY_PROCESS_RESPONSE)
+        - RTL_FIELD_SIZE(ST_QUERY_PROCESS_RESPONSE, ImageName)
+        + record->ImageName.Length;
+
+    if (bufferLength < requiredLength)
+    {
+        WdfSpinLockRelease(context->ProcessRegistry.Lock);
+
+        DbgPrint("Output buffer is too small\n");
+
+        WdfRequestComplete(Request, STATUS_BUFFER_TOO_SMALL);
+
+        return;
+    }
+
+    //
+    // Copy data and release lock.
+    //
+
+    auto response = (ST_QUERY_PROCESS_RESPONSE *)buffer;
+
+    response->ProcessId = record->ProcessId;
+    response->ParentProcessId = record->ParentProcessId;
+    response->Split = (record->Split == ST_PROCESS_SPLIT_STATUS_ON ? TRUE : FALSE);
+    response->ImageNameLength = record->ImageName.Length;
+
+    RtlCopyMemory(&response->ImageName, record->ImageName.Buffer, record->ImageName.Length);
+
+    WdfSpinLockRelease(context->ProcessRegistry.Lock);
+
+    //
+    // Complete request.
+    //
+
+    WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, requiredLength);
 }
 
 } // extern "C"

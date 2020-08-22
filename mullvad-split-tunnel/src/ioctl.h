@@ -71,4 +71,10 @@ StIoControlGetStateComplete
     WDFREQUEST Request
 );
 
+void
+StIoControlQueryProcessComplete
+(
+    WDFREQUEST Request
+);
+
 } // extern "C"
