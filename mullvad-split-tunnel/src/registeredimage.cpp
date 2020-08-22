@@ -59,7 +59,14 @@ StRegisteredImageFindEntryExact
 			continue;
 		}
 
-		if (0 == RtlCompareMemory(candidate->ImageName.Buffer, ImageName->Buffer, ImageName->Length))
+		const auto equalBytes = RtlCompareMemory
+		(
+			candidate->ImageName.Buffer,
+			ImageName->Buffer,
+			ImageName->Length
+		);
+
+		if (equalBytes == ImageName->Length)
 		{
 			return candidate;
 		}
