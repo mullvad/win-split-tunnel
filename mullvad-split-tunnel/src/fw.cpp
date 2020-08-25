@@ -45,6 +45,32 @@ DEFINE_GUID(ST_FW_BIND_CALLOUT_IPV6_KEY,
 DEFINE_GUID(ST_FW_BIND_FILTER_IPV6_KEY,
 	0x2f607222, 0xb2eb, 0x443c, 0xb6, 0xe0, 0x64, 0x10, 0x67, 0x37, 0x54, 0x78);
 
+// {33F3EDCC-EB5E-41CF-9250-702C94A28E39}
+DEFINE_GUID(ST_FW_CONNECT_CALLOUT_IPV4_KEY,
+	0x33f3edcc, 0xeb5e, 0x41cf, 0x92, 0x50, 0x70, 0x2c, 0x94, 0xa2, 0x8e, 0x39);
+
+// {66CED079-C270-4B4D-A45C-D11711C0D600}
+DEFINE_GUID(ST_FW_CONNECT_FILTER_IPV4_KEY,
+	0x66ced079, 0xc270, 0x4b4d, 0xa4, 0x5c, 0xd1, 0x17, 0x11, 0xc0, 0xd6, 0x0);
+
+// {7B7E0055-89F5-4760-8928-CCD57C8830AB}
+DEFINE_GUID(ST_FW_CONNECT_CALLOUT_IPV6_KEY,
+	0x7b7e0055, 0x89f5, 0x4760, 0x89, 0x28, 0xcc, 0xd5, 0x7c, 0x88, 0x30, 0xab);
+
+// {0AFA08E3-B010-4082-9E03-1CC4BE1C6CF8}
+DEFINE_GUID(ST_FW_CONNECT_FILTER_IPV6_KEY,
+	0xafa08e3, 0xb010, 0x4082, 0x9e, 0x3, 0x1c, 0xc4, 0xbe, 0x1c, 0x6c, 0xf8);
+
+
+DEFINE_GUID(ST_FW_WINFW_BASELINE_SUBLAYER_KEY,
+	0xc78056ff, 0x2bc1, 0x4211, 0xaa, 0xdd, 0x7f, 0x35, 0x8d, 0xef, 0x20, 0x2d);
+
+DEFINE_GUID(ST_FW_WINFW_DNS_SUBLAYER_KEY,
+	0x60090787, 0xcca1, 0x4937, 0xaa, 0xce, 0x51, 0x25, 0x6e, 0xf4, 0x81, 0xf3);
+
+
+
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Disallow process tunnel traffic.
@@ -108,6 +134,7 @@ typedef struct tag_ST_FW_CONTEXT
 {
 	bool Initialized;
 
+	// TODO: Rename if this is meant to cover the connect filter as well.
 	bool BindRedirectFilterPresent;
 
 	ST_FW_CALLBACKS Callbacks;
@@ -468,6 +495,8 @@ StFwCalloutClassifyBind
 		// This requires a notification system in the part of the
 		// driver that evaluates arriving processes.
 		//
+		// FwpsPendClassify0()
+		//
 
 		DbgPrint("Bind redirect callout invoked for unknown process\n");
 	}
@@ -476,7 +505,7 @@ StFwCalloutClassifyBind
 }
 
 //
-// StFwRegisterBindRedirectCalloutInSession()
+// StFwRegisterBindRedirectCalloutTx()
 //
 // Register callout with WFP. No filters at this point.
 //
@@ -565,7 +594,7 @@ StFwRegisterBindRedirectCalloutTx
 }
 
 //
-// StFwRegisterBindRedirectFilterInSession()
+// StFwRegisterBindRedirectFilterTx()
 //
 // Register WFP filters that will pass all bind requests through the bind callout
 // for validation/redirection.
@@ -661,6 +690,286 @@ StFwRemoveBindRedirectFilterTx
 	return STATUS_SUCCESS;
 }
 
+//
+// StFwCalloutClassifyConnect()
+//
+// For processes being split, the bind will have already been moved off the
+// tunnel interface. So now it's only a matter of approving the connection.
+//
+void
+StFwCalloutClassifyConnect
+(
+	const FWPS_INCOMING_VALUES0 *FixedValues,
+	const FWPS_INCOMING_METADATA_VALUES0 *MetaValues,
+	void *LayerData,
+	const void *ClassifyContext,
+	const FWPS_FILTER1 *Filter,
+	UINT64 FlowContext,
+	FWPS_CLASSIFY_OUT0 *ClassifyOut
+)
+{
+	UNREFERENCED_PARAMETER(LayerData);
+	UNREFERENCED_PARAMETER(ClassifyContext);
+	UNREFERENCED_PARAMETER(Filter);
+	UNREFERENCED_PARAMETER(FlowContext);
+
+	NT_ASSERT
+	(
+		FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V4
+			|| FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V6
+	);
+
+	if (0 == (ClassifyOut->rights & FWPS_RIGHT_ACTION_WRITE))
+	{
+		DbgPrint("Aborting connection processing because hard permit/block already applied\n");
+
+		return;
+	}
+
+	const ST_FW_CALLBACKS &callbacks = g_FwContext.Callbacks;
+
+	void *operationContext;
+
+	if (!callbacks.AcquireOperationLock(callbacks.Context, &operationContext))
+	{
+		return;
+	}
+
+	const auto verdict = callbacks.QueryProcess(HANDLE(MetaValues->processId), callbacks.Context);
+
+	if (verdict == ST_FW_PROCESS_SPLIT_VERDICT_DO_SPLIT)
+	{
+		DbgPrint("APPROVING CONNECTION\n");
+
+		ClassifyOut->actionType = FWP_ACTION_PERMIT;
+		ClassifyOut->flags &= ~FWPS_RIGHT_ACTION_WRITE;
+	}
+	else
+	{
+		ClassifyOut->actionType = FWP_ACTION_CONTINUE;
+	}
+
+	callbacks.ReleaseOperationLock(callbacks.Context, operationContext);
+}
+
+//
+// StFwRegisterConnectCalloutTx()
+//
+// Register callout with WFP. No filters at this point.
+//
+// "Tx" (in transaction) suffix means there is no clean-up in failure paths.
+//
+NTSTATUS
+StFwRegisterConnectCalloutTx
+(
+	PDEVICE_OBJECT DeviceObject,
+	HANDLE session
+)
+{
+	//
+	// Register actual callout with WFP.
+	//
+
+    FWPS_CALLOUT1 aCallout = { 0 };
+
+    aCallout.calloutKey = ST_FW_CONNECT_CALLOUT_IPV4_KEY;
+    aCallout.classifyFn = StFwCalloutClassifyConnect;
+    aCallout.notifyFn = StFwDummyCalloutNotify;
+    aCallout.flowDeleteFn = NULL;
+
+    auto status = FwpsCalloutRegister1(DeviceObject, &aCallout, NULL);
+
+    if (!NT_SUCCESS(status))
+    {
+		return status;
+	}
+
+	//
+	// Again, for IPv6 also.
+	//
+
+    aCallout.calloutKey = ST_FW_CONNECT_CALLOUT_IPV6_KEY;
+
+    status = FwpsCalloutRegister1(DeviceObject, &aCallout, NULL);
+
+    if (!NT_SUCCESS(status))
+    {
+		return status;
+	}
+
+	//
+	// Register callout entity with WFP.
+	//
+
+	FWPM_CALLOUT0 callout;
+
+	RtlZeroMemory(&callout, sizeof(callout));
+
+	const auto CalloutName = L"Mullvad Split Tunnel Connect Callout (IPv4)";
+	const auto CalloutDescription = L"Approves selected connection attempts outside the tunnel";
+
+	callout.calloutKey = ST_FW_CONNECT_CALLOUT_IPV4_KEY;
+	callout.displayData.name = const_cast<wchar_t *>(CalloutName);
+	callout.displayData.description = const_cast<wchar_t *>(CalloutDescription);
+	callout.providerKey = const_cast<GUID *>(&ST_FW_PROVIDER_KEY);
+	callout.applicableLayer = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
+
+	status = FwpmCalloutAdd0(session, &callout, NULL, NULL);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	//
+	// Again, for IPv6 also.
+	//
+
+	const auto CalloutNameIpv6 = L"Mullvad Split Tunnel Connect Callout (IPv6)";
+
+	callout.calloutKey = ST_FW_CONNECT_CALLOUT_IPV6_KEY;
+	callout.displayData.name = const_cast<wchar_t *>(CalloutNameIpv6);
+	callout.applicableLayer = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
+
+	status = FwpmCalloutAdd0(session, &callout, NULL, NULL);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	return STATUS_SUCCESS;
+}
+
+//
+// StFwRegisterConnectFilterTx()
+//
+// Register WFP filters that will pass all connection attempts through the
+// connection callout for validation.
+//
+// "Tx" (in transaction) suffix means there is no clean-up in failure paths.
+//
+NTSTATUS
+StFwRegisterConnectFilterTx
+(
+	HANDLE session
+)
+{
+	//
+	// Create filter that references callout.
+	// Not specifying any conditions makes it apply to all traffic.
+	//
+
+	FWPM_FILTER0 filter = { 0 };
+
+	const auto FilterName = L"Mullvad Split Tunnel Connect Filter (IPv4)";
+	const auto FilterDescription = L"Approves selected connections outside the tunnel";
+
+	filter.filterKey = ST_FW_CONNECT_FILTER_IPV4_KEY;
+	filter.displayData.name = const_cast<wchar_t*>(FilterName);
+	filter.displayData.description = const_cast<wchar_t*>(FilterDescription);
+	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
+	filter.subLayerKey = ST_FW_SUBLAYER_KEY;
+
+	static const UINT64 weight = MAXUINT64;
+
+	filter.weight.type = FWP_UINT64;
+	filter.weight.uint64 = const_cast<UINT64*>(&weight);
+
+	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
+	filter.action.calloutKey = ST_FW_CONNECT_CALLOUT_IPV4_KEY;
+
+	//
+	// also temp
+	//
+
+	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT;
+
+	// /temp
+
+	auto status = FwpmFilterAdd0(session, &filter, NULL, NULL);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	//
+	// Temp, add in all sublayers
+	//
+
+	//RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
+	//filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+
+	//status = FwpmFilterAdd0(session, &filter, NULL, NULL);
+
+	//if (!NT_SUCCESS(status))
+	//{
+	//	return status;
+	//}
+
+	//RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
+	//filter.subLayerKey = ST_FW_WINFW_DNS_SUBLAYER_KEY;
+
+	//status = FwpmFilterAdd0(session, &filter, NULL, NULL);
+
+	//if (!NT_SUCCESS(status))
+	//{
+	//	return status;
+	//}
+
+	//
+	// Again, for IPv6 also.
+	//
+
+	const auto FilterNameIpv6 = L"Mullvad Split Tunnel Connect Filter (IPv6)";
+
+	filter.filterKey = ST_FW_CONNECT_FILTER_IPV6_KEY;
+	filter.displayData.name = const_cast<wchar_t*>(FilterNameIpv6);
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
+	filter.action.calloutKey = ST_FW_CONNECT_CALLOUT_IPV6_KEY;
+
+	status = FwpmFilterAdd0(session, &filter, NULL, NULL);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	return STATUS_SUCCESS;
+}
+
+//
+// StFwRemoveConnectFilterTx()
+//
+// Remove WFP filters that activate the connect callout.
+//
+// "Tx" (in transaction) suffix means there is no clean-up in failure paths.
+//
+NTSTATUS
+StFwRemoveConnectFilterTx
+(
+	HANDLE session
+)
+{
+	auto status = FwpmFilterDeleteByKey0(session, &ST_FW_CONNECT_FILTER_IPV4_KEY);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	status = FwpmFilterDeleteByKey0(session, &ST_FW_CONNECT_FILTER_IPV6_KEY);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	return STATUS_SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Public functions.
@@ -708,6 +1017,13 @@ StFwInitialize
 	}
 
 	status = StFwRegisterBindRedirectCalloutTx(DeviceObject, g_FwContext.WfpSession);
+
+	if (!NT_SUCCESS(status))
+	{
+		goto Cleanup_session;
+	}
+
+	status = StFwRegisterConnectCalloutTx(DeviceObject, g_FwContext.WfpSession);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -791,6 +1107,13 @@ StFwActivate
 		goto Exit_abort;
 	}
 
+	status = StFwRegisterConnectFilterTx(g_FwContext.WfpSession);
+
+	if (!NT_SUCCESS(status))
+	{
+		goto Exit_abort;
+	}
+
 	status = FwpmTransactionCommit0(g_FwContext.WfpSession);
 
 	if (!NT_SUCCESS(status))
@@ -840,6 +1163,13 @@ StFwPause()
 	}
 
 	status = StFwRemoveBindRedirectFilterTx(g_FwContext.WfpSession);
+
+	if (!NT_SUCCESS(status))
+	{
+		goto Exit_abort;
+	}
+
+	status = StFwRemoveConnectFilterTx(g_FwContext.WfpSession);
 
 	if (!NT_SUCCESS(status))
 	{
