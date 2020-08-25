@@ -12,6 +12,14 @@
 
 #define ntohs(s) (((s & 0xFF) << 8) | ((s >> 8) & 0xFF))
 
+namespace
+{
+
+static const UINT64 MAX_FILTER_WEIGHT = MAXUINT64;
+static const UINT64 HIGH_FILTER_WEIGHT = MAXUINT64 - 10;
+
+} // anonymous namespace
+
 extern "C"
 {
 
@@ -24,10 +32,6 @@ extern "C"
 // {E2C114EE-F32A-4264-A6CB-3FA7996356D9}
 DEFINE_GUID(ST_FW_PROVIDER_KEY,
 	0xe2c114ee, 0xf32a, 0x4264, 0xa6, 0xcb, 0x3f, 0xa7, 0x99, 0x63, 0x56, 0xd9);
-
-// {4EA5457E-314F-4145-9D21-621029F942F5}
-DEFINE_GUID(ST_FW_SUBLAYER_KEY,
-	0x4ea5457e, 0x314f, 0x4145, 0x9d, 0x21, 0x62, 0x10, 0x29, 0xf9, 0x42, 0xf5);
 
 // {76653805-1972-45D1-B47C-3140AEBABC49}
 DEFINE_GUID(ST_FW_BIND_CALLOUT_IPV4_KEY,
@@ -61,15 +65,13 @@ DEFINE_GUID(ST_FW_CONNECT_CALLOUT_IPV6_KEY,
 DEFINE_GUID(ST_FW_CONNECT_FILTER_IPV6_KEY,
 	0xafa08e3, 0xb010, 0x4082, 0x9e, 0x3, 0x1c, 0xc4, 0xbe, 0x1c, 0x6c, 0xf8);
 
-
+//
+// This sublayer is defined and registered by `winfw`.
+// We're going to reuse it to avoid having different sublayers fight over
+// whether something should be blocked or permitted.
+//
 DEFINE_GUID(ST_FW_WINFW_BASELINE_SUBLAYER_KEY,
 	0xc78056ff, 0x2bc1, 0x4211, 0xaa, 0xdd, 0x7f, 0x35, 0x8d, 0xef, 0x20, 0x2d);
-
-DEFINE_GUID(ST_FW_WINFW_DNS_SUBLAYER_KEY,
-	0x60090787, 0xcca1, 0x4937, 0xaa, 0xce, 0x51, 0x25, 0x6e, 0xf4, 0x81, 0xf3);
-
-
-
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -215,27 +217,18 @@ StFwConfigureWfpTx
 	}
 
 	//
-	// We need our own sublayer with max weight.
-	// So we can override blocks from filters in lower-weighted sublayers.
+	// Adding a specific sublayer for split tunneling is futile unless a hard permit
+	// applied by the connect callout overrides filters registered by winfw
+	// - which it won't.
 	//
-
-	FWPM_SUBLAYER0 sublayer = { 0 };
-
-	const auto SublayerName = L"Mullvad Split Tunnel Sublayer";
-	const auto SublayerDescription = L"Callout filters and misc filters for split tunneling";
-
-	sublayer.subLayerKey = ST_FW_SUBLAYER_KEY;
-	sublayer.displayData.name = const_cast<wchar_t*>(SublayerName);
-	sublayer.displayData.description = const_cast<wchar_t*>(SublayerDescription);
-	sublayer.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
-	sublayer.weight = MAXUINT16;
-
-	status = FwpmSubLayerAdd0(session, &sublayer, NULL);
-
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
+	// A hard permit applied by a callout doesn't seem to be respected at all.
+	//
+	// Using a plain filter with no callout, it's possible to sometimes make
+	// a hard permit override a lower-weighted block, but it's not entirely consistent.
+	//
+	// And even then, it's not applicable to what we're doing since the logic
+	// applied here cannot be expressed using a plain filter.
+	//
 
 	return STATUS_SUCCESS;
 }
@@ -244,7 +237,6 @@ StFwConfigureWfpTx
 // StFwDummyCalloutNotify()
 //
 // Receive notifications about filters attaching/detaching the callout.
-// Yawn.
 //
 NTSTATUS
 StFwDummyCalloutNotify
@@ -622,12 +614,11 @@ StFwRegisterBindRedirectFilterTx
 	filter.displayData.description = const_cast<wchar_t*>(FilterDescription);
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_BIND_REDIRECT_V4;
-	filter.subLayerKey = ST_FW_SUBLAYER_KEY;
-
-	static const UINT64 weight = MAXUINT64;
+	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT;
 
 	filter.weight.type = FWP_UINT64;
-	filter.weight.uint64 = const_cast<UINT64*>(&weight);
+	filter.weight.uint64 = const_cast<UINT64*>(&MAX_FILTER_WEIGHT);
 
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 	filter.action.calloutKey = ST_FW_BIND_CALLOUT_IPV4_KEY;
@@ -806,7 +797,7 @@ StFwRegisterConnectCalloutTx
 	RtlZeroMemory(&callout, sizeof(callout));
 
 	const auto CalloutName = L"Mullvad Split Tunnel Connect Callout (IPv4)";
-	const auto CalloutDescription = L"Approves selected connection attempts outside the tunnel";
+	const auto CalloutDescription = L"Approves selected connections outside the tunnel";
 
 	callout.calloutKey = ST_FW_CONNECT_CALLOUT_IPV4_KEY;
 	callout.displayData.name = const_cast<wchar_t *>(CalloutName);
@@ -870,23 +861,14 @@ StFwRegisterConnectFilterTx
 	filter.displayData.description = const_cast<wchar_t*>(FilterDescription);
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
-	filter.subLayerKey = ST_FW_SUBLAYER_KEY;
-
-	static const UINT64 weight = MAXUINT64;
+	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT;
 
 	filter.weight.type = FWP_UINT64;
-	filter.weight.uint64 = const_cast<UINT64*>(&weight);
+	filter.weight.uint64 = const_cast<UINT64*>(&HIGH_FILTER_WEIGHT);
 
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 	filter.action.calloutKey = ST_FW_CONNECT_CALLOUT_IPV4_KEY;
-
-	//
-	// also temp
-	//
-
-	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT;
-
-	// /temp
 
 	auto status = FwpmFilterAdd0(session, &filter, NULL, NULL);
 
@@ -894,30 +876,6 @@ StFwRegisterConnectFilterTx
 	{
 		return status;
 	}
-
-	//
-	// Temp, add in all sublayers
-	//
-
-	//RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
-	//filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
-
-	//status = FwpmFilterAdd0(session, &filter, NULL, NULL);
-
-	//if (!NT_SUCCESS(status))
-	//{
-	//	return status;
-	//}
-
-	//RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
-	//filter.subLayerKey = ST_FW_WINFW_DNS_SUBLAYER_KEY;
-
-	//status = FwpmFilterAdd0(session, &filter, NULL, NULL);
-
-	//if (!NT_SUCCESS(status))
-	//{
-	//	return status;
-	//}
 
 	//
 	// Again, for IPv6 also.
