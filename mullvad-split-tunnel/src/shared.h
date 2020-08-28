@@ -18,6 +18,9 @@ ST_DRIVER_STATE_MGMT;
 
 typedef struct tag_ST_PROCESS_EVENT_MGMT
 {
+	// Acquire lock externally to pause the subsystem.
+	WDFWAITLOCK SubsystemLock;
+
 	// Pended IOCTL requests for inverted call.
 	WDFQUEUE NotificationQueue;
 
