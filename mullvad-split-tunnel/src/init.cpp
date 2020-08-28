@@ -75,10 +75,7 @@ StInitializeProcessRegistryMgmt
     {
         DbgPrint("WdfSpinLockCreate() failed 0x%X\n", status);
 
-        Data->Lock = NULL;
-        Data->Instance = NULL;
-
-        return status;
+        goto Abort;
     }
 
     status = StProcessRegistryCreate(&Data->Instance, ST_PAGEABLE::NO);
@@ -87,11 +84,19 @@ StInitializeProcessRegistryMgmt
     {
         DbgPrint("StProcessRegistryCreate() failed 0x%X\n", status);
 
-        WdfObjectDelete(Data->Lock);
-
-        Data->Lock = NULL;
-        Data->Instance = NULL;
+        goto Abort_Delete_Lock;
     }
+
+    return status;
+
+Abort_Delete_Lock:
+
+    WdfObjectDelete(Data->Lock);
+
+Abort:
+
+    Data->Lock = NULL;
+    Data->Instance = NULL;
 
     return status;
 }
