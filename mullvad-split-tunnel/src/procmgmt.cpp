@@ -405,6 +405,8 @@ StProcessManagementThread
         // Process all available records.
         //
 
+        WdfWaitLockAcquire(context->OperationLock, NULL);
+
         LIST_ENTRY *record;
 
         while ((record = RemoveHeadList(&queue)) != &queue)
@@ -413,6 +415,8 @@ StProcessManagementThread
 
             ExFreePoolWithTag(record, ST_POOL_TAG);
         }
+
+        WdfWaitLockRelease(context->OperationLock);
     }
 }
 

@@ -132,6 +132,7 @@ StInitializeProcessEventMgmt
     // Clean-up code needs this in case there is an error half-way through.
     //
 
+    Context->OperationLock = NULL;
     Context->NotificationQueue = NULL;
     Context->Thread = NULL;
     Context->Lock = NULL;
@@ -145,6 +146,15 @@ StInitializeProcessEventMgmt
     // Now initialize specific fields.
     //
 
+    auto status = WdfWaitLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &Context->OperationLock);
+
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint("WdfWaitLockCreate() failed 0x%X\n", status);
+
+        return status;
+    }
+
     WDF_IO_QUEUE_CONFIG queueConfig;
 
     WDF_IO_QUEUE_CONFIG_INIT
@@ -155,7 +165,7 @@ StInitializeProcessEventMgmt
 
     queueConfig.PowerManaged = WdfFalse;
 
-    auto status = WdfIoQueueCreate
+    status = WdfIoQueueCreate
     (
         WdfDevice,
         &queueConfig,
@@ -167,7 +177,7 @@ StInitializeProcessEventMgmt
     {
         DbgPrint("WdfIoQueueCreate() failed 0x%X\n", status);
 
-        return status;
+        goto Cleanup;
     }
 
     status = WdfWaitLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &Context->Lock);
@@ -272,7 +282,12 @@ Cleanup:
         WdfObjectDelete(Context->Lock);
     }
 
-    WdfObjectDelete(Context->NotificationQueue);
+    if (Context->NotificationQueue != NULL)
+    {
+        WdfObjectDelete(Context->NotificationQueue);
+    }
+
+    WdfObjectDelete(Context->OperationLock);
 
     return status;
 }
@@ -329,6 +344,8 @@ StDestroyProcessEventMgmt
     WdfObjectDelete(Context->Lock);
 
     WdfObjectDelete(Context->NotificationQueue);
+
+    WdfObjectDelete(Context->OperationLock);
 }
 
 NTSTATUS
