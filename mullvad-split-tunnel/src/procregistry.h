@@ -55,6 +55,11 @@ typedef struct tag_ST_PROCESS_REGISTRY_ENTRY
 	//
 	// And we don't even need to store the parent PID.
 	//
+	// Update: The above idea is too resource intensive.
+	//
+	// Instead, any time a process departs, we update the parent PID on any children
+	// to correspond to the PID of the grandparent.
+	//
 }
 ST_PROCESS_REGISTRY_ENTRY;
 
