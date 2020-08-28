@@ -14,17 +14,6 @@ extern "C"
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-//
-// ST_FW_ACQUIRE_OPERATION_LOCK
-//
-// Accepts a general context that client code will use for orientation.
-// This is passed from client code back into client code.
-//
-// Returns a specific context for the current operation.
-//
-typedef bool (NTAPI *ST_FW_ACQUIRE_OPERATION_LOCK)(void *Context, void **DerivedContext);
-typedef void (NTAPI *ST_FW_RELEASE_OPERATION_LOCK)(void *Context, void *DerivedContext);
-
 enum ST_FW_PROCESS_SPLIT_VERDICT
 {
 	ST_FW_PROCESS_SPLIT_VERDICT_DO_SPLIT,
@@ -44,8 +33,6 @@ ST_FW_PROCESS_SPLIT_VERDICT
 
 typedef struct tag_ST_FW_CALLBACKS
 {
-	ST_FW_ACQUIRE_OPERATION_LOCK AcquireOperationLock;
-	ST_FW_RELEASE_OPERATION_LOCK ReleaseOperationLock;
 	ST_FW_QUERY_PROCESS QueryProcess;
 	void *Context;
 }
@@ -70,14 +57,20 @@ StFwTearDown
 );
 
 NTSTATUS
-StFwActivate
+StFwEnableSplitting
 (
 	ST_IP_ADDRESSES *IpAddresses
 );
 
 NTSTATUS
-StFwPause
+StFwDisableSplitting
 (
+);
+
+NTSTATUS
+StFwNotifyUpdatedIpAddresses
+(
+	ST_IP_ADDRESSES *IpAddresses
 );
 
 //

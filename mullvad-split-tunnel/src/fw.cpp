@@ -372,13 +372,6 @@ StFwCalloutClassifyBind
 
 	const ST_FW_CALLBACKS &callbacks = g_FwContext.Callbacks;
 
-	void *operationContext;
-
-	if (!callbacks.AcquireOperationLock(callbacks.Context, &operationContext))
-	{
-		return;
-	}
-
 	const auto verdict = callbacks.QueryProcess(HANDLE(MetaValues->processId), callbacks.Context);
 
 	if (verdict == ST_FW_PROCESS_SPLIT_VERDICT_DO_SPLIT)
@@ -406,8 +399,6 @@ StFwCalloutClassifyBind
 
 		DbgPrint("Bind redirect callout invoked for unknown process\n");
 	}
-
-	callbacks.ReleaseOperationLock(callbacks.Context, operationContext);
 }
 
 //
@@ -633,13 +624,6 @@ StFwCalloutClassifyConnect
 
 	const ST_FW_CALLBACKS &callbacks = g_FwContext.Callbacks;
 
-	void *operationContext;
-
-	if (!callbacks.AcquireOperationLock(callbacks.Context, &operationContext))
-	{
-		return;
-	}
-
 	const auto verdict = callbacks.QueryProcess(HANDLE(MetaValues->processId), callbacks.Context);
 
 	if (verdict == ST_FW_PROCESS_SPLIT_VERDICT_DO_SPLIT)
@@ -653,8 +637,6 @@ StFwCalloutClassifyConnect
 	{
 		ClassifyOut->actionType = FWP_ACTION_CONTINUE;
 	}
-
-	callbacks.ReleaseOperationLock(callbacks.Context, operationContext);
 }
 
 //
@@ -883,13 +865,6 @@ StFwCalloutBlockSplitApplication
 
 	const ST_FW_CALLBACKS &callbacks = g_FwContext.Callbacks;
 
-	void *operationContext;
-
-	if (!callbacks.AcquireOperationLock(callbacks.Context, &operationContext))
-	{
-		return;
-	}
-
 	const auto verdict = callbacks.QueryProcess(HANDLE(MetaValues->processId), callbacks.Context);
 
 	if (verdict == ST_FW_PROCESS_SPLIT_VERDICT_DO_SPLIT)
@@ -903,8 +878,6 @@ StFwCalloutBlockSplitApplication
 	{
 		ClassifyOut->actionType = FWP_ACTION_CONTINUE;
 	}
-
-	callbacks.ReleaseOperationLock(callbacks.Context, operationContext);
 }
 
 //
@@ -1263,7 +1236,7 @@ StFwTearDown
 }
 
 NTSTATUS
-StFwActivate
+StFwEnableSplitting
 (
 	ST_IP_ADDRESSES *IpAddresses
 )
@@ -1334,7 +1307,7 @@ Exit_abort:
 }
 
 NTSTATUS
-StFwPause()
+StFwDisableSplitting()
 {
 	NT_ASSERT(g_FwContext.Initialized);
 
@@ -1393,6 +1366,27 @@ Exit_abort:
 	}
 
 	return status;
+}
+
+NTSTATUS
+StFwNotifyUpdatedIpAddresses
+(
+	ST_IP_ADDRESSES *IpAddresses
+)
+{
+	NT_ASSERT(g_FwContext.Initialized);
+
+	ExAcquireFastMutex(&g_FwContext.IpAddresses.Lock);
+
+	g_FwContext.IpAddresses.Addresses = *IpAddresses;
+
+	ExReleaseFastMutex(&g_FwContext.IpAddresses.Lock);
+
+	//
+	// TODO: Recreate all blocking filters that reference IP addresses.
+	//
+
+	return STATUS_SUCCESS;
 }
 
 NTSTATUS

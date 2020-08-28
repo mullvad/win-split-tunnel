@@ -356,7 +356,7 @@ StCreateProcessNotifyRoutineEx
 
     InsertTailList(&context->ProcessEvent.EventRecords, &record->ListEntry);
 
-    if (context->DriverState.State >= ST_DRIVER_STATE_READY)
+    if (context->DriverState >= ST_DRIVER_STATE_READY)
     {
         KeSetEvent(&context->ProcessEvent.IncomingRecord, 0, FALSE);
     }

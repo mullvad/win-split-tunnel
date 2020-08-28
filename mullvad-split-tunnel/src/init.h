@@ -44,16 +44,4 @@ StDestroyProcessEventMgmt
     ST_PROCESS_EVENT_MGMT *Data
 );
 
-NTSTATUS
-StInitializeIpAddressMgmt
-(
-    ST_IP_ADDRESS_MGMT *Data
-);
-
-void
-StDestroyIpAddressMgmt
-(
-    ST_IP_ADDRESS_MGMT *Data
-);
-
 } // extern "C"

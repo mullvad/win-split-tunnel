@@ -348,41 +348,4 @@ StDestroyProcessEventMgmt
     WdfObjectDelete(Context->OperationLock);
 }
 
-NTSTATUS
-StInitializeIpAddressMgmt
-(
-    ST_IP_ADDRESS_MGMT *Data
-)
-{
-    RtlZeroMemory(&Data->Addresses, sizeof(Data->Addresses));
-
-    auto status = WdfSpinLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &Data->Lock);
-
-    if (!NT_SUCCESS(status))
-    {
-        DbgPrint("WdfSpinLockCreate() failed 0x%X\n", status);
-
-        Data->Lock = NULL;
-
-        // Fall through.
-    }
-
-    return status;
-}
-
-void
-StDestroyIpAddressMgmt
-(
-    ST_IP_ADDRESS_MGMT *Data
-)
-{
-    RtlZeroMemory(&Data->Addresses, sizeof(Data->Addresses));
-
-    if (Data->Lock != NULL)
-    {
-        WdfObjectDelete(Data->Lock);
-        Data->Lock = NULL;
-    }
-}
-
 } // extern "C"

@@ -208,47 +208,6 @@ GetConfigurationSerialize
     return true;
 }
 
-bool
-NTAPI
-StCbAcquireOperationLock
-(
-    void *RawContext,
-    void **DerivedContext
-)
-{
-    auto context = (ST_DEVICE_CONTEXT*)RawContext;
-
-    if (context->DriverState.State != ST_DRIVER_STATE_ENGAGED)
-    {
-        return false;
-    }
-
-    auto oldIrql = ExAcquireSpinLockShared(&context->DriverState.Lock);
-
-    if (context->DriverState.State != ST_DRIVER_STATE_ENGAGED)
-    {
-        ExReleaseSpinLockShared(&context->DriverState.Lock, oldIrql);
-
-        return false;
-    }
-
-    *DerivedContext = (void*)oldIrql;
-
-    return true;
-}
-
-void
-StCbReleaseOperationLock
-(
-    void *RawContext,
-    void *OperationContext
-)
-{
-    auto context = (ST_DEVICE_CONTEXT*)RawContext;
-
-    ExReleaseSpinLockShared(&context->DriverState.Lock, (KIRQL)(ULONG_PTR)OperationContext);
-}
-
 ST_FW_PROCESS_SPLIT_VERDICT
 StCbQueryProcess
 (
@@ -329,6 +288,11 @@ StIoControlInitialize()
 {
     auto context = DeviceGetSplitTunnelContext(g_Device);
 
+    //
+    // The context struct is cleared.
+    // Only state is set at this point.
+    //
+
     auto status = StInitializeRegisteredImageMgmt(&context->RegisteredImage);
 
     if (!NT_SUCCESS(status))
@@ -355,21 +319,8 @@ StIoControlInitialize()
         return status;
     }
 
-    status = StInitializeIpAddressMgmt(&context->IpAddresses);
-
-    if (!NT_SUCCESS(status))
-    {
-        StDestroyProcessEventMgmt(&context->ProcessEvent);
-        StDestroyProcessRegistryMgmt(&context->ProcessRegistry);
-        StDestroyRegisteredImageMgmt(&context->RegisteredImage);
-
-        return status;
-    }
-
     ST_FW_CALLBACKS callbacks;
 
-    callbacks.AcquireOperationLock = StCbAcquireOperationLock;
-    callbacks.ReleaseOperationLock = StCbReleaseOperationLock;
     callbacks.QueryProcess = StCbQueryProcess;
     callbacks.Context = context;
 
@@ -377,7 +328,6 @@ StIoControlInitialize()
 
     if (!NT_SUCCESS(status))
     {
-        StDestroyIpAddressMgmt(&context->IpAddresses);
         StDestroyProcessEventMgmt(&context->ProcessEvent);
         StDestroyProcessRegistryMgmt(&context->ProcessRegistry);
         StDestroyRegisteredImageMgmt(&context->RegisteredImage);
@@ -385,11 +335,7 @@ StIoControlInitialize()
         return status;
     }
 
-    //
-    // No locking necessary.
-    // This is still initialization.
-    //
-    context->DriverState.State = ST_DRIVER_STATE_INITIALIZED;
+    context->DriverState = ST_DRIVER_STATE_INITIALIZED;
 
     DbgPrint("Successfully processed IOCTL_ST_INITIALIZE\n");
 
@@ -491,8 +437,6 @@ StIoControlSetConfigurationPrepare
 // Store updated configuration and update process registry to reflect.
 // Evaluate prerequisites for engaged state.
 //
-// N.B. Upon entry, the state lock is held in exclusive mode.
-//
 NTSTATUS
 StIoControlSetConfiguration
 (
@@ -535,12 +479,8 @@ StIoControlSetConfiguration
     // Determine if we should update state.
     //
 
-    WdfSpinLockAcquire(context->IpAddresses.Lock);
-
-    *ShouldEngage = StHasInternetIpv4Address(&context->IpAddresses.Addresses)
-        && StHasTunnelIpv4Address(&context->IpAddresses.Addresses);
-
-    WdfSpinLockRelease(context->IpAddresses.Lock);
+    *ShouldEngage = StHasInternetIpv4Address(&context->IpAddresses)
+        && StHasTunnelIpv4Address(&context->IpAddresses);
 
     //
     // Finish off.
@@ -792,11 +732,7 @@ StIoControlRegisterProcesses
         }
     }
 
-    //
-    // No locking necessary.
-    // This is still initialization.
-    //
-    context->DriverState.State = ST_DRIVER_STATE_READY;
+    context->DriverState = ST_DRIVER_STATE_READY;
 
     DbgPrint("Successfully processed IOCTL_ST_REGISTER_PROCESSES\n");
 
@@ -808,8 +744,7 @@ StIoControlRegisterProcesses
 //
 // Store updated set of IP addresses.
 // Evaluate prerequisites for engaged state.
-//
-// N.B. Upon entry, the state lock is held in exclusive mode.
+
 //
 NTSTATUS
 StIoControlRegisterIpAddresses
@@ -842,14 +777,10 @@ StIoControlRegisterIpAddresses
 
     auto context = DeviceGetSplitTunnelContext(g_Device);
 
-    WdfSpinLockAcquire(context->IpAddresses.Lock);
+    RtlCopyMemory(&context->IpAddresses, buffer, sizeof(context->IpAddresses));
 
-    RtlCopyMemory(&context->IpAddresses.Addresses, buffer, sizeof(context->IpAddresses.Addresses));
-
-    const auto vpnActive = StHasInternetIpv4Address(&context->IpAddresses.Addresses)
-        && StHasTunnelIpv4Address(&context->IpAddresses.Addresses);
-
-    WdfSpinLockRelease(context->IpAddresses.Lock);
+    const auto vpnActive = StHasInternetIpv4Address(&context->IpAddresses)
+        && StHasTunnelIpv4Address(&context->IpAddresses);
 
     //
     // Evaluate whether we should enter the engaged state.
@@ -906,11 +837,7 @@ StIoControlGetIpAddressesComplete
 
     auto context = DeviceGetSplitTunnelContext(g_Device);
 
-    WdfSpinLockAcquire(context->IpAddresses.Lock);
-
     RtlCopyMemory(buffer, &context->IpAddresses, sizeof(context->IpAddresses));
-
-    WdfSpinLockRelease(context->IpAddresses.Lock);
 
     //
     // Finish up.
@@ -946,10 +873,7 @@ StIoControlGetStateComplete
 
     auto context = DeviceGetSplitTunnelContext(g_Device);
 
-    //
-    // No locking, just sample the state.
-    //
-    *(SIZE_T*)buffer = context->DriverState.State;
+    *(SIZE_T*)buffer = context->DriverState;
 
     WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, sizeof(SIZE_T));
 }

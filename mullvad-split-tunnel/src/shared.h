@@ -9,13 +9,6 @@
 // Structures etc that are shared between components
 //
 
-typedef struct tag_ST_DRIVER_STATE_MGMT
-{
-	EX_SPIN_LOCK Lock;
-	ST_DRIVER_STATE State;
-}
-ST_DRIVER_STATE_MGMT;
-
 typedef struct tag_ST_PROCESS_EVENT_MGMT
 {
 	// Acquire lock externally to pause the worker thread.
@@ -55,24 +48,18 @@ typedef struct tag_ST_PROCESS_REGISTRY_MGMT
 }
 ST_PROCESS_REGISTRY_MGMT;
 
-typedef struct tag_ST_IP_ADDRESS_MGMT
-{
-	WDFSPINLOCK Lock;
-	ST_IP_ADDRESSES Addresses;
-}
-ST_IP_ADDRESS_MGMT;
-
 typedef struct tag_ST_DEVICE_CONTEXT
 {
-	ST_DRIVER_STATE_MGMT DriverState;
+	ST_DRIVER_STATE DriverState;
 
 	// Serialized queue for processing of most IOCTLs.
 	WDFQUEUE IoCtlQueue;
 
+	ST_IP_ADDRESSES IpAddresses;
+
 	ST_REGISTERED_IMAGE_MGMT RegisteredImage;
 	ST_PROCESS_REGISTRY_MGMT ProcessRegistry;
 	ST_PROCESS_EVENT_MGMT ProcessEvent;
-	ST_IP_ADDRESS_MGMT IpAddresses;
 }
 ST_DEVICE_CONTEXT;
 

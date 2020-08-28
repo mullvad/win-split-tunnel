@@ -129,8 +129,9 @@ DriverEntry
 
     auto context = DeviceGetSplitTunnelContext(g_Device);
 
-    context->DriverState.Lock = 0;
-    context->DriverState.State = ST_DRIVER_STATE_STARTED;
+    RtlZeroMemory(context, sizeof(*context));
+
+    context->DriverState = ST_DRIVER_STATE_STARTED;
 
     //
     // All set.
@@ -370,10 +371,8 @@ StEvtIoDeviceControl
 
     if (IoControlCode == IOCTL_ST_DEQUEUE_EVENT)
     {
-        auto oldIrql = ExAcquireSpinLockShared(&context->DriverState.Lock);
-
-        if (context->DriverState.State >= ST_DRIVER_STATE_INITIALIZED
-            && context->DriverState.State < ST_DRIVER_STATE_TERMINATING)
+        if (context->DriverState >= ST_DRIVER_STATE_INITIALIZED
+            && context->DriverState < ST_DRIVER_STATE_TERMINATING)
         {
             StDequeueEventComplete(Request);
         }
@@ -383,8 +382,6 @@ StEvtIoDeviceControl
 
             WdfRequestComplete(Request, STATUS_INVALID_DEVICE_REQUEST);
         }
-
-        ExReleaseSpinLockShared(&context->DriverState.Lock, oldIrql);
 
         return;
     }
@@ -408,106 +405,98 @@ StEvtIoDeviceControl
 //
 // StUpdateState()
 //
-// Update state (READY -> ENGAGED and vice versa) according to argument `ShouldEngage`.
-// State lock is held exclusively when called, and lock ownership is passed to this function.
+// Toggle between READY -> ENGAGED.
 //
 NTSTATUS
 StUpdateState
 (
     ST_DEVICE_CONTEXT *Context,
-    bool ShouldEngage,
-    KIRQL OldIrql
+    bool ShouldEngage
 )
 {
-    NT_ASSERT((Context->DriverState.State == ST_DRIVER_STATE_READY)
-        || (Context->DriverState.State == ST_DRIVER_STATE_ENGAGED));
-
-    //
-    // Abort if current state is same as target state.
-    //
-
-    if ((ShouldEngage && Context->DriverState.State == ST_DRIVER_STATE_ENGAGED)
-        || (!ShouldEngage && Context->DriverState.State == ST_DRIVER_STATE_READY))
-    {
-        ExReleaseSpinLockExclusive(&Context->DriverState.Lock, OldIrql);
-
-        DbgPrint("Not updating state - target state is already active\n");
-
-        //
-        // TODO: Change the code to be smarter/better.
-        // We have to notify the fw module about potentially updated IP addresses.
-        //
-        // Don't need to check the return value for this hack.
-        // The fw module only stores the addresses if already engaged.
-        //
-
-        if (Context->DriverState.State == ST_DRIVER_STATE_ENGAGED)
-        {
-            StFwActivate(&Context->IpAddresses.Addresses);
-        }
-
-        return STATUS_SUCCESS;
-    }
+    NT_ASSERT((Context->DriverState == ST_DRIVER_STATE_READY)
+        || (Context->DriverState == ST_DRIVER_STATE_ENGAGED));
 
     if (ShouldEngage)
     {
-        Context->DriverState.State = ST_DRIVER_STATE_ENGAGED;
-
-        ExReleaseSpinLockExclusive(&Context->DriverState.Lock, OldIrql);
-
-        //
-        // It's safe to not lock the IP addresses structure here.
-        // Because there are no other writers.
-        //
-
-        const auto status = StFwActivate(&Context->IpAddresses.Addresses);
-
-        if (NT_SUCCESS(status))
+        if (Context->DriverState == ST_DRIVER_STATE_ENGAGED)
         {
-            DbgPrint("Successfully transitioned into engaged state\n");
+            //
+            // ENAGED -> ENGAGED
+            // Update IP addresses so firewall module can rewrite affected filters.
+            //
+            // TODO: Don't need to call into the firewall module in case
+            // only the configuration has changed.
+            //
+
+            auto status = StFwNotifyUpdatedIpAddresses(&Context->IpAddresses);
+
+            if (!NT_SUCCESS(status))
+            {
+                DbgPrint("Failed to enter engaged state\n");
+                DbgPrint("StFwNotifyUpdatedIpAddresses() failed 0x%X\n", status);
+
+                return status;
+            }
 
             return STATUS_SUCCESS;
         }
+        else
+        {
+            //
+            // READY -> ENGAGED
+            //
 
-        DbgPrint("Failed to enter engaged state\n");
-        DbgPrint("StFwActivate() failed 0x%X\n", status);
+            auto status = StFwEnableSplitting(&Context->IpAddresses);
 
-        auto oldIrql = ExAcquireSpinLockExclusive(&Context->DriverState.Lock);
+            if (!NT_SUCCESS(status))
+            {
+                DbgPrint("Failed to enter engaged state\n");
+                DbgPrint("StFwEnableSplitting() failed 0x%X\n", status);
 
-        Context->DriverState.State = ST_DRIVER_STATE_READY;
+                return status;
+            }
 
-        ExReleaseSpinLockExclusive(&Context->DriverState.Lock, oldIrql);
+            DbgPrint("Successfully transitioned into engaged state\n");
 
-        return status;
+            Context->DriverState = ST_DRIVER_STATE_ENGAGED;
+
+            return STATUS_SUCCESS;
+        }
     }
-
-    //
-    // ENGAGED -> READY
-    //
-
-    Context->DriverState.State = ST_DRIVER_STATE_READY;
-
-    ExReleaseSpinLockExclusive(&Context->DriverState.Lock, OldIrql);
-
-    const auto status = StFwPause();
-
-    if (NT_SUCCESS(status))
+    else
     {
-        DbgPrint("Successfully left engaged state\n");
+        if (Context->DriverState == ST_DRIVER_STATE_READY)
+        {
+            //
+            // READY -> READY
+            //
 
-        return STATUS_SUCCESS;
+            return STATUS_SUCCESS;
+        }
+        else
+        {
+            //
+            // ENGAGED -> READY
+            //
+
+            const auto status = StFwDisableSplitting();
+
+            if (!NT_SUCCESS(status))
+            {
+                DbgPrint("Failed to leave engaged state\n");
+                DbgPrint("StFwDisableSplitting() failed 0x%X\n", status);
+
+                return status;
+            }
+
+            DbgPrint("Successfully left engaged state\n");
+
+            Context->DriverState = ST_DRIVER_STATE_READY;
+
+            return STATUS_SUCCESS;
+        }
     }
-
-    DbgPrint("Failed to leave engaged state\n");
-    DbgPrint("StFwPause() failed 0x%X\n", status);
-
-    auto oldIrql = ExAcquireSpinLockExclusive(&Context->DriverState.Lock);
-
-    Context->DriverState.State = ST_DRIVER_STATE_ENGAGED;
-
-    ExReleaseSpinLockExclusive(&Context->DriverState.Lock, oldIrql);
-
-    return status;
 }
 
 extern "C"
@@ -532,7 +521,7 @@ StEvtIoDeviceControlSerial
     // So there's never a need to acquire the state lock in shared mode.
     // 
 
-    switch (context->DriverState.State)
+    switch (context->DriverState)
     {
         case ST_DRIVER_STATE_STARTED:
         {
@@ -584,26 +573,18 @@ StEvtIoDeviceControlSerial
 
             if (IoControlCode == IOCTL_ST_REGISTER_IP_ADDRESSES)
             {
-                auto oldIrql = ExAcquireSpinLockExclusive(&context->DriverState.Lock);
-
                 bool shouldEngage = false;
 
                 auto status = StIoControlRegisterIpAddresses(Request, &shouldEngage);
 
                 if (!NT_SUCCESS(status))
                 {
-                    ExReleaseSpinLockExclusive(&context->DriverState.Lock, oldIrql);
-
                     WdfRequestComplete(Request, status);
 
                     return;
                 }
 
-                //
-                // Lock ownership is transferred here.
-                //
-
-                status = StUpdateState(context, shouldEngage, oldIrql);
+                status = StUpdateState(context, shouldEngage);
 
                 WdfRequestComplete(Request, status);
 
@@ -630,26 +611,18 @@ StEvtIoDeviceControlSerial
                     return;
                 }
 
-                auto oldIrql = ExAcquireSpinLockExclusive(&context->DriverState.Lock);
-
                 bool shouldEngage = false;
 
                 status = StIoControlSetConfiguration(imageset, &shouldEngage);
 
                 if (!NT_SUCCESS(status))
                 {
-                    ExReleaseSpinLockExclusive(&context->DriverState.Lock, oldIrql);
-
                     WdfRequestComplete(Request, status);
 
                     return;
                 }
 
-                //
-                // Lock ownership is transferred here.
-                //
-
-                status = StUpdateState(context, shouldEngage, oldIrql);
+                status = StUpdateState(context, shouldEngage);
 
                 WdfRequestComplete(Request, status);
 
@@ -665,21 +638,16 @@ StEvtIoDeviceControlSerial
 
             if (IoControlCode == IOCTL_ST_CLEAR_CONFIGURATION)
             {
-                //
-                // The updated state will always be READY.
-                // If either of the operations fail enforce the new state anyway.
-                //
+                auto status = StUpdateState(context, false);
 
-                auto oldIrql = ExAcquireSpinLockExclusive(&context->DriverState.Lock);
+                if (!NT_SUCCESS(status))
+                {
+                    WdfRequestComplete(Request, status);
 
-                context->DriverState.State = ST_DRIVER_STATE_READY;
+                    return;
+                }
 
-                ExReleaseSpinLockExclusive(&context->DriverState.Lock, oldIrql);
-
-                const auto status1 = StFwPause();
-                const auto status2 = StIoControlClearConfiguration();
-
-                const auto status = NT_SUCCESS(status1) && NT_SUCCESS(status2) ? STATUS_SUCCESS : status1;
+                status = StIoControlClearConfiguration();
 
                 WdfRequestComplete(Request, status);
 
