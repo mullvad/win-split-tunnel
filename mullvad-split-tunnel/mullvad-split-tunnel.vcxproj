@@ -254,6 +254,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\driverentry.cpp" />
+    <ClCompile Include="src\firewall\blocking.cpp" />
     <ClCompile Include="src\fw.cpp" />
     <ClCompile Include="src\globals.cpp" />
     <ClCompile Include="src\init.cpp" />
@@ -270,6 +271,9 @@
     <Inf Include="src\mullvad-split-tunnel.inf" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\firewall\blocking.h" />
+    <ClInclude Include="src\firewall\constants.h" />
+    <ClInclude Include="src\firewall\identifiers.h" />
     <ClInclude Include="src\fw.h" />
     <ClInclude Include="src\globals.h" />
     <ClInclude Include="src\init.h" />

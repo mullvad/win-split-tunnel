@@ -13,6 +13,9 @@
     <ClCompile Include="src\shared.cpp" />
     <ClCompile Include="src\fw.cpp" />
     <ClCompile Include="src\validation.cpp" />
+    <ClCompile Include="src\firewall\blocking.cpp">
+      <Filter>firewall</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="src\mullvad-split-tunnel.inf" />
@@ -31,5 +34,19 @@
     <ClInclude Include="src\fw.h" />
     <ClInclude Include="src\types.h" />
     <ClInclude Include="src\validation.h" />
+    <ClInclude Include="src\firewall\blocking.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="src\firewall\identifiers.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="src\firewall\constants.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="firewall">
+      <UniqueIdentifier>{928a5c2c-1bf7-4e3c-acc6-8ba6d886c732}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

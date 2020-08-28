@@ -2,6 +2,7 @@
 
 #include <wdm.h>
 #include "public.h"
+#include "types.h"
 
 extern "C"
 {
@@ -79,18 +80,24 @@ StFwPause
 (
 );
 
-////
-//// StFwDisallowProcessTunnelTraffic()
-////
-//// Register filters that block tunnel comms for a given PID.
-////
-//NTSTATUS
-//StFwDisallowProcessTunnelTraffic
-//(
-//	HANDLE ProcessId,
-//	UNICODE_STRING ImageName
-//);
 //
+// StFwBlockApplicationTunnelTraffic()
+//
+// Register filters that block tunnel comms for the specified application.
+//
+// A process id is not required, because it cannot be added as a condition
+// on the filters anyway.
+//
+// When the callouts involved are activated, they will use the process
+// callback to learn whether the PID making the current request is
+// split or not.
+//
+NTSTATUS
+StFwBlockApplicationTunnelTraffic
+(
+	LOWER_UNICODE_STRING *ImageName
+);
+
 //NTSTATUS
 //StFwRevertDisallowance
 //(

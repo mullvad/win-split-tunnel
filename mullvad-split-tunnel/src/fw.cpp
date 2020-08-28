@@ -9,109 +9,16 @@
 #include <fwpmk.h>
 #include <mstcpip.h>
 #include "fw.h"
+#include "firewall/identifiers.h"
+#include "firewall/constants.h"
+#include "firewall/blocking.h"
 
 #define ntohs(s) (((s & 0xFF) << 8) | ((s >> 8) & 0xFF))
 
-namespace
-{
-
-static const UINT64 MAX_FILTER_WEIGHT = MAXUINT64;
-static const UINT64 HIGH_FILTER_WEIGHT = MAXUINT64 - 10;
-
-} // anonymous namespace
 
 extern "C"
 {
 
-///////////////////////////////////////////////////////////////////////////////
-//
-// Identifiers used with WFP.
-//
-///////////////////////////////////////////////////////////////////////////////
-
-// {E2C114EE-F32A-4264-A6CB-3FA7996356D9}
-DEFINE_GUID(ST_FW_PROVIDER_KEY,
-	0xe2c114ee, 0xf32a, 0x4264, 0xa6, 0xcb, 0x3f, 0xa7, 0x99, 0x63, 0x56, 0xd9);
-
-// {76653805-1972-45D1-B47C-3140AEBABC49}
-DEFINE_GUID(ST_FW_BIND_CALLOUT_IPV4_KEY,
-	0x76653805, 0x1972, 0x45d1, 0xb4, 0x7c, 0x31, 0x40, 0xae, 0xba, 0xbc, 0x49);
-
-// {B47D14A7-AEED-48B9-AD4E-5529619F1337}
-DEFINE_GUID(ST_FW_BIND_FILTER_IPV4_KEY,
-	0xb47d14a7, 0xaeed, 0x48b9, 0xad, 0x4e, 0x55, 0x29, 0x61, 0x9f, 0x13, 0x37);
-
-// {53FB3120-B6A4-462B-BFFC-6978AADA1DA2}
-DEFINE_GUID(ST_FW_BIND_CALLOUT_IPV6_KEY,
-	0x53fb3120, 0xb6a4, 0x462b, 0xbf, 0xfc, 0x69, 0x78, 0xaa, 0xda, 0x1d, 0xa2);
-
-// {2F607222-B2EB-443C-B6E0-641067375478}
-DEFINE_GUID(ST_FW_BIND_FILTER_IPV6_KEY,
-	0x2f607222, 0xb2eb, 0x443c, 0xb6, 0xe0, 0x64, 0x10, 0x67, 0x37, 0x54, 0x78);
-
-// {33F3EDCC-EB5E-41CF-9250-702C94A28E39}
-DEFINE_GUID(ST_FW_CONNECT_CALLOUT_IPV4_KEY,
-	0x33f3edcc, 0xeb5e, 0x41cf, 0x92, 0x50, 0x70, 0x2c, 0x94, 0xa2, 0x8e, 0x39);
-
-// {66CED079-C270-4B4D-A45C-D11711C0D600}
-DEFINE_GUID(ST_FW_CONNECT_FILTER_IPV4_KEY,
-	0x66ced079, 0xc270, 0x4b4d, 0xa4, 0x5c, 0xd1, 0x17, 0x11, 0xc0, 0xd6, 0x0);
-
-// {7B7E0055-89F5-4760-8928-CCD57C8830AB}
-DEFINE_GUID(ST_FW_CONNECT_CALLOUT_IPV6_KEY,
-	0x7b7e0055, 0x89f5, 0x4760, 0x89, 0x28, 0xcc, 0xd5, 0x7c, 0x88, 0x30, 0xab);
-
-// {0AFA08E3-B010-4082-9E03-1CC4BE1C6CF8}
-DEFINE_GUID(ST_FW_CONNECT_FILTER_IPV6_KEY,
-	0xafa08e3, 0xb010, 0x4082, 0x9e, 0x3, 0x1c, 0xc4, 0xbe, 0x1c, 0x6c, 0xf8);
-
-//
-// This sublayer is defined and registered by `winfw`.
-// We're going to reuse it to avoid having different sublayers fight over
-// whether something should be blocked or permitted.
-//
-DEFINE_GUID(ST_FW_WINFW_BASELINE_SUBLAYER_KEY,
-	0xc78056ff, 0x2bc1, 0x4211, 0xaa, 0xdd, 0x7f, 0x35, 0x8d, 0xef, 0x20, 0x2d);
-
-///////////////////////////////////////////////////////////////////////////////
-//
-// Disallow process tunnel traffic.
-//
-// This is done to block pre-existing connections, that were established
-// before we started splitting traffic.
-//
-///////////////////////////////////////////////////////////////////////////////
-
-typedef struct tag_ST_FW_DISALLOW_TUNNEL_ENTRY
-{
-	LIST_ENTRY ListEntry;
-
-	//
-	// This is the PID that needs to be matched in a callout,
-	// since WFP doesn't support a PID filter.
-	//
-	HANDLE ProcessId;
-
-	//
-	// Physical path using all lower-case characters.
-	// Matches PID above and is used with WFP.
-	//
-	UNICODE_STRING ImageName;
-
-	//
-	// Does the path ^ need to be stored after filter registration?
-	//
-	// TODO: Add filter GUID or other WFP handles here
-	//
-}
-ST_FW_DISALLOW_TUNNEL_ENTRY;
-
-typedef struct tag_ST_FW_DISALLOW_TUNNEL_MGMT
-{
-	FAST_MUTEX Lock;
-	LIST_ENTRY ListEntry;
-}
-ST_FW_DISALLOW_TUNNEL_MGMT;
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -145,7 +52,11 @@ typedef struct tag_ST_FW_CONTEXT
 
 	ST_FW_IP_ADDRESSES_MGMT IpAddresses;
 
-	ST_FW_DISALLOW_TUNNEL_MGMT DisallowTunnel;
+	//
+	// Context used with the blocking subsystem.
+	//
+	void *BlockingContext;
+
 }
 ST_FW_CONTEXT;
 
@@ -156,6 +67,9 @@ ST_FW_CONTEXT g_FwContext = { 0 };
 // Private functions.
 //
 /////////////////////////////////////////////////////////////////////////////////
+
+
+
 
 NTSTATUS
 StFwCreateWfpSession
@@ -928,6 +842,315 @@ StFwRemoveConnectFilterTx
 	return STATUS_SUCCESS;
 }
 
+//
+// StFwCalloutBlockSplitApplication()
+//
+// For processes just now being split, it could be the case that they have existing
+// long-lived connections inside the tunnel.
+//
+// These connections need to be blocked to ensure the process exists on
+// only one side of the tunnel.
+//
+void
+StFwCalloutBlockSplitApplication
+(
+	const FWPS_INCOMING_VALUES0 *FixedValues,
+	const FWPS_INCOMING_METADATA_VALUES0 *MetaValues,
+	void *LayerData,
+	const void *ClassifyContext,
+	const FWPS_FILTER1 *Filter,
+	UINT64 FlowContext,
+	FWPS_CLASSIFY_OUT0 *ClassifyOut
+)
+{
+	UNREFERENCED_PARAMETER(LayerData);
+	UNREFERENCED_PARAMETER(ClassifyContext);
+	UNREFERENCED_PARAMETER(Filter);
+	UNREFERENCED_PARAMETER(FlowContext);
+
+	NT_ASSERT
+	(
+		FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V4
+			|| FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V6
+	);
+
+	if (0 == (ClassifyOut->rights & FWPS_RIGHT_ACTION_WRITE))
+	{
+		DbgPrint("Aborting connection processing because hard permit/block already applied\n");
+
+		return;
+	}
+
+	const ST_FW_CALLBACKS &callbacks = g_FwContext.Callbacks;
+
+	void *operationContext;
+
+	if (!callbacks.AcquireOperationLock(callbacks.Context, &operationContext))
+	{
+		return;
+	}
+
+	const auto verdict = callbacks.QueryProcess(HANDLE(MetaValues->processId), callbacks.Context);
+
+	if (verdict == ST_FW_PROCESS_SPLIT_VERDICT_DO_SPLIT)
+	{
+		DbgPrint("BLOCKING CONNECTION\n");
+
+		ClassifyOut->actionType = FWP_ACTION_BLOCK;
+		ClassifyOut->flags &= ~FWPS_RIGHT_ACTION_WRITE;
+	}
+	else
+	{
+		ClassifyOut->actionType = FWP_ACTION_CONTINUE;
+	}
+
+	callbacks.ReleaseOperationLock(callbacks.Context, operationContext);
+}
+
+//
+// StFwRegisterBlockSplitApplicationCalloutTx()
+//
+// Register callout with WFP. No filters at this point.
+//
+// "Tx" (in transaction) suffix means there is no clean-up in failure paths.
+//
+NTSTATUS
+StFwRegisterBlockSplitApplicationCalloutTx
+(
+	PDEVICE_OBJECT DeviceObject,
+	HANDLE session
+)
+{
+	//
+	// Register actual callout with WFP.
+	//
+
+    FWPS_CALLOUT1 aCallout = { 0 };
+
+    aCallout.calloutKey = ST_FW_BLOCK_SPLIT_APP_CALLOUT_IPV4_KEY;
+    aCallout.classifyFn = StFwCalloutClassifyConnect;
+    aCallout.notifyFn = StFwDummyCalloutNotify;
+    aCallout.flowDeleteFn = NULL;
+
+    auto status = FwpsCalloutRegister1(DeviceObject, &aCallout, NULL);
+
+    if (!NT_SUCCESS(status))
+    {
+		return status;
+	}
+
+	//
+	// Again, for IPv6 also.
+	//
+
+    aCallout.calloutKey = ST_FW_BLOCK_SPLIT_APP_CALLOUT_IPV6_KEY;
+
+    status = FwpsCalloutRegister1(DeviceObject, &aCallout, NULL);
+
+    if (!NT_SUCCESS(status))
+    {
+		return status;
+	}
+
+	//
+	// Register callout entity with WFP.
+	//
+
+	FWPM_CALLOUT0 callout;
+
+	RtlZeroMemory(&callout, sizeof(callout));
+
+	const auto CalloutName = L"Mullvad Split Tunnel Split Application Blocking Callout (IPv4)";
+	const auto CalloutDescription = L"Blocks connections made by applications being split";
+
+	callout.calloutKey = ST_FW_BLOCK_SPLIT_APP_CALLOUT_IPV4_KEY;
+	callout.displayData.name = const_cast<wchar_t *>(CalloutName);
+	callout.displayData.description = const_cast<wchar_t *>(CalloutDescription);
+	callout.providerKey = const_cast<GUID *>(&ST_FW_PROVIDER_KEY);
+	callout.applicableLayer = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
+
+	status = FwpmCalloutAdd0(session, &callout, NULL, NULL);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	//
+	// Again, for IPv6 also.
+	//
+
+	const auto CalloutNameIpv6 = L"Mullvad Split Tunnel Split Application Blocking Callout (IPv6)";
+
+	callout.calloutKey = ST_FW_BLOCK_SPLIT_APP_CALLOUT_IPV6_KEY;
+	callout.displayData.name = const_cast<wchar_t *>(CalloutNameIpv6);
+	callout.applicableLayer = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
+
+	status = FwpmCalloutAdd0(session, &callout, NULL, NULL);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	return STATUS_SUCCESS;
+}
+
+//
+// StFwRegisterBlockSplitApplicationFilterTx()
+//
+// Register WFP filters that will block connections in the tunnel from applications
+// being split.
+//
+// This is used to block existing connections inside the tunnel for applications that are 
+// just now being split.
+//
+// "Tx" (in transaction) suffix means there is no clean-up in failure paths.
+//
+NTSTATUS
+StFwRegisterBlockSplitApplicationFilterTx
+(
+	HANDLE session,
+	UNICODE_STRING *ImageName,
+	UINT64 *FilterIdV4,
+	UINT64 *FilterIdV6
+)
+{
+	//
+	// Create filters that reference callout.
+	//
+	// The conditions are:
+	//
+	// Imagename == imagename of application being split
+	// Local IP == tunnel IP
+	//
+
+	FWPM_FILTER0 filter = { 0 };
+
+	const auto FilterName = L"Mullvad Split Tunnel Split Application Blocking Filter (IPv4)";
+	const auto FilterDescription = L"Blocks existing connections in the tunnel";
+
+	filter.displayData.name = const_cast<wchar_t*>(FilterName);
+	filter.displayData.description = const_cast<wchar_t*>(FilterDescription);
+	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
+	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT;
+
+	filter.weight.type = FWP_UINT64;
+	filter.weight.uint64 = const_cast<UINT64*>(&MAX_FILTER_WEIGHT);
+
+	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
+	filter.action.calloutKey = ST_FW_BLOCK_SPLIT_APP_CALLOUT_IPV4_KEY;
+
+	//
+	// Conditions
+	//
+	// FwpmGetAppIdFromFileName() is not exposed in kernel mode, but we
+	// don't need it. All it does is look up the device path which we already have.
+	//
+
+	FWPM_FILTER_CONDITION0 cond[2];
+
+	FWP_BYTE_BLOB imageNameBlob
+	{
+		.size = ImageName->Length,
+		.data = (UINT8*)ImageName->Buffer
+	};
+
+	cond[0].fieldKey = FWPM_CONDITION_ALE_APP_ID;
+	cond[0].matchType = FWP_MATCH_EQUAL;
+	cond[0].conditionValue.type = FWP_BYTE_BLOB_TYPE;
+	cond[0].conditionValue.byteBlob = &imageNameBlob;
+
+	cond[1].fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
+	cond[1].matchType = FWP_MATCH_EQUAL;
+	cond[1].conditionValue.type = FWP_UINT32;
+
+	//
+	// TODO: Fix locking, either by doing it only once,
+	// or by sending the IPs as arguments and addressing locking one layer out from here.
+	//
+
+	ExAcquireFastMutex(&g_FwContext.IpAddresses.Lock);
+
+	cond[1].conditionValue.uint32 = g_FwContext.IpAddresses.Addresses.TunnelIpv4.S_un.S_addr;
+
+	ExReleaseFastMutex(&g_FwContext.IpAddresses.Lock);
+
+	auto status = FwpmFilterAdd0(session, &filter, NULL, FilterIdV4);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	//
+	// Again, for IPv6 also.
+	//
+
+	const auto FilterNameIpv6 = L"Mullvad Split Tunnel Split Application Blocking Filter (IPv6)";
+
+	RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
+	filter.displayData.name = const_cast<wchar_t*>(FilterNameIpv6);
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
+	filter.action.calloutKey = ST_FW_BLOCK_SPLIT_APP_CALLOUT_IPV6_KEY;
+
+	FWP_BYTE_ARRAY16 ipv6;
+
+	cond[1].conditionValue.type = FWP_BYTE_ARRAY16_TYPE;
+	cond[1].conditionValue.byteArray16 = &ipv6;
+
+	//
+	// TODO: Fix locking
+	//
+
+	ExAcquireFastMutex(&g_FwContext.IpAddresses.Lock);
+
+	RtlCopyMemory(ipv6.byteArray16, g_FwContext.IpAddresses.Addresses.TunnelIpv6.u.Byte, 16);
+
+	ExReleaseFastMutex(&g_FwContext.IpAddresses.Lock);
+
+	status = FwpmFilterAdd0(session, &filter, NULL, FilterIdV6);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	return STATUS_SUCCESS;
+}
+
+//
+// StFwRemoveBlockSplitApplicationFilterTx()
+//
+// "Tx" (in transaction) suffix means there is no clean-up in failure paths.
+//
+NTSTATUS
+StFwRemoveBlockSplitApplicationFilterTx
+(
+	HANDLE session,
+	UINT64 FilterIdV4,
+	UINT64 FilterIdV6
+)
+{
+	auto status = FwpmFilterDeleteById0(session, FilterIdV4);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	status = FwpmFilterDeleteById0(session, FilterIdV6);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	return STATUS_SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Public functions.
@@ -957,9 +1180,6 @@ StFwInitialize
 
 	ExInitializeFastMutex(&g_FwContext.IpAddresses.Lock);
 
-	ExInitializeFastMutex(&g_FwContext.DisallowTunnel.Lock);
-	InitializeListHead(&g_FwContext.DisallowTunnel.ListEntry);
-
 	auto status = StFwCreateWfpSession(&g_FwContext.WfpSession);
 
 	if (!NT_SUCCESS(status))
@@ -982,6 +1202,20 @@ StFwInitialize
 	}
 
 	status = StFwRegisterConnectCalloutTx(DeviceObject, g_FwContext.WfpSession);
+
+	if (!NT_SUCCESS(status))
+	{
+		goto Cleanup_session;
+	}
+
+	status = StFwRegisterBlockSplitApplicationCalloutTx(DeviceObject, g_FwContext.WfpSession);
+
+	if (!NT_SUCCESS(status))
+	{
+		goto Cleanup_session;
+	}
+
+	status = firewall::InitializeBlockingModule(g_FwContext.WfpSession, &g_FwContext.BlockingContext);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -1159,6 +1393,22 @@ Exit_abort:
 	}
 
 	return status;
+}
+
+NTSTATUS
+StFwBlockApplicationTunnelTraffic
+(
+	LOWER_UNICODE_STRING *ImageName
+)
+{
+	ExAcquireFastMutex(&g_FwContext.IpAddresses.Lock);
+
+	auto ipv4 = g_FwContext.IpAddresses.Addresses.TunnelIpv4;
+	auto ipv6 = g_FwContext.IpAddresses.Addresses.TunnelIpv6;
+
+	ExReleaseFastMutex(&g_FwContext.IpAddresses.Lock);
+
+	return firewall::BlockApplicationTunnelTraffic(g_FwContext.BlockingContext, ImageName, &ipv4, &ipv6);
 }
 
 } // extern "C"
