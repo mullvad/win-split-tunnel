@@ -27,7 +27,7 @@ namespace
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-typedef struct tag_BLOCK_TUNNEL_TRAFFIC_ENTRY
+typedef struct tag_BLOCK_TRAFFIC_ENTRY
 {
 	LIST_ENTRY ListEntry;
 
@@ -47,32 +47,24 @@ typedef struct tag_BLOCK_TUNNEL_TRAFFIC_ENTRY
 	UINT64 FilterIdV4;
 	UINT64 FilterIdV6;
 }
-BLOCK_TUNNEL_TRAFFIC_ENTRY;
-
-///////////////////////////////////////////////////////////////////////////////
-// TODO: Add BlockNonTunnelTraffic
-///////////////////////////////////////////////////////////////////////////////
+BLOCK_TRAFFIC_ENTRY;
 
 typedef struct tag_STATE_DATA
 {
 	HANDLE WfpSession;
 
 	LIST_ENTRY BlockedTunnelTraffic;
-	// TODO: Add another entry here
+
+	LIST_ENTRY BlockedNonTunnelTraffic;
 }
 STATE_DATA;
-
-
-
-
 
 //
 // FindBlockTrafficEntry()
 // 
 // Returns pointer to matching entry or NULL.
 //
-template<typename T>
-T*
+BLOCK_TRAFFIC_ENTRY*
 FindBlockTrafficEntry
 (
 	LIST_ENTRY *List,
@@ -83,7 +75,7 @@ FindBlockTrafficEntry
 			entry != List;
 			entry = entry->Flink)
 	{
-		auto candidate = (T*)entry;
+		auto candidate = (BLOCK_TRAFFIC_ENTRY*)entry;
 
 		if (candidate->ImageName.Length != ImageName->Length)
 		{
@@ -242,6 +234,7 @@ InitializeBlockingModule
 	stateData->WfpSession = WfpSession;
 
 	InitializeListHead(&stateData->BlockedTunnelTraffic);
+	InitializeListHead(&stateData->BlockedNonTunnelTraffic);
 
 	*Context = stateData;
 
@@ -259,8 +252,7 @@ BlockApplicationTunnelTraffic
 {
 	auto stateData = (STATE_DATA*)Context;
 
-	auto existingEntry = FindBlockTrafficEntry<BLOCK_TUNNEL_TRAFFIC_ENTRY>
-		(&stateData->BlockedTunnelTraffic, ImageName);
+	auto existingEntry = FindBlockTrafficEntry(&stateData->BlockedTunnelTraffic, ImageName);
 
 	if (existingEntry != NULL)
 	{
@@ -269,12 +261,12 @@ BlockApplicationTunnelTraffic
 		return STATUS_SUCCESS;
 	}
 
-	auto offsetStringBuffer = StRoundToMultiple(sizeof(BLOCK_TUNNEL_TRAFFIC_ENTRY),
-		TYPE_ALIGNMENT(BLOCK_TUNNEL_TRAFFIC_ENTRY));
+	auto offsetStringBuffer = StRoundToMultiple(sizeof(BLOCK_TRAFFIC_ENTRY),
+		TYPE_ALIGNMENT(BLOCK_TRAFFIC_ENTRY));
 
 	auto allocationSize = offsetStringBuffer + ImageName->Length;
 
-	auto entry = (BLOCK_TUNNEL_TRAFFIC_ENTRY*)
+	auto entry = (BLOCK_TRAFFIC_ENTRY*)
 		ExAllocatePoolWithTag(PagedPool, allocationSize, ST_POOL_TAG);
 
 	if (entry == NULL)
@@ -304,6 +296,8 @@ BlockApplicationTunnelTraffic
 
 	InsertTailList(&stateData->BlockedTunnelTraffic, &entry->ListEntry);
 
+	DbgPrint("Added tunnel block filters for %wZ\n", ImageName);
+
 	return STATUS_SUCCESS;
 }
 
@@ -316,8 +310,7 @@ UnblockApplicationTunnelTraffic
 {
 	auto stateData = (STATE_DATA*)Context;
 
-	auto entry = FindBlockTrafficEntry<BLOCK_TUNNEL_TRAFFIC_ENTRY>
-		(&stateData->BlockedTunnelTraffic, ImageName);
+	auto entry = FindBlockTrafficEntry(&stateData->BlockedTunnelTraffic, ImageName);
 
 	if (entry == NULL)
 	{
@@ -349,6 +342,40 @@ UnblockApplicationTunnelTraffic
 
 	ExFreePoolWithTag(entry, ST_POOL_TAG);
 
+	DbgPrint("Removed tunnel block filters for %wZ\n", ImageName);
+
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS
+BlockApplicationNonTunnelTraffic
+(
+	void *Context,
+	const LOWER_UNICODE_STRING *ImageName,
+	const IN_ADDR *TunnelIpv4,
+	const IN6_ADDR *TunnelIpv6
+)
+{
+	UNREFERENCED_PARAMETER(Context);
+	UNREFERENCED_PARAMETER(ImageName);
+	UNREFERENCED_PARAMETER(TunnelIpv4);
+	UNREFERENCED_PARAMETER(TunnelIpv6);
+
+	// TODO: Fix
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS
+UnblockApplicationNonTunnelTraffic
+(
+	void *Context,
+	const LOWER_UNICODE_STRING *ImageName
+)
+{
+	UNREFERENCED_PARAMETER(Context);
+	UNREFERENCED_PARAMETER(ImageName);
+
+	// TODO: Fix
 	return STATUS_SUCCESS;
 }
 

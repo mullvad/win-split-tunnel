@@ -1405,4 +1405,38 @@ StFwBlockApplicationTunnelTraffic
 	return firewall::BlockApplicationTunnelTraffic(g_FwContext.BlockingContext, ImageName, &ipv4, &ipv6);
 }
 
+NTSTATUS
+StFwUnblockApplicationTunnelTraffic
+(
+	LOWER_UNICODE_STRING *ImageName
+)
+{
+	return firewall::UnblockApplicationTunnelTraffic(g_FwContext.BlockingContext, ImageName);
+}
+
+NTSTATUS
+StFwBlockApplicationNonTunnelTraffic
+(
+	LOWER_UNICODE_STRING *ImageName
+)
+{
+	ExAcquireFastMutex(&g_FwContext.IpAddresses.Lock);
+
+	auto ipv4 = g_FwContext.IpAddresses.Addresses.TunnelIpv4;
+	auto ipv6 = g_FwContext.IpAddresses.Addresses.TunnelIpv6;
+
+	ExReleaseFastMutex(&g_FwContext.IpAddresses.Lock);
+
+	return firewall::BlockApplicationNonTunnelTraffic(g_FwContext.BlockingContext, ImageName, &ipv4, &ipv6);
+}
+
+NTSTATUS
+StFwUnBlockApplicationNonTunnelTraffic
+(
+	LOWER_UNICODE_STRING *ImageName
+)
+{
+	return firewall::UnblockApplicationNonTunnelTraffic(g_FwContext.BlockingContext, ImageName);
+}
+
 } // extern "C"

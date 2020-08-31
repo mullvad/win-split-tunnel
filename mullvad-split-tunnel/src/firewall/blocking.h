@@ -31,4 +31,20 @@ UnblockApplicationTunnelTraffic
 	const LOWER_UNICODE_STRING *ImageName
 );
 
+NTSTATUS
+BlockApplicationNonTunnelTraffic
+(
+	void *Context,
+	const LOWER_UNICODE_STRING *ImageName,
+	const IN_ADDR *TunnelIpv4,
+	const IN6_ADDR *TunnelIpv6
+);
+
+NTSTATUS
+UnblockApplicationNonTunnelTraffic
+(
+	void *Context,
+	const LOWER_UNICODE_STRING *ImageName
+);
+
 } // namespace firewall

@@ -91,6 +91,27 @@ StFwBlockApplicationTunnelTraffic
 	LOWER_UNICODE_STRING *ImageName
 );
 
+NTSTATUS
+StFwUnblockApplicationTunnelTraffic
+(
+	LOWER_UNICODE_STRING *ImageName
+);
+
+NTSTATUS
+StFwBlockApplicationNonTunnelTraffic
+(
+	LOWER_UNICODE_STRING *ImageName
+);
+
+NTSTATUS
+StFwUnBlockApplicationNonTunnelTraffic
+(
+	LOWER_UNICODE_STRING *ImageName
+);
+
+
+
+
 //NTSTATUS
 //StFwRevertDisallowance
 //(

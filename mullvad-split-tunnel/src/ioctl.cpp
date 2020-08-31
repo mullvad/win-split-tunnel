@@ -36,8 +36,6 @@ namespace
 //
 // StUpdateSplitSetting()
 //
-// Activated at DISPATCH.
-//
 // Updates the split setting on a process registry entry.
 //
 bool
@@ -67,8 +65,6 @@ StUpdateSplitSetting
 //
 // StApplySplitSetting()
 //
-// Activated at DISPATCH.
-//
 // Manages transisions in settings changes:
 //
 // Not split -> split
@@ -81,29 +77,48 @@ StApplySplitSetting
     ST_PROCESS_REGISTRY_ENTRY *Entry
 )
 {
-    if (Entry->Split == Entry->PreviousSplit)
+    if (Entry->PreviousSplit == Entry->Split)
     {
         return;
     }
 
-    if (ST_PROCESS_SPLIT_STATUS_UNKNOWN == Entry->PreviousSplit
-        && ST_PROCESS_SPLIT_STATUS_OFF == Entry->Split)
+    if (Entry->PreviousSplit == ST_PROCESS_SPLIT_STATUS_UNKNOWN
+        && Entry->Split == ST_PROCESS_SPLIT_STATUS_OFF)
     {
         return;
     }
 
+    if (Entry->Split == ST_PROCESS_SPLIT_STATUS_ON)
+    {
+        if (Entry->PreviousSplit == ST_PROCESS_SPLIT_STATUS_OFF)
+        {
+            StFwUnBlockApplicationNonTunnelTraffic((LOWER_UNICODE_STRING*)&Entry->ImageName);
+        }
 
-    //
-    // TODO: Smart code here.
-    //
+//        StFwBlockApplicationTunnelTraffic((LOWER_UNICODE_STRING*)&Entry->ImageName);
+        DbgPrint("Not explicitly blocking tunnel traffic\n");
+
+        return;
+    }
+
+    if (Entry->Split == ST_PROCESS_SPLIT_STATUS_OFF)
+    {
+        if (Entry->PreviousSplit == ST_PROCESS_SPLIT_STATUS_ON)
+        {
+            StFwUnblockApplicationTunnelTraffic((LOWER_UNICODE_STRING*)&Entry->ImageName);
+        }
+
+        StFwBlockApplicationNonTunnelTraffic((LOWER_UNICODE_STRING*)&Entry->ImageName);
+
+        return;
+    }
 }
 
 //
-// StPropagateSplitSetting()
+// StPropagateApplySplitSetting()
 //
-// Activated at DISPATCH.
-//
-// Enables traffic splitting for given entry if any of the ancestors are split.
+// Traverse ancestry to see if parent/grandparent/etc is being split.
+// Then instruct the firewall module to apply current setting.
 //
 bool
 NTAPI
@@ -115,7 +130,7 @@ StPropagateApplySplitSetting
 {
     auto context = (ST_DEVICE_CONTEXT *)Context;
 
-    if (ST_PROCESS_SPLIT_STATUS_ON != Entry->Split)
+    if (Entry->Split != ST_PROCESS_SPLIT_STATUS_ON)
     {
         auto currentEntry = Entry;
 
@@ -128,7 +143,7 @@ StPropagateApplySplitSetting
                 break;
             }
 
-            if (ST_PROCESS_SPLIT_STATUS_ON == parent->Split)
+            if (parent->Split == ST_PROCESS_SPLIT_STATUS_ON)
             {
                 Entry->Split = ST_PROCESS_SPLIT_STATUS_ON;
                 break;
@@ -447,6 +462,15 @@ StIoControlSetConfiguration
     auto context = DeviceGetSplitTunnelContext(g_Device);
 
     //
+    // Lock process management subsystem.
+    // This ensures there will be no strutural changes to the process registry.
+    // There will be readers at DISPATCH (callouts).
+    // But we are free to make atomic updates to individual entries.
+    //
+
+    WdfWaitLockAcquire(context->ProcessEvent.OperationLock, NULL);
+
+    //
     // Replace active imageset instance.
     //
 
@@ -455,6 +479,8 @@ StIoControlSetConfiguration
     StRegisteredImageDelete(context->RegisteredImage.Instance);
 
     context->RegisteredImage.Instance = Imageset;
+
+    WdfSpinLockRelease(context->RegisteredImage.Lock);
 
     StRegisteredImageForEach
     (
@@ -467,13 +493,8 @@ StIoControlSetConfiguration
     // Update process registry with current settings.
     //
 
-    WdfSpinLockAcquire(context->ProcessRegistry.Lock);
-
     StProcessRegistryForEach(context->ProcessRegistry.Instance, StUpdateSplitSetting, context);
     StProcessRegistryForEach(context->ProcessRegistry.Instance, StPropagateApplySplitSetting, context);
-
-    WdfSpinLockRelease(context->ProcessRegistry.Lock);
-    WdfSpinLockRelease(context->RegisteredImage.Lock);
 
     //
     // Determine if we should update state.
@@ -485,6 +506,8 @@ StIoControlSetConfiguration
     //
     // Finish off.
     //
+
+    WdfWaitLockRelease(context->ProcessEvent.OperationLock);
 
     DbgPrint("Successfully processed IOCTL_ST_SET_CONFIGURATION\n");
 
