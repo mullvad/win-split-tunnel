@@ -124,16 +124,6 @@ DriverEntry
     }
 
     //
-    // Initialize driver state.
-    //
-
-    auto context = DeviceGetSplitTunnelContext(g_Device);
-
-    RtlZeroMemory(context, sizeof(*context));
-
-    context->DriverState = ST_DRIVER_STATE_STARTED;
-
-    //
     // All set.
     //
    
@@ -298,7 +288,15 @@ StCreateDevice
         goto Cleanup;
     }
 
+    //
+    // Initialize context.
+    //
+
     auto context = DeviceGetSplitTunnelContext(wdfDevice);
+
+    RtlZeroMemory(context, sizeof(*context));
+
+    context->DriverState = ST_DRIVER_STATE_STARTED;
 
     context->IoCtlQueue = serialQueue;
 
