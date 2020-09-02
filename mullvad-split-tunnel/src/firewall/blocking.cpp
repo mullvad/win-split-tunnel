@@ -132,6 +132,8 @@ AddBlockTunnelTrafficFilters
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 	filter.action.calloutKey = ST_FW_BLOCK_SPLIT_APP_CALLOUT_IPV4_KEY;
 
+//	filter.action.type = FWP_ACTION_BLOCK;
+
 	//
 	// Conditions
 	//
@@ -287,6 +289,8 @@ BlockApplicationTunnelTraffic
 	auto stringBuffer = (WCHAR*)(((UINT8*)entry) + offsetStringBuffer);
 
 	InitializeListHead(&entry->ListEntry);
+
+	entry->RefCount = 1;
 
 	entry->ImageName.Length = ImageName->Length;
 	entry->ImageName.MaximumLength = ImageName->Length;

@@ -37,6 +37,9 @@ typedef struct tag_ST_PROCESS_REGISTRY_ENTRY
 	// Physical path using all lower-case characters.
 	UNICODE_STRING ImageName;
 
+	// Whether the process is associated with any firewall filters.
+	bool HasFirewallState;
+
 	//
 	// This is management data initialized and updated
 	// by the implementation.

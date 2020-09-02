@@ -90,25 +90,28 @@ StApplySplitSetting
 
     if (Entry->Split == ST_PROCESS_SPLIT_STATUS_ON)
     {
-        if (Entry->PreviousSplit == ST_PROCESS_SPLIT_STATUS_OFF)
+        if (Entry->HasFirewallState && Entry->PreviousSplit == ST_PROCESS_SPLIT_STATUS_OFF)
         {
-            StFwUnBlockApplicationNonTunnelTraffic((LOWER_UNICODE_STRING*)&Entry->ImageName);
+            StFwUnblockApplicationNonTunnelTraffic((LOWER_UNICODE_STRING*)&Entry->ImageName);
         }
 
-//        StFwBlockApplicationTunnelTraffic((LOWER_UNICODE_STRING*)&Entry->ImageName);
-        DbgPrint("Not explicitly blocking tunnel traffic\n");
+        StFwBlockApplicationTunnelTraffic((LOWER_UNICODE_STRING*)&Entry->ImageName);
+
+        Entry->HasFirewallState = true;
 
         return;
     }
 
     if (Entry->Split == ST_PROCESS_SPLIT_STATUS_OFF)
     {
-        if (Entry->PreviousSplit == ST_PROCESS_SPLIT_STATUS_ON)
+        if (Entry->HasFirewallState && Entry->PreviousSplit == ST_PROCESS_SPLIT_STATUS_ON)
         {
             StFwUnblockApplicationTunnelTraffic((LOWER_UNICODE_STRING*)&Entry->ImageName);
         }
 
         StFwBlockApplicationNonTunnelTraffic((LOWER_UNICODE_STRING*)&Entry->ImageName);
+
+        Entry->HasFirewallState = true;
 
         return;
     }
@@ -272,8 +275,7 @@ StDbgPrintConfiguration
 //
 // Locks being held when called:
 //
-// Driver state lock
-// Process registry lock
+// Process event subsystem operation lock
 //
 bool
 NTAPI
@@ -651,7 +653,7 @@ StIoControlClearConfiguration
     // Clear settings in process registry.
     //
 
-    WdfSpinLockAcquire(context->ProcessRegistry.Lock);
+    WdfWaitLockAcquire(context->ProcessEvent.OperationLock, NULL);
 
     StProcessRegistryForEach
     (
@@ -660,7 +662,7 @@ StIoControlClearConfiguration
         NULL
     );
 
-    WdfSpinLockRelease(context->ProcessRegistry.Lock);
+    WdfWaitLockRelease(context->ProcessEvent.OperationLock);
 
     return STATUS_SUCCESS;
 }

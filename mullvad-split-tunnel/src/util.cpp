@@ -276,4 +276,30 @@ StopIfDebugBuild
 #endif
 }
 
+NTSTATUS
+StDuplicateString
+(
+	const UNICODE_STRING *Src,
+	UNICODE_STRING *Dest,
+	ST_PAGEABLE Pageable
+)
+{
+	const auto poolType = (Pageable == ST_PAGEABLE::YES) ? PagedPool : NonPagedPool;
+
+	auto buffer = (PWCH)ExAllocatePoolWithTag(poolType, Src->Length, ST_POOL_TAG);
+
+	if (NULL == buffer)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	RtlCopyMemory(buffer, Src->Buffer, Src->Length);
+
+	Dest->Length = Src->Length;
+	Dest->MaximumLength = Src->Length;
+	Dest->Buffer = buffer;
+
+	return STATUS_SUCCESS;
+}
+
 } // extern "C"

@@ -3,6 +3,7 @@
 #include "shared.h"
 #include "util.h"
 #include "registeredimage.h"
+#include "fw.h"
 
 namespace
 {
@@ -173,7 +174,11 @@ StHandleProcessArriving
 
     if (registryEntry.Split == ST_PROCESS_SPLIT_STATUS_OFF)
     {
-        auto parent = StProcessRegistryFindEntry(Context->ProcessRegistry.Instance, Record->Details->ParentProcessId);
+        //
+        // Note that we're providing an entry which is not yet added to the registry.
+        // This may seem wrong but is totally fine.
+        //
+        auto parent = StProcessRegistryGetParentEntry(Context->ProcessRegistry.Instance, &registryEntry);
 
         if (parent != NULL
             && parent->Split == ST_PROCESS_SPLIT_STATUS_ON)
@@ -212,7 +217,14 @@ StHandleProcessArriving
     {
         DbgPrint("Failed to add entry for arriving process: status 0x%X.\n", status);
         DbgPrint("  PID of arriving process 0x%X\n", Record->ProcessId);
+
+        return;
     }
+
+    //
+    // No need to update the firewall because the arriving process won't
+    // have any existing connections.
+    //
 }
 
 void
@@ -224,9 +236,51 @@ StHandleProcessDeparting
 {
     //DbgPrint("Process departing: 0x%X\n", Record->ProcessId);
 
+    //
+    // We're still at PASSIVE_LEVEL and the operation lock is held.
+    // IOCTL handlers are locked out.
+    //
+    // Complete all process and acquire the spin lock only when
+    // updating the process tree.
+    //
+
+    auto registryEntry = StProcessRegistryFindEntry(Context->ProcessRegistry.Instance, Record->ProcessId);
+
+    if (NULL == registryEntry)
+    {
+        DbgPrint("Received process-departing event for unknown PID\n");
+
+        return;
+    }
+
+    if (registryEntry->HasFirewallState)
+    {
+        switch (registryEntry->Split)
+        {
+            case ST_PROCESS_SPLIT_STATUS_UNKNOWN:
+            {
+                DbgPrint("Invalid: UNKNOWN split status yet there is firewall state?\n");
+
+                break;
+            }
+            case ST_PROCESS_SPLIT_STATUS_ON:
+            {
+                StFwUnblockApplicationTunnelTraffic((LOWER_UNICODE_STRING*)&registryEntry->ImageName);
+
+                break;
+            }
+            case ST_PROCESS_SPLIT_STATUS_OFF:
+            {
+                StFwUnblockApplicationNonTunnelTraffic((LOWER_UNICODE_STRING*)&registryEntry->ImageName);
+
+                break;
+            }
+        }
+    }
+
     WdfSpinLockAcquire(Context->ProcessRegistry.Lock);
 
-    StProcessRegistryDeleteEntryById(Context->ProcessRegistry.Instance, Record->ProcessId);
+    StProcessRegistryDeleteEntry(Context->ProcessRegistry.Instance, registryEntry);
 
     WdfSpinLockRelease(Context->ProcessRegistry.Lock);
 }

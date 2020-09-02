@@ -104,7 +104,7 @@ StFwBlockApplicationNonTunnelTraffic
 );
 
 NTSTATUS
-StFwUnBlockApplicationNonTunnelTraffic
+StFwUnblockApplicationNonTunnelTraffic
 (
 	LOWER_UNICODE_STRING *ImageName
 );

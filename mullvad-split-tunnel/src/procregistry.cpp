@@ -163,6 +163,7 @@ StProcessRegistryInitializeEntry
 	Entry->ProcessId = ProcessId;
 	Entry->Split = Split;
 	Entry->PreviousSplit = ST_PROCESS_SPLIT_STATUS_UNKNOWN;
+	Entry->HasFirewallState = false;
 	Entry->ParentEntry = NULL;
 
 	return STATUS_SUCCESS;

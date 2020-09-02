@@ -76,6 +76,14 @@ StFreeStringBuffer
 	UNICODE_STRING *String
 );
 
+NTSTATUS
+StDuplicateString
+(
+	const UNICODE_STRING *Src,
+	UNICODE_STRING *Dest,
+	ST_PAGEABLE Pageable
+);
+
 void
 StopIfDebugBuild
 (
