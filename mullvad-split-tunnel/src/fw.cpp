@@ -611,6 +611,24 @@ StFwCalloutClassifyConnect
 
 	DbgPrint("Approving callout activated!\n");
 
+	if (0 != (MetaValues->currentMetadataValues & FWPS_METADATA_FIELD_PROCESS_PATH))
+	{
+		DbgPrint("  Process path: %ws\n", MetaValues->processPath->data);
+	}
+	else
+	{
+		DbgPrint("  Process path not available :-(\n");
+	}
+
+	auto ip = &(FixedValues->incomingValue[FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_LOCAL_ADDRESS]);
+
+	DbgPrint("  Local IP: %d.%d.%d.%d\n",
+		(ip->value.uint32 & 0xFF000000) >> 24,
+		(ip->value.uint32 & 0x00FF0000) >> 16,
+		(ip->value.uint32 & 0x0000FF00) >> 8,
+		ip->value.uint32 & 0xFF
+	);
+
 	NT_ASSERT
 	(
 		FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V4
@@ -634,24 +652,6 @@ StFwCalloutClassifyConnect
 
 		ClassifyOut->actionType = FWP_ACTION_PERMIT;
 		ClassifyOut->flags &= ~FWPS_RIGHT_ACTION_WRITE;
-
-		if (0 != (MetaValues->currentMetadataValues & FWPS_METADATA_FIELD_PROCESS_PATH))
-		{
-			DbgPrint("  Process path: %ws\n", MetaValues->processPath->data);
-		}
-		else
-		{
-			DbgPrint("  Process path not available :-(\n");
-		}
-
-		auto ip = &(FixedValues->incomingValue[FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_LOCAL_ADDRESS]);
-
-		DbgPrint("  Local IP: %d.%d.%d.%d\n",
-			(ip->value.uint32 & 0xFF000000) >> 24,
-			(ip->value.uint32 & 0x00FF0000) >> 16,
-			(ip->value.uint32 & 0x0000FF00) >> 8,
-			ip->value.uint32 & 0xFF
-		);
 	}
 	else
 	{
@@ -759,12 +759,13 @@ StFwRegisterConnectCalloutTx
 NTSTATUS
 StFwRegisterConnectFilterTx
 (
-	HANDLE session
+	HANDLE session,
+	const IN_ADDR *TunnelIpv4,
+	const IN6_ADDR *TunnelIpv6
 )
 {
 	//
 	// Create filter that references callout.
-	// Not specifying any conditions makes it apply to all traffic.
 	//
 
 	FWPM_FILTER0 filter = { 0 };
@@ -786,6 +787,16 @@ StFwRegisterConnectFilterTx
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 	filter.action.calloutKey = ST_FW_CONNECT_CALLOUT_IPV4_KEY;
 
+	FWPM_FILTER_CONDITION0 cond;
+
+	cond.fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
+	cond.matchType = FWP_MATCH_NOT_EQUAL;
+	cond.conditionValue.type = FWP_UINT32;
+	cond.conditionValue.uint32 = RtlUlongByteSwap(TunnelIpv4->s_addr);
+
+	filter.filterCondition = &cond;
+	filter.numFilterConditions = 1;
+
 	auto status = FwpmFilterAdd0(session, &filter, NULL, NULL);
 
 	if (!NT_SUCCESS(status))
@@ -803,6 +814,9 @@ StFwRegisterConnectFilterTx
 	filter.displayData.name = const_cast<wchar_t*>(FilterNameIpv6);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
 	filter.action.calloutKey = ST_FW_CONNECT_CALLOUT_IPV6_KEY;
+
+	cond.conditionValue.type = FWP_BYTE_ARRAY16_TYPE;
+	cond.conditionValue.byteArray16 = (FWP_BYTE_ARRAY16*)TunnelIpv6->u.Byte;
 
 	status = FwpmFilterAdd0(session, &filter, NULL, NULL);
 
@@ -1137,6 +1151,9 @@ StFwEnableSplitting
 
 	g_FwContext.IpAddresses.Addresses = *IpAddresses;
 
+	auto ipv4 = g_FwContext.IpAddresses.Addresses.TunnelIpv4;
+	auto ipv6 = g_FwContext.IpAddresses.Addresses.TunnelIpv6;
+
 	ExReleaseFastMutex(&g_FwContext.IpAddresses.Lock);
 
 	if (g_FwContext.BindRedirectFilterPresent)
@@ -1162,7 +1179,7 @@ StFwEnableSplitting
 		goto Exit_abort;
 	}
 
-	status = StFwRegisterConnectFilterTx(g_FwContext.WfpSession);
+	status = StFwRegisterConnectFilterTx(g_FwContext.WfpSession, &ipv4, &ipv6);
 
 	if (!NT_SUCCESS(status))
 	{
