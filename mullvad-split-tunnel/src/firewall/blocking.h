@@ -15,6 +15,15 @@ InitializeBlockingModule
 	void **Context
 );
 
+//
+// BlockApplicationTunnelTraffic()
+//
+// Register WFP filters that will block connections in the tunnel from applications
+// being split.
+//
+// This is used to block existing connections inside the tunnel for applications that are 
+// just now being split.
+//
 NTSTATUS
 BlockApplicationTunnelTraffic
 (

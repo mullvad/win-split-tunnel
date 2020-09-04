@@ -110,8 +110,30 @@ AddBlockTunnelTrafficFilters
 )
 {
 	//
-	// APP_ID == ImageName
-	// LOCAL_ADDRESS == TunnelIp
+	// Regarding conditions
+	//
+	// FwpmGetAppIdFromFileName() is not exposed in kernel mode, but we
+	// don't need it. All it does is look up the device path which we already have.
+	//
+	// However, for some reason the string also has to be null-terminated.
+	//
+
+	const USHORT imageNameCopyLength = ImageName->Length + sizeof(WCHAR);
+
+	auto imageNameCopy = (UINT8*)ExAllocatePoolWithTag(PagedPool, imageNameCopyLength, ST_POOL_TAG);
+
+	if (NULL == imageNameCopy)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	RtlCopyMemory(imageNameCopy, ImageName->Buffer, ImageName->Length);
+
+	imageNameCopy[imageNameCopyLength - 2] = 0;
+	imageNameCopy[imageNameCopyLength - 1] = 0;
+
+	//
+	// Register IPv4 filter.
 	//
 
 	FWPM_FILTER0 filter = { 0 };
@@ -132,21 +154,19 @@ AddBlockTunnelTrafficFilters
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 	filter.action.calloutKey = ST_FW_BLOCK_SPLIT_APP_CALLOUT_IPV4_KEY;
 
-//	filter.action.type = FWP_ACTION_BLOCK;
-
 	//
-	// Conditions
+	// Conditions are:
 	//
-	// FwpmGetAppIdFromFileName() is not exposed in kernel mode, but we
-	// don't need it. All it does is look up the device path which we already have.
+	// APP_ID == ImageName
+	// LOCAL_ADDRESS == TunnelIp
 	//
 
 	FWPM_FILTER_CONDITION0 cond[2];
 
 	FWP_BYTE_BLOB imageNameBlob
 	{
-		.size = ImageName->Length,
-		.data = (UINT8*)ImageName->Buffer
+		.size = imageNameCopyLength,
+		.data = imageNameCopy
 	};
 
 	cond[0].fieldKey = FWPM_CONDITION_ALE_APP_ID;
@@ -159,11 +179,14 @@ AddBlockTunnelTrafficFilters
 	cond[1].conditionValue.type = FWP_UINT32;
 	cond[1].conditionValue.uint32 = TunnelIpv4->S_un.S_addr;
 
+	//filter.filterCondition = cond;
+	//filter.numFilterConditions = ARRAYSIZE(cond);
+
 	auto status = FwpmFilterAdd0(WfpSession, &filter, NULL, FilterIdV4);
 
 	if (!NT_SUCCESS(status))
 	{
-		return status;
+		goto Cleanup;
 	}
 
 	//
@@ -182,12 +205,11 @@ AddBlockTunnelTrafficFilters
 
 	status = FwpmFilterAdd0(WfpSession, &filter, NULL, FilterIdV6);
 
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
+Cleanup:
 
-	return STATUS_SUCCESS;
+	ExFreePoolWithTag(imageNameCopy, ST_POOL_TAG);
+
+	return status;
 }
 
 NTSTATUS
@@ -243,6 +265,9 @@ InitializeBlockingModule
 	return STATUS_SUCCESS;
 }
 
+//
+// TODO: Should this be transactional, does it matter?
+//
 NTSTATUS
 BlockApplicationTunnelTraffic
 (
