@@ -65,7 +65,7 @@ StUpdateSplitSetting
 //
 // StApplySplitSetting()
 //
-// Manages transisions in settings changes:
+// Manages transitions in settings changes:
 //
 // Not split -> split
 // Split -> not split
@@ -804,13 +804,19 @@ StIoControlRegisterIpAddresses
 
     RtlCopyMemory(&context->IpAddresses, buffer, sizeof(context->IpAddresses));
 
-    const auto vpnActive = StHasInternetIpv4Address(&context->IpAddresses)
-        && StHasTunnelIpv4Address(&context->IpAddresses);
+    //
+    // Update fw subsystem to it always has the current addresses.
+    //
+
+    StFwNotifyUpdatedIpAddresses(&context->IpAddresses);
 
     //
     // Evaluate whether we should enter the engaged state.
     // Keep in mind that either IP may have just been cleared.
     //
+
+    const auto vpnActive = StHasInternetIpv4Address(&context->IpAddresses)
+        && StHasTunnelIpv4Address(&context->IpAddresses);
 
     if (vpnActive)
     {

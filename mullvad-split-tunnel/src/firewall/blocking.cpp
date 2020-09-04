@@ -177,10 +177,10 @@ AddBlockTunnelTrafficFilters
 	cond[1].fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
 	cond[1].matchType = FWP_MATCH_EQUAL;
 	cond[1].conditionValue.type = FWP_UINT32;
-	cond[1].conditionValue.uint32 = TunnelIpv4->S_un.S_addr;
+	cond[1].conditionValue.uint32 = RtlUlongByteSwap(TunnelIpv4->s_addr);
 
-	//filter.filterCondition = cond;
-	//filter.numFilterConditions = ARRAYSIZE(cond);
+	filter.filterCondition = cond;
+	filter.numFilterConditions = ARRAYSIZE(cond);
 
 	auto status = FwpmFilterAdd0(WfpSession, &filter, NULL, FilterIdV4);
 

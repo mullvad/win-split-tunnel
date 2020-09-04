@@ -1292,6 +1292,13 @@ StFwBlockApplicationTunnelTraffic
 
 	ExReleaseFastMutex(&g_FwContext.IpAddresses.Lock);
 
+	if (ipv4.s_addr == 0)
+	{
+		DbgPrint("Unable to register block-tunnel-traffic filters");
+
+		return STATUS_SUCCESS;
+	}
+
 	return firewall::BlockApplicationTunnelTraffic(g_FwContext.BlockingContext, ImageName, &ipv4, &ipv6);
 }
 
