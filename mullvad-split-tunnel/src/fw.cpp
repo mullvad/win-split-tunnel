@@ -221,7 +221,7 @@ StFwRewriteBind
 
 	//
 	// According to documentation, FwpsAcquireWritableLayerDataPointer0() will update the
-	// `actionType` and `flags` fields with poorly chosen values:
+	// `actionType` and `rights` fields with poorly chosen values:
 	//
 	// ```
 	// classifyOut->actionType = FWP_ACTION_BLOCK
@@ -233,7 +233,7 @@ StFwRewriteBind
 	//
 
 	ClassifyOut->actionType = FWP_ACTION_CONTINUE;
-	ClassifyOut->flags |= FWPS_RIGHT_ACTION_WRITE;
+	ClassifyOut->rights |= FWPS_RIGHT_ACTION_WRITE;
 
 	//
 	// There's a list with redirection history.
@@ -283,7 +283,7 @@ StFwRewriteBind
 			bindTarget->sin_addr = g_FwContext.IpAddresses.Addresses.InternetIpv4;
 
 			ClassifyOut->actionType = FWP_ACTION_PERMIT;
-			ClassifyOut->flags &= ~FWPS_RIGHT_ACTION_WRITE;
+			ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
 		}
 	}
 	else
@@ -312,7 +312,7 @@ StFwRewriteBind
 			bindTarget->sin6_addr = g_FwContext.IpAddresses.Addresses.InternetIpv6;
 
 			ClassifyOut->actionType = FWP_ACTION_PERMIT;
-			ClassifyOut->flags &= ~FWPS_RIGHT_ACTION_WRITE;
+			ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
 		}
 	}
 
@@ -651,7 +651,7 @@ StFwCalloutClassifyConnect
 		DbgPrint("APPROVING CONNECTION\n");
 
 		ClassifyOut->actionType = FWP_ACTION_PERMIT;
-		ClassifyOut->flags &= ~FWPS_RIGHT_ACTION_WRITE;
+		ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
 	}
 	else
 	{
@@ -913,7 +913,7 @@ StFwCalloutBlockSplitApplication
 		DbgPrint("BLOCKING CONNECTION\n");
 
 		ClassifyOut->actionType = FWP_ACTION_BLOCK;
-		ClassifyOut->flags &= ~FWPS_RIGHT_ACTION_WRITE;
+		ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
 
 		if (0 != (MetaValues->currentMetadataValues & FWPS_METADATA_FIELD_PROCESS_PATH))
 		{
