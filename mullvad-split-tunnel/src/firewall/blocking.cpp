@@ -337,25 +337,30 @@ RemoveBlockFiltersTx
 		return status;
 	}
 
-	status = FwpmFilterDeleteById0(WfpSession, OutboundFilterIdV6);
-
-	if (!NT_SUCCESS(status))
+	if (0 != OutboundFilterIdV6)
 	{
-		return status;
+		status = FwpmFilterDeleteById0(WfpSession, OutboundFilterIdV6);
+
+		if (!NT_SUCCESS(status))
+		{
+			return status;
+		}
 	}
 
-	status = FwpmFilterDeleteById0(WfpSession, InboundFilterIdV6);
-
-	if (!NT_SUCCESS(status))
+	if (0 != InboundFilterIdV6)
 	{
-		return status;
+		status = FwpmFilterDeleteById0(WfpSession, InboundFilterIdV6);
+
+		if (!NT_SUCCESS(status))
+		{
+			return status;
+		}
 	}
 
 	return STATUS_SUCCESS;
 }
 
 } // anonymous namespace
-
 
 NTSTATUS
 InitializeBlockingModule
