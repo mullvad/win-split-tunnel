@@ -183,6 +183,8 @@ void ProcessAddConfig(const std::wstring &imageName)
 	g_imagenames = tempNames;
 }
 
+void ProcessClearConfig();
+
 void ProcessRemoveConfig(const std::wstring &imageName)
 {
 	auto iterMatch = std::find_if(g_imagenames.begin(), g_imagenames.end(), [&imageName](const std::wstring &candidate)
@@ -200,6 +202,13 @@ void ProcessRemoveConfig(const std::wstring &imageName)
 	auto tempNames = g_imagenames;
 
 	tempNames.erase(tempNames.begin() + indexMatch);
+
+	if (tempNames.empty())
+	{
+		ProcessClearConfig();
+
+		return;
+	}
 
 	ProcessSetConfig(tempNames);
 
@@ -276,8 +285,10 @@ void ProcessClearConfig()
 
 	if (FALSE == status)
 	{
-		THROW_WINDOWS_ERROR(GetLastError(), "Get configuration");
+		THROW_WINDOWS_ERROR(GetLastError(), "Clear configuration");
 	}
+
+	g_imagenames.clear();
 
 	std::wcout << L"Driver state: " << MapDriverState(GetDriverState()) << std::endl;
 
@@ -596,6 +607,23 @@ int main()
 			if (0 == _wcsicmp(tokens[0].c_str(), L"query-process"))
 			{
 				ProcessQueryProcess(tokens[1]);
+				continue;
+			}
+
+			if (0 == _wcsicmp(tokens[0].c_str(), L"quick"))
+			{
+				if (g_DriverHandle != INVALID_HANDLE_VALUE)
+				{
+					std::wcout << L"Already initialized" << std::endl;
+
+					continue;
+				}
+
+				ProcessConnect();
+				ProcessInitialize();
+				ProcessRegisterProcesses();
+				ProcessRegisterIps();
+
 				continue;
 			}
 		}
