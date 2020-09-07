@@ -609,25 +609,25 @@ StFwCalloutClassifyConnect
 	UNREFERENCED_PARAMETER(Filter);
 	UNREFERENCED_PARAMETER(FlowContext);
 
-	DbgPrint("Approving callout activated!\n");
+	//DbgPrint("Approving callout activated!\n");
 
-	if (0 != (MetaValues->currentMetadataValues & FWPS_METADATA_FIELD_PROCESS_PATH))
-	{
-		DbgPrint("  Process path: %ws\n", MetaValues->processPath->data);
-	}
-	else
-	{
-		DbgPrint("  Process path not available :-(\n");
-	}
+	//if (0 != (MetaValues->currentMetadataValues & FWPS_METADATA_FIELD_PROCESS_PATH))
+	//{
+	//	DbgPrint("  Process path: %ws\n", MetaValues->processPath->data);
+	//}
+	//else
+	//{
+	//	DbgPrint("  Process path not available :-(\n");
+	//}
 
-	auto ip = &(FixedValues->incomingValue[FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_LOCAL_ADDRESS]);
+	//auto ip = &(FixedValues->incomingValue[FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_LOCAL_ADDRESS]);
 
-	DbgPrint("  Local IP: %d.%d.%d.%d\n",
-		(ip->value.uint32 & 0xFF000000) >> 24,
-		(ip->value.uint32 & 0x00FF0000) >> 16,
-		(ip->value.uint32 & 0x0000FF00) >> 8,
-		ip->value.uint32 & 0xFF
-	);
+	//DbgPrint("  Local IP: %d.%d.%d.%d\n",
+	//	(ip->value.uint32 & 0xFF000000) >> 24,
+	//	(ip->value.uint32 & 0x00FF0000) >> 16,
+	//	(ip->value.uint32 & 0x0000FF00) >> 8,
+	//	ip->value.uint32 & 0xFF
+	//);
 
 	NT_ASSERT
 	(
