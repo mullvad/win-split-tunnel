@@ -12,22 +12,36 @@
 #include "../util.h"
 #include "../shared.h"
 
+///////////////////////////////////////////////////////////////////////////////
+//
+// This module applies two types of block filters to ensure a process
+// exists either inside or outside the tunnel:
+//
+// #1 Block tunnel connections.
+//
+// This is done to block pre-existing connections, that were established
+// before we started splitting traffic.
+//
+// #2 Block non-tunnel connections.
+//
+// This is done to force an application back inside the tunnel.
+// Applied when an application was previously being split but should no
+// longer be split.
+//
+// --
+//
+// When filters are added, a re-auth occurs, and matching existing connections
+// are presented to the linked callout, to approve or block.
+//
+///////////////////////////////////////////////////////////////////////////////
+
 namespace firewall
 {
 
 namespace
 {
 
-///////////////////////////////////////////////////////////////////////////////
-//
-// Block certain tunnel traffic.
-//
-// This is done to block pre-existing connections, that were established
-// before we started splitting traffic.
-//
-///////////////////////////////////////////////////////////////////////////////
-
-typedef struct tag_BLOCK_TRAFFIC_ENTRY
+typedef struct tag_BLOCK_CONNECTIONS_ENTRY
 {
 	LIST_ENTRY ListEntry;
 
@@ -44,28 +58,74 @@ typedef struct tag_BLOCK_TRAFFIC_ENTRY
 	//
 	// WFP filter IDs.
 	//
-	UINT64 FilterIdV4;
-	UINT64 FilterIdV6;
+	UINT64 OutboundFilterIdV4;
+	UINT64 InboundFilterIdV4;
+	UINT64 OutboundFilterIdV6;
+	UINT64 InboundFilterIdV6;
 }
-BLOCK_TRAFFIC_ENTRY;
+BLOCK_CONNECTIONS_ENTRY;
 
 typedef struct tag_STATE_DATA
 {
 	HANDLE WfpSession;
 
-	LIST_ENTRY BlockedTunnelTraffic;
-
-	LIST_ENTRY BlockedNonTunnelTraffic;
+	LIST_ENTRY BlockedTunnelConnections;
+	LIST_ENTRY BlockedNonTunnelConnections;
 }
 STATE_DATA;
 
 //
-// FindBlockTrafficEntry()
+// CustomGetAppIdFromFileName()
+//
+// The API FwpmGetAppIdFromFileName() is not exposed in kernel mode, but we
+// don't need it. All it does is look up the device path which we already have.
+//
+// However, for some reason the string also has to be null-terminated.
+//
+NTSTATUS
+CustomGetAppIdFromFileName
+(
+	const LOWER_UNICODE_STRING *ImageName,
+	FWP_BYTE_BLOB **AppId
+)
+{
+	auto offsetStringBuffer =
+		StRoundToMultiple(sizeof(FWP_BYTE_BLOB), TYPE_ALIGNMENT(WCHAR));
+
+	UINT32 copiedStringLength = ImageName->Length + sizeof(WCHAR);
+
+	auto allocationSize = offsetStringBuffer + copiedStringLength;
+
+	auto blob = (FWP_BYTE_BLOB*)
+		ExAllocatePoolWithTag(PagedPool, allocationSize, ST_POOL_TAG);
+
+	if (blob == NULL)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	auto stringBuffer = ((UINT8*)blob) + offsetStringBuffer;
+
+	RtlCopyMemory(stringBuffer, ImageName->Buffer, ImageName->Length);
+
+	stringBuffer[copiedStringLength - 2] = 0;
+	stringBuffer[copiedStringLength - 1] = 0;
+
+	blob->size = copiedStringLength;
+	blob->data = stringBuffer;
+
+	*AppId = blob;
+
+	return STATUS_SUCCESS;
+}
+
+//
+// FindBlockConnectionsEntry()
 // 
 // Returns pointer to matching entry or NULL.
 //
-BLOCK_TRAFFIC_ENTRY*
-FindBlockTrafficEntry
+BLOCK_CONNECTIONS_ENTRY*
+FindBlockConnectionsEntry
 (
 	LIST_ENTRY *List,
 	const LOWER_UNICODE_STRING *ImageName
@@ -75,7 +135,7 @@ FindBlockTrafficEntry
 			entry != List;
 			entry = entry->Flink)
 	{
-		auto candidate = (BLOCK_TRAFFIC_ENTRY*)entry;
+		auto candidate = (BLOCK_CONNECTIONS_ENTRY*)entry;
 
 		if (candidate->ImageName.Length != ImageName->Length)
 		{
@@ -99,49 +159,41 @@ FindBlockTrafficEntry
 }
 
 NTSTATUS
-AddBlockTunnelTrafficFilters
+AddTunnelBlockFiltersTx
 (
 	HANDLE WfpSession,
 	const LOWER_UNICODE_STRING *ImageName,
 	const IN_ADDR *TunnelIpv4,
 	const IN6_ADDR *TunnelIpv6,
-	UINT64 *FilterIdV4,
-	UINT64 *FilterIdV6
+	UINT64 *OutboundFilterIdV4,
+	UINT64 *InboundFilterIdV4,
+	UINT64 *OutboundFilterIdV6,
+	UINT64 *InboundFilterIdV6
 )
 {
 	//
-	// Regarding conditions
-	//
-	// FwpmGetAppIdFromFileName() is not exposed in kernel mode, but we
-	// don't need it. All it does is look up the device path which we already have.
-	//
-	// However, for some reason the string also has to be null-terminated.
+	// Format APP_ID payload that will be used with all filters.
 	//
 
-	const USHORT imageNameCopyLength = ImageName->Length + sizeof(WCHAR);
+	FWP_BYTE_BLOB *appIdPayload;
+	
+	auto status = CustomGetAppIdFromFileName(ImageName, &appIdPayload);
 
-	auto imageNameCopy = (UINT8*)ExAllocatePoolWithTag(PagedPool, imageNameCopyLength, ST_POOL_TAG);
-
-	if (NULL == imageNameCopy)
+	if (!NT_SUCCESS(status))
 	{
-		return STATUS_INSUFFICIENT_RESOURCES;
+		return status;
 	}
 
-	RtlCopyMemory(imageNameCopy, ImageName->Buffer, ImageName->Length);
-
-	imageNameCopy[imageNameCopyLength - 2] = 0;
-	imageNameCopy[imageNameCopyLength - 1] = 0;
-
 	//
-	// Register IPv4 filter.
+	// Register outbound IPv4 filter.
 	//
 
 	FWPM_FILTER0 filter = { 0 };
 
-	const auto FilterName = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (IPv4)";
+	const auto FilterNameOutboundIpv4 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Outbound IPv4)";
 	const auto FilterDescription = L"Blocks existing connections in the tunnel";
 
-	filter.displayData.name = const_cast<wchar_t*>(FilterName);
+	filter.displayData.name = const_cast<wchar_t*>(FilterNameOutboundIpv4);
 	filter.displayData.description = const_cast<wchar_t*>(FilterDescription);
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
@@ -163,16 +215,10 @@ AddBlockTunnelTrafficFilters
 
 	FWPM_FILTER_CONDITION0 cond[2];
 
-	FWP_BYTE_BLOB imageNameBlob
-	{
-		.size = imageNameCopyLength,
-		.data = imageNameCopy
-	};
-
 	cond[0].fieldKey = FWPM_CONDITION_ALE_APP_ID;
 	cond[0].matchType = FWP_MATCH_EQUAL;
 	cond[0].conditionValue.type = FWP_BYTE_BLOB_TYPE;
-	cond[0].conditionValue.byteBlob = &imageNameBlob;
+	cond[0].conditionValue.byteBlob = appIdPayload;
 
 	cond[1].fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
 	cond[1].matchType = FWP_MATCH_EQUAL;
@@ -182,7 +228,7 @@ AddBlockTunnelTrafficFilters
 	filter.filterCondition = cond;
 	filter.numFilterConditions = ARRAYSIZE(cond);
 
-	auto status = FwpmFilterAdd0(WfpSession, &filter, NULL, FilterIdV4);
+	status = FwpmFilterAdd0(WfpSession, &filter, NULL, OutboundFilterIdV4);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -190,44 +236,115 @@ AddBlockTunnelTrafficFilters
 	}
 
 	//
-	// Again, for IPv6 also.
+	// Register inbound IPv4 filter.
 	//
 
-	const auto FilterNameIpv6 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (IPv6)";
+	const auto FilterNameInboundIpv4 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Inbound IPv4)";
 
 	RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
-	filter.displayData.name = const_cast<wchar_t*>(FilterNameIpv6);
+	filter.displayData.name = const_cast<wchar_t*>(FilterNameInboundIpv4);
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
+
+	status = FwpmFilterAdd0(WfpSession, &filter, NULL, InboundFilterIdV4);
+
+	if (!NT_SUCCESS(status))
+	{
+		goto Cleanup;
+	}
+
+	//
+	// Skip IPv6 filters if IPv6 is not available.
+	//
+
+	if (StIsEmptyRange(TunnelIpv6->u.Byte, 16))
+	{
+		*OutboundFilterIdV6 = 0;
+		*InboundFilterIdV6 = 0;
+
+		status = STATUS_SUCCESS;
+
+		goto Cleanup;
+	}
+
+	//
+	// Register outbound IPv6 filter.
+	//
+
+	const auto FilterNameOutboundIpv6 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Outbound IPv6)";
+
+	RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
+	filter.displayData.name = const_cast<wchar_t*>(FilterNameOutboundIpv6);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
 	filter.action.calloutKey = ST_FW_BLOCK_SPLIT_APP_CALLOUT_IPV6_KEY;
 
 	cond[1].conditionValue.type = FWP_BYTE_ARRAY16_TYPE;
 	cond[1].conditionValue.byteArray16 = (FWP_BYTE_ARRAY16*)TunnelIpv6->u.Byte;
 
-	status = FwpmFilterAdd0(WfpSession, &filter, NULL, FilterIdV6);
+	status = FwpmFilterAdd0(WfpSession, &filter, NULL, OutboundFilterIdV6);
+
+	if (!NT_SUCCESS(status))
+	{
+		goto Cleanup;
+	}
+
+	//
+	// Register inbound IPv6 filter.
+	//
+
+	const auto FilterNameInboundIpv6 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Inbound IPv6)";
+
+	RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
+	filter.displayData.name = const_cast<wchar_t*>(FilterNameInboundIpv6);
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6;
+
+	status = FwpmFilterAdd0(WfpSession, &filter, NULL, OutboundFilterIdV6);
+
+	if (!NT_SUCCESS(status))
+	{
+		goto Cleanup;
+	}
+
+	status = STATUS_SUCCESS;
 
 Cleanup:
 
-	ExFreePoolWithTag(imageNameCopy, ST_POOL_TAG);
+	ExFreePoolWithTag(appIdPayload, ST_POOL_TAG);
 
 	return status;
 }
 
 NTSTATUS
-RemoveBlockFiltersById
+RemoveBlockFiltersTx
 (
 	HANDLE WfpSession,
-	UINT64 FilterIdV4,
-	UINT64 FilterIdV6
+	UINT64 OutboundFilterIdV4,
+	UINT64 InboundFilterIdV4,
+	UINT64 OutboundFilterIdV6,
+	UINT64 InboundFilterIdV6
 )
 {
-	auto status = FwpmFilterDeleteById0(WfpSession, FilterIdV4);
+	auto status = FwpmFilterDeleteById0(WfpSession, OutboundFilterIdV4);
 
 	if (!NT_SUCCESS(status))
 	{
 		return status;
 	}
 
-	status = status = FwpmFilterDeleteById0(WfpSession, FilterIdV6);
+	status = FwpmFilterDeleteById0(WfpSession, InboundFilterIdV4);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	status = FwpmFilterDeleteById0(WfpSession, OutboundFilterIdV6);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	status = FwpmFilterDeleteById0(WfpSession, InboundFilterIdV6);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -257,17 +374,14 @@ InitializeBlockingModule
 
 	stateData->WfpSession = WfpSession;
 
-	InitializeListHead(&stateData->BlockedTunnelTraffic);
-	InitializeListHead(&stateData->BlockedNonTunnelTraffic);
+	InitializeListHead(&stateData->BlockedTunnelConnections);
+	InitializeListHead(&stateData->BlockedNonTunnelConnections);
 
 	*Context = stateData;
 
 	return STATUS_SUCCESS;
 }
 
-//
-// TODO: Should this be transactional, does it matter?
-//
 NTSTATUS
 BlockApplicationTunnelTraffic
 (
@@ -279,7 +393,7 @@ BlockApplicationTunnelTraffic
 {
 	auto stateData = (STATE_DATA*)Context;
 
-	auto existingEntry = FindBlockTrafficEntry(&stateData->BlockedTunnelTraffic, ImageName);
+	auto existingEntry = FindBlockConnectionsEntry(&stateData->BlockedTunnelConnections, ImageName);
 
 	if (existingEntry != NULL)
 	{
@@ -288,12 +402,12 @@ BlockApplicationTunnelTraffic
 		return STATUS_SUCCESS;
 	}
 
-	auto offsetStringBuffer = StRoundToMultiple(sizeof(BLOCK_TRAFFIC_ENTRY),
-		TYPE_ALIGNMENT(BLOCK_TRAFFIC_ENTRY));
+	auto offsetStringBuffer = StRoundToMultiple(sizeof(BLOCK_CONNECTIONS_ENTRY),
+		TYPE_ALIGNMENT(WCHAR));
 
 	auto allocationSize = offsetStringBuffer + ImageName->Length;
 
-	auto entry = (BLOCK_TRAFFIC_ENTRY*)
+	auto entry = (BLOCK_CONNECTIONS_ENTRY*)
 		ExAllocatePoolWithTag(PagedPool, allocationSize, ST_POOL_TAG);
 
 	if (entry == NULL)
@@ -301,14 +415,49 @@ BlockApplicationTunnelTraffic
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
-	auto status = AddBlockTunnelTrafficFilters(stateData->WfpSession, ImageName,
-		TunnelIpv4, TunnelIpv6, &entry->FilterIdV4, &entry->FilterIdV6);
+	//
+	// Open a transaction before adding filters.
+	//
+
+	auto status = FwpmTransactionBegin0(stateData->WfpSession, 0);
 
 	if (!NT_SUCCESS(status))
 	{
-		ExFreePoolWithTag(entry, ST_POOL_TAG);
+		DbgPrint("Could not create transaction to add tunnel block filters: 0x%X\n", status);
 
-		return status;
+		goto Cleanup;
+	}
+
+	status = AddTunnelBlockFiltersTx
+	(
+		stateData->WfpSession,
+		ImageName,
+		TunnelIpv4,
+		TunnelIpv6,
+		&entry->OutboundFilterIdV4,
+		&entry->InboundFilterIdV4,
+		&entry->OutboundFilterIdV6,
+		&entry->InboundFilterIdV6
+	);
+
+	if (!NT_SUCCESS(status))
+	{
+		FwpmTransactionAbort0(stateData->WfpSession);
+
+		DbgPrint("Failed to add tunnel block filters: 0x%X\n", status);
+
+		goto Cleanup;
+	}
+
+	status = FwpmTransactionCommit0(stateData->WfpSession);
+
+	if (!NT_SUCCESS(status))
+	{
+		FwpmTransactionAbort0(stateData->WfpSession);
+
+		DbgPrint("Failed to commit tunnel block filters: 0x%X\n", status);
+
+		goto Cleanup;
 	}
 
 	auto stringBuffer = (WCHAR*)(((UINT8*)entry) + offsetStringBuffer);
@@ -323,11 +472,17 @@ BlockApplicationTunnelTraffic
 
 	RtlCopyMemory(stringBuffer, ImageName->Buffer, ImageName->Length);
 
-	InsertTailList(&stateData->BlockedTunnelTraffic, &entry->ListEntry);
+	InsertTailList(&stateData->BlockedTunnelConnections, &entry->ListEntry);
 
 	DbgPrint("Added tunnel block filters for %wZ\n", ImageName);
 
 	return STATUS_SUCCESS;
+
+Cleanup:
+
+	ExFreePoolWithTag(entry, ST_POOL_TAG);
+
+	return status;
 }
 
 NTSTATUS
@@ -339,7 +494,7 @@ UnblockApplicationTunnelTraffic
 {
 	auto stateData = (STATE_DATA*)Context;
 
-	auto entry = FindBlockTrafficEntry(&stateData->BlockedTunnelTraffic, ImageName);
+	auto entry = FindBlockConnectionsEntry(&stateData->BlockedTunnelConnections, ImageName);
 
 	if (entry == NULL)
 	{
@@ -355,11 +510,44 @@ UnblockApplicationTunnelTraffic
 	// This was the last reference
 	// Remove filters and deallocate entry.
 	//
+	// For all failure cases, we leave the entry intact.
+	//
 
-	auto status = RemoveBlockFiltersById(stateData->WfpSession, entry->FilterIdV4, entry->FilterIdV6);
+	auto status = FwpmTransactionBegin0(stateData->WfpSession, 0);
 
 	if (!NT_SUCCESS(status))
 	{
+		DbgPrint("Could not create transaction to remove tunnel block filters: 0x%X\n", status);
+
+		return status;
+	}
+
+	status = RemoveBlockFiltersTx
+	(
+		stateData->WfpSession,
+		entry->OutboundFilterIdV4,
+		entry->InboundFilterIdV4,
+		entry->OutboundFilterIdV6,
+		entry->InboundFilterIdV6
+	);
+
+	if (!NT_SUCCESS(status))
+	{
+		FwpmTransactionAbort0(stateData->WfpSession);
+
+		DbgPrint("Could not remove tunnel block filters: 0x%X\n", status);
+
+		return status;
+	}
+
+	status = FwpmTransactionCommit0(stateData->WfpSession);
+
+	if (!NT_SUCCESS(status))
+	{
+		FwpmTransactionAbort0(stateData->WfpSession);
+
+		DbgPrint("Could not commit removal of tunnel block filters: 0x%X\n", status);
+
 		return status;
 	}
 

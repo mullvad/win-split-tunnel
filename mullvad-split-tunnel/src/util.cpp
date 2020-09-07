@@ -183,7 +183,7 @@ StValidateBufferRange
 bool
 StIsEmptyRange
 (
-	void *Buffer,
+	const void *Buffer,
 	SIZE_T Length
 )
 {
@@ -194,7 +194,7 @@ StIsEmptyRange
 	// Then read the last few bytes in this silly byte-by-byte manner.
 	//
 
-	for (auto b = (UCHAR*)Buffer; Length != 0; ++b, --Length)
+	for (auto b = (const UCHAR*)Buffer; Length != 0; ++b, --Length)
 	{
 		if (*b != 0)
 		{

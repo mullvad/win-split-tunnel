@@ -52,7 +52,7 @@ StValidateBufferRange
 bool
 StIsEmptyRange
 (
-	void *Buffer,
+	const void *Buffer,
 	SIZE_T Length
 );
 
