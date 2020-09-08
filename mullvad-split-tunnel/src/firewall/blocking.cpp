@@ -297,7 +297,7 @@ AddTunnelBlockFiltersTx
 	filter.displayData.name = const_cast<wchar_t*>(FilterNameInboundIpv6);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6;
 
-	status = FwpmFilterAdd0(WfpSession, &filter, NULL, OutboundFilterIdV6);
+	status = FwpmFilterAdd0(WfpSession, &filter, NULL, InboundFilterIdV6);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -452,7 +452,7 @@ AddNonTunnelBlockFiltersTx
 	filter.displayData.name = const_cast<wchar_t*>(FilterNameInboundIpv6);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6;
 
-	status = FwpmFilterAdd0(WfpSession, &filter, NULL, OutboundFilterIdV6);
+	status = FwpmFilterAdd0(WfpSession, &filter, NULL, InboundFilterIdV6);
 
 	if (!NT_SUCCESS(status))
 	{
