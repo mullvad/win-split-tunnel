@@ -104,6 +104,9 @@ ST_PROCESS_DISCOVERY_HEADER;
 // Structures related to IP address registration.
 //
 
+// todo: move this to some place more suited?
+// used internally throughout the driver.
+
 typedef struct tag_ST_IP_ADDRESSES
 {
 	IN_ADDR TunnelIpv4;

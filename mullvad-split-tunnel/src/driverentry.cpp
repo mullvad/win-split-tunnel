@@ -10,7 +10,7 @@
 #include "public.h"
 #include "globals.h"
 #include "ioctl.h"
-#include "fw.h"
+#include "firewall/firewall.h"
 
 extern "C"
 DRIVER_INITIALIZE DriverEntry;
@@ -427,12 +427,12 @@ StUpdateState
             // only the configuration has changed.
             //
 
-            auto status = StFwNotifyUpdatedIpAddresses(&Context->IpAddresses);
+            auto status = firewall::RegisterUpdatedIpAddresses(&Context->IpAddresses);
 
             if (!NT_SUCCESS(status))
             {
                 DbgPrint("Failed to enter engaged state\n");
-                DbgPrint("StFwNotifyUpdatedIpAddresses() failed 0x%X\n", status);
+                DbgPrint("RegisterUpdatedIpAddresses() failed 0x%X\n", status);
 
                 return status;
             }
@@ -445,7 +445,7 @@ StUpdateState
             // READY -> ENGAGED
             //
 
-            auto status = StFwEnableSplitting(&Context->IpAddresses);
+            auto status = firewall::EnableSplitting(&Context->IpAddresses);
 
             if (!NT_SUCCESS(status))
             {
@@ -478,7 +478,7 @@ StUpdateState
             // ENGAGED -> READY
             //
 
-            const auto status = StFwDisableSplitting();
+            const auto status = firewall::DisableSplitting();
 
             if (!NT_SUCCESS(status))
             {

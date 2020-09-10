@@ -4,7 +4,7 @@
 #include "public.h"
 #include "globals.h"
 #include "util.h"
-#include "fw.h"
+#include "firewall/firewall.h"
 #include "validation.h"
 
 //
@@ -90,12 +90,7 @@ StApplySplitSetting
 
     if (Entry->Split == ST_PROCESS_SPLIT_STATUS_ON)
     {
-        if (Entry->HasFirewallState && Entry->PreviousSplit == ST_PROCESS_SPLIT_STATUS_OFF)
-        {
-            StFwUnblockApplicationNonTunnelTraffic((LOWER_UNICODE_STRING*)&Entry->ImageName);
-        }
-
-        StFwBlockApplicationTunnelTraffic((LOWER_UNICODE_STRING*)&Entry->ImageName);
+        firewall::RegisterAppBecomingSplit((LOWER_UNICODE_STRING*)&Entry->ImageName);
 
         Entry->HasFirewallState = true;
 
@@ -104,12 +99,7 @@ StApplySplitSetting
 
     if (Entry->Split == ST_PROCESS_SPLIT_STATUS_OFF)
     {
-        if (Entry->HasFirewallState && Entry->PreviousSplit == ST_PROCESS_SPLIT_STATUS_ON)
-        {
-            StFwUnblockApplicationTunnelTraffic((LOWER_UNICODE_STRING*)&Entry->ImageName);
-        }
-
-        StFwBlockApplicationNonTunnelTraffic((LOWER_UNICODE_STRING*)&Entry->ImageName);
+        firewall::RegisterAppBecomingUnsplit((LOWER_UNICODE_STRING*)&Entry->ImageName);
 
         Entry->HasFirewallState = true;
 
@@ -226,7 +216,7 @@ GetConfigurationSerialize
     return true;
 }
 
-ST_FW_PROCESS_SPLIT_VERDICT
+firewall::PROCESS_SPLIT_VERDICT
 StCbQueryProcess
 (
 	HANDLE ProcessId,
@@ -239,13 +229,13 @@ StCbQueryProcess
 
     auto process = StProcessRegistryFindEntry(context->ProcessRegistry.Instance, ProcessId);
 
-    ST_FW_PROCESS_SPLIT_VERDICT verdict = ST_FW_PROCESS_SPLIT_VERDICT_UNKNOWN;
+    firewall::PROCESS_SPLIT_VERDICT verdict = firewall::PROCESS_SPLIT_VERDICT::UNKNOWN;
 
     if (NULL != process)
     {
         verdict = (process->Split == ST_PROCESS_SPLIT_STATUS_ON
-            ? ST_FW_PROCESS_SPLIT_VERDICT_DO_SPLIT
-            : ST_FW_PROCESS_SPLIT_VERDICT_DONT_SPLIT);
+            ? firewall::PROCESS_SPLIT_VERDICT::DO_SPLIT
+            : firewall::PROCESS_SPLIT_VERDICT::DONT_SPLIT);
     }
 
     WdfSpinLockRelease(context->ProcessRegistry.Lock);
@@ -336,12 +326,12 @@ StIoControlInitialize()
         return status;
     }
 
-    ST_FW_CALLBACKS callbacks;
+    firewall::CALLBACKS callbacks;
 
     callbacks.QueryProcess = StCbQueryProcess;
     callbacks.Context = context;
 
-    status = StFwInitialize(WdfDeviceWdmGetDeviceObject(g_Device), &callbacks);
+    status = firewall::Initialize(WdfDeviceWdmGetDeviceObject(g_Device), &callbacks);
 
     if (!NT_SUCCESS(status))
     {
@@ -805,10 +795,10 @@ StIoControlRegisterIpAddresses
     RtlCopyMemory(&context->IpAddresses, buffer, sizeof(context->IpAddresses));
 
     //
-    // Update fw subsystem to it always has the current addresses.
+    // Update fw subsystem so it always has the current addresses.
     //
 
-    StFwNotifyUpdatedIpAddresses(&context->IpAddresses);
+    firewall::RegisterUpdatedIpAddresses(&context->IpAddresses);
 
     //
     // Evaluate whether we should enter the engaged state.

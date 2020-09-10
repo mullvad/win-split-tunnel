@@ -11,9 +11,17 @@
     <ClCompile Include="src\procmgmt.cpp" />
     <ClCompile Include="src\procregistry.cpp" />
     <ClCompile Include="src\shared.cpp" />
-    <ClCompile Include="src\fw.cpp" />
     <ClCompile Include="src\validation.cpp" />
     <ClCompile Include="src\firewall\blocking.cpp">
+      <Filter>firewall</Filter>
+    </ClCompile>
+    <ClCompile Include="src\firewall\callouts.cpp">
+      <Filter>firewall</Filter>
+    </ClCompile>
+    <ClCompile Include="src\firewall\context.cpp">
+      <Filter>firewall</Filter>
+    </ClCompile>
+    <ClCompile Include="src\firewall\firewall.cpp">
       <Filter>firewall</Filter>
     </ClCompile>
   </ItemGroup>
@@ -31,7 +39,6 @@
     <ClInclude Include="src\globals.h" />
     <ClInclude Include="src\procmgmt.h" />
     <ClInclude Include="src\procregistry.h" />
-    <ClInclude Include="src\fw.h" />
     <ClInclude Include="src\types.h" />
     <ClInclude Include="src\validation.h" />
     <ClInclude Include="src\firewall\blocking.h">
@@ -41,6 +48,15 @@
       <Filter>firewall</Filter>
     </ClInclude>
     <ClInclude Include="src\firewall\constants.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="src\firewall\callouts.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="src\firewall\firewall.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="src\firewall\context.h">
       <Filter>firewall</Filter>
     </ClInclude>
   </ItemGroup>

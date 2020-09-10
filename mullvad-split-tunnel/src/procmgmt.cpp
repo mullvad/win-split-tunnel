@@ -3,7 +3,7 @@
 #include "shared.h"
 #include "util.h"
 #include "registeredimage.h"
-#include "fw.h"
+#include "firewall/firewall.h"
 
 namespace
 {
@@ -265,13 +265,13 @@ StHandleProcessDeparting
             }
             case ST_PROCESS_SPLIT_STATUS_ON:
             {
-                StFwUnblockApplicationTunnelTraffic((LOWER_UNICODE_STRING*)&registryEntry->ImageName);
+                firewall::RegisterSplitAppDeparting((LOWER_UNICODE_STRING*)&registryEntry->ImageName);
 
                 break;
             }
             case ST_PROCESS_SPLIT_STATUS_OFF:
             {
-                StFwUnblockApplicationNonTunnelTraffic((LOWER_UNICODE_STRING*)&registryEntry->ImageName);
+                firewall::RegisterUnsplitAppDeparting((LOWER_UNICODE_STRING*)&registryEntry->ImageName);
 
                 break;
             }
