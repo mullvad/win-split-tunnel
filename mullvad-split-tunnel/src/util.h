@@ -3,6 +3,8 @@
 #include <wdm.h>
 #include "types.h"
 
+#define ntohs(s) (((s & 0xFF) << 8) | ((s >> 8) & 0xFF))
+
 //
 // N.B. m has to be a power of two.
 //

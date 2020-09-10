@@ -24,6 +24,9 @@
     <ClCompile Include="src\firewall\firewall.cpp">
       <Filter>firewall</Filter>
     </ClCompile>
+    <ClCompile Include="src\firewall\splitting.cpp">
+      <Filter>firewall</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="src\mullvad-split-tunnel.inf" />
@@ -57,6 +60,12 @@
       <Filter>firewall</Filter>
     </ClInclude>
     <ClInclude Include="src\firewall\context.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="src\firewall\splitting.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="src\firewall\wfp.h">
       <Filter>firewall</Filter>
     </ClInclude>
   </ItemGroup>

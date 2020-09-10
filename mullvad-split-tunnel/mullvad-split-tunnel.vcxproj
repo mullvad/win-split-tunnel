@@ -258,6 +258,7 @@
     <ClCompile Include="src\firewall\callouts.cpp" />
     <ClCompile Include="src\firewall\context.cpp" />
     <ClCompile Include="src\firewall\firewall.cpp" />
+    <ClCompile Include="src\firewall\splitting.cpp" />
     <ClCompile Include="src\globals.cpp" />
     <ClCompile Include="src\init.cpp" />
     <ClCompile Include="src\ioctl.cpp" />
@@ -279,6 +280,8 @@
     <ClInclude Include="src\firewall\context.h" />
     <ClInclude Include="src\firewall\firewall.h" />
     <ClInclude Include="src\firewall\identifiers.h" />
+    <ClInclude Include="src\firewall\splitting.h" />
+    <ClInclude Include="src\firewall\wfp.h" />
     <ClInclude Include="src\globals.h" />
     <ClInclude Include="src\init.h" />
     <ClInclude Include="src\ioctl.h" />

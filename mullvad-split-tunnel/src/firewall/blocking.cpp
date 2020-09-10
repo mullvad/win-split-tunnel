@@ -1,16 +1,10 @@
-#pragma warning(push)
-#pragma warning(disable:4201)
-#define NDIS630
-#include <ndis.h>
-#include <fwpsk.h>
-#pragma warning(pop)
-#include <fwpmk.h>
-#include "blocking.h"
+#include "wfp.h"
 #include "identifiers.h"
 #include "constants.h"
 #include "../types.h"
 #include "../util.h"
 #include "../shared.h"
+#include "blocking.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 //
