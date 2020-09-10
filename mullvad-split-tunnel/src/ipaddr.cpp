@@ -1,10 +1,7 @@
-#include <ntddk.h>
-#include <wdm.h>
-#include "shared.h"
+#include "ipaddr.h"
 #include "util.h"
 
-extern "C"
-BOOLEAN
+bool
 StHasTunnelIpv4Address
 (
 	ST_IP_ADDRESSES *IpAddresses
@@ -13,8 +10,7 @@ StHasTunnelIpv4Address
 	return !StIsEmptyRange(&IpAddresses->TunnelIpv4, sizeof(IpAddresses->TunnelIpv4));
 }
 
-extern "C"
-BOOLEAN
+bool
 StHasInternetIpv4Address
 (
 	ST_IP_ADDRESSES *IpAddresses
@@ -23,8 +19,7 @@ StHasInternetIpv4Address
 	return !StIsEmptyRange(&IpAddresses->InternetIpv4, sizeof(IpAddresses->InternetIpv4));
 }
 
-extern "C"
-BOOLEAN
+bool
 StHasTunnelIpv6Address
 (
 	ST_IP_ADDRESSES *IpAddresses
@@ -33,8 +28,7 @@ StHasTunnelIpv6Address
 	return !StIsEmptyRange(&IpAddresses->TunnelIpv6, sizeof(IpAddresses->TunnelIpv6));
 }
 
-extern "C"
-BOOLEAN
+bool
 StHasInternetIpv6Address
 (
 	ST_IP_ADDRESSES *IpAddresses

@@ -262,11 +262,11 @@
     <ClCompile Include="src\globals.cpp" />
     <ClCompile Include="src\init.cpp" />
     <ClCompile Include="src\ioctl.cpp" />
+    <ClCompile Include="src\ipaddr.cpp" />
     <ClCompile Include="src\procmgmt.cpp" />
     <ClCompile Include="src\procregistry.cpp" />
     <ClCompile Include="src\procstatus.cpp" />
     <ClCompile Include="src\registeredimage.cpp" />
-    <ClCompile Include="src\shared.cpp" />
     <ClCompile Include="src\util.cpp" />
     <ClCompile Include="src\validation.cpp" />
   </ItemGroup>
@@ -285,12 +285,14 @@
     <ClInclude Include="src\globals.h" />
     <ClInclude Include="src\init.h" />
     <ClInclude Include="src\ioctl.h" />
+    <ClInclude Include="src\ipaddr.h" />
     <ClInclude Include="src\procmgmt.h" />
     <ClInclude Include="src\procregistry.h" />
     <ClInclude Include="src\procstatus.h" />
     <ClInclude Include="src\public.h" />
     <ClInclude Include="src\registeredimage.h" />
     <ClInclude Include="src\shared.h" />
+    <ClInclude Include="src\state.h" />
     <ClInclude Include="src\types.h" />
     <ClInclude Include="src\util.h" />
     <ClInclude Include="src\validation.h" />

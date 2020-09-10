@@ -10,7 +10,6 @@
     <ClCompile Include="src\globals.cpp" />
     <ClCompile Include="src\procmgmt.cpp" />
     <ClCompile Include="src\procregistry.cpp" />
-    <ClCompile Include="src\shared.cpp" />
     <ClCompile Include="src\validation.cpp" />
     <ClCompile Include="src\firewall\blocking.cpp">
       <Filter>firewall</Filter>
@@ -27,6 +26,7 @@
     <ClCompile Include="src\firewall\splitting.cpp">
       <Filter>firewall</Filter>
     </ClCompile>
+    <ClCompile Include="src\ipaddr.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Inf Include="src\mullvad-split-tunnel.inf" />
@@ -68,6 +68,8 @@
     <ClInclude Include="src\firewall\wfp.h">
       <Filter>firewall</Filter>
     </ClInclude>
+    <ClInclude Include="src\ipaddr.h" />
+    <ClInclude Include="src\state.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="firewall">

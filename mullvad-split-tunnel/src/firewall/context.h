@@ -2,7 +2,7 @@
 
 #include <wdm.h>
 #include "firewall.h"
-#include "../public.h" // temp for ST_IP_ADDRESSES
+#include "../ipaddr.h"
 
 namespace firewall
 {

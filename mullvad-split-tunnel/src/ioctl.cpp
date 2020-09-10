@@ -4,6 +4,7 @@
 #include "public.h"
 #include "globals.h"
 #include "util.h"
+#include "ipaddr.h"
 #include "firewall/firewall.h"
 #include "validation.h"
 

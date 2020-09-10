@@ -4,6 +4,12 @@
 #include "public.h"
 #include "registeredimage.h"
 #include "procregistry.h"
+#include "ipaddr.h"
+
+//
+// TODO: Get rid of this file.
+//
+
 
 //
 // Structures etc that are shared between components
@@ -64,31 +70,3 @@ typedef struct tag_ST_DEVICE_CONTEXT
 ST_DEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(ST_DEVICE_CONTEXT, DeviceGetSplitTunnelContext)
-
-extern "C"
-BOOLEAN
-StHasTunnelIpv4Address
-(
-	ST_IP_ADDRESSES *IpAddresses
-);
-
-extern "C"
-BOOLEAN
-StHasInternetIpv4Address
-(
-	ST_IP_ADDRESSES *IpAddresses
-);
-
-extern "C"
-BOOLEAN
-StHasTunnelIpv6Address
-(
-	ST_IP_ADDRESSES *IpAddresses
-);
-
-extern "C"
-BOOLEAN
-StHasInternetIpv6Address
-(
-	ST_IP_ADDRESSES *IpAddresses
-);

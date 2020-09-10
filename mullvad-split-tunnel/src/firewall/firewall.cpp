@@ -155,7 +155,7 @@ Initialize
 		goto Cleanup_session;
 	}
 
-	status = firewall::InitializeBlockingModule(g_Context.WfpSession, &g_Context.BlockingContext);
+	status = InitializeBlockingModule(g_Context.WfpSession, &g_Context.BlockingContext);
 
 	if (!NT_SUCCESS(status))
 	{

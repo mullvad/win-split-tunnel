@@ -207,7 +207,7 @@ RegisterFilterBindRedirectTx
 	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT;
 
 	filter.weight.type = FWP_UINT64;
-	filter.weight.uint64 = const_cast<UINT64*>(&MAX_FILTER_WEIGHT);
+	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
 
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 	filter.action.calloutKey = ST_FW_CALLOUT_CLASSIFY_BIND_IPV4_KEY;
@@ -311,7 +311,7 @@ RegisterFilterPermitSplitAppsTx
 	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT;
 
 	filter.weight.type = FWP_UINT64;
-	filter.weight.uint64 = const_cast<UINT64*>(&HIGH_FILTER_WEIGHT);
+	filter.weight.uint64 = const_cast<UINT64*>(&ST_HIGH_FILTER_WEIGHT);
 
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 	filter.action.calloutKey = ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV4_CONN_KEY;

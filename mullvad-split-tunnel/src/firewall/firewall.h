@@ -1,7 +1,7 @@
 #pragma once
 
 #include <wdm.h>
-#include "../public.h" // temp for ST_IP_ADDRESSES
+#include "../ipaddr.h"
 #include "../types.h"
 
 namespace firewall
