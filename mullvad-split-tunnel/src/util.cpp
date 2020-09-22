@@ -21,8 +21,11 @@ StReparentList(LIST_ENTRY *dest, LIST_ENTRY *src)
 	// Replace root node.
 	//
 
-	dest->Flink = src->Flink;
-	dest->Blink = src->Blink;
+	*dest = *src;
+
+	//
+	// Update links on first and last entry.
+	//
 
 	dest->Flink->Blink = dest;
 	dest->Blink->Flink = dest;
