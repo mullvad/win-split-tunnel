@@ -48,7 +48,7 @@ NTSTATUS
 Initialize
 (
 	PDEVICE_OBJECT DeviceObject,
-	CALLBACKS *Callbacks
+	const CALLBACKS *Callbacks
 );
 
 NTSTATUS
@@ -59,7 +59,7 @@ TearDown
 NTSTATUS
 EnableSplitting
 (
-	ST_IP_ADDRESSES *IpAddresses
+	const ST_IP_ADDRESSES *IpAddresses
 );
 
 NTSTATUS
@@ -70,31 +70,34 @@ DisableSplitting
 NTSTATUS
 RegisterUpdatedIpAddresses
 (
-	ST_IP_ADDRESSES *IpAddresses
+	const ST_IP_ADDRESSES *IpAddresses
 );
 
 NTSTATUS
-RegisterAppBecomingSplit
+TransactionBegin
 (
-	LOWER_UNICODE_STRING *ImageName
+);
+
+void
+TransactionCommit
+(
+);
+
+void
+TransactionAbort
+(
 );
 
 NTSTATUS
-RegisterAppBecomingUnsplit
+RegisterAppBecomingSplitTx2
 (
-	LOWER_UNICODE_STRING *ImageName
+	const LOWER_UNICODE_STRING *ImageName
 );
 
 NTSTATUS
-RegisterSplitAppDeparting
+RegisterAppBecomingUnsplitTx2
 (
-	LOWER_UNICODE_STRING *ImageName
-);
-
-NTSTATUS
-RegisterUnsplitAppDeparting
-(
-	LOWER_UNICODE_STRING *ImageName
+	const LOWER_UNICODE_STRING *ImageName
 );
 
 } // namespace firewall

@@ -91,7 +91,11 @@ StApplySplitSetting
 
     if (Entry->Split == ST_PROCESS_SPLIT_STATUS_ON)
     {
-        firewall::RegisterAppBecomingSplit((LOWER_UNICODE_STRING*)&Entry->ImageName);
+        //
+        // TODO: Need double transaction here.
+        //
+
+        firewall::RegisterAppBecomingSplitTx2((LOWER_UNICODE_STRING*)&Entry->ImageName);
 
         Entry->HasFirewallState = true;
 
@@ -100,7 +104,11 @@ StApplySplitSetting
 
     if (Entry->Split == ST_PROCESS_SPLIT_STATUS_OFF)
     {
-        firewall::RegisterAppBecomingUnsplit((LOWER_UNICODE_STRING*)&Entry->ImageName);
+        //
+        // TODO: Need double transaction here.
+        //
+
+        firewall::RegisterAppBecomingUnsplitTx2((LOWER_UNICODE_STRING*)&Entry->ImageName);
 
         Entry->HasFirewallState = true;
 
@@ -788,7 +796,20 @@ StIoControlRegisterIpAddresses
     }
 
     //
-    // Store provided data.
+    // Attempt to update fw subsystem so it always has the current addresses.
+    //
+
+    status = firewall::RegisterUpdatedIpAddresses((ST_IP_ADDRESSES*)buffer);
+
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint("Could not update firewall subsystem with new IP addresses\n");
+
+        return status;
+    }
+
+    //
+    // Store updated addresses.
     //
 
     auto context = DeviceGetSplitTunnelContext(g_Device);
@@ -796,13 +817,7 @@ StIoControlRegisterIpAddresses
     RtlCopyMemory(&context->IpAddresses, buffer, sizeof(context->IpAddresses));
 
     //
-    // Update fw subsystem so it always has the current addresses.
-    //
-
-    firewall::RegisterUpdatedIpAddresses(&context->IpAddresses);
-
-    //
-    // Evaluate whether we should enter the engaged state.
+    // Evaluate whether we should enter/remain in the engaged state.
     // Keep in mind that either IP may have just been cleared.
     //
 

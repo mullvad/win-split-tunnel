@@ -240,7 +240,7 @@ StHandleProcessDeparting
     // We're still at PASSIVE_LEVEL and the operation lock is held.
     // IOCTL handlers are locked out.
     //
-    // Complete all process and acquire the spin lock only when
+    // Complete all processing and acquire the spin lock only when
     // updating the process tree.
     //
 
@@ -255,27 +255,11 @@ StHandleProcessDeparting
 
     if (registryEntry->HasFirewallState)
     {
-        switch (registryEntry->Split)
-        {
-            case ST_PROCESS_SPLIT_STATUS_UNKNOWN:
-            {
-                DbgPrint("Invalid: UNKNOWN split status yet there is firewall state?\n");
+        //
+        // TODO: Need double transaction here.
+        //
 
-                break;
-            }
-            case ST_PROCESS_SPLIT_STATUS_ON:
-            {
-                firewall::RegisterSplitAppDeparting((LOWER_UNICODE_STRING*)&registryEntry->ImageName);
-
-                break;
-            }
-            case ST_PROCESS_SPLIT_STATUS_OFF:
-            {
-                firewall::RegisterUnsplitAppDeparting((LOWER_UNICODE_STRING*)&registryEntry->ImageName);
-
-                break;
-            }
-        }
+        firewall::RegisterAppBecomingUnsplitTx2((LOWER_UNICODE_STRING*)&registryEntry->ImageName);
     }
 
     WdfSpinLockAcquire(Context->ProcessRegistry.Lock);

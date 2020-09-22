@@ -95,6 +95,25 @@ ConfigureWfpTx
 	return STATUS_SUCCESS;
 }
 
+void
+UpdateIpv6Action
+(
+	IP_ADDRESSES_MGMT *IpAddresses
+)
+{
+	if (StHasTunnelIpv6Address(&IpAddresses->Addresses))
+	{
+		IpAddresses->Ipv6Action =
+			(StHasInternetIpv6Address(&IpAddresses->Addresses)
+			? IPV6_ACTION::SPLIT
+			: IPV6_ACTION::BLOCK);
+	}
+	else
+	{
+		IpAddresses->Ipv6Action = IPV6_ACTION::NONE;
+	}
+}
+
 } // anonymous namespace
 
 //
@@ -111,14 +130,14 @@ NTSTATUS
 Initialize
 (
 	PDEVICE_OBJECT DeviceObject,
-	CALLBACKS *Callbacks
+	const CALLBACKS *Callbacks
 )
 {
 	NT_ASSERT(!g_Context.Initialized);
 
-	g_Context.Callbacks = *Callbacks;
+	ResetContext();
 
-	ExInitializeFastMutex(&g_Context.IpAddresses.Lock);
+	g_Context.Callbacks = *Callbacks;
 
 	auto status = CreateWfpSession(&g_Context.WfpSession);
 
@@ -155,7 +174,7 @@ Initialize
 		goto Cleanup_session;
 	}
 
-	status = InitializeBlockingModule(g_Context.WfpSession, &g_Context.BlockingContext);
+	status = blocking::Initialize(g_Context.WfpSession, &g_Context.BlockingContext);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -202,8 +221,7 @@ TearDown
 
 	// TODO: Signal to blocking subsystem that is should shut down as well.
 
-	g_Context.BindRedirectFilterPresent = false;
-	g_Context.Initialized = false;
+	ResetContext();
 
 	return STATUS_SUCCESS;
 }
@@ -216,24 +234,23 @@ TearDown
 NTSTATUS
 EnableSplitting
 (
-	ST_IP_ADDRESSES *IpAddresses
+	const ST_IP_ADDRESSES *IpAddresses
 )
 {
 	NT_ASSERT(g_Context.Initialized);
+	NT_ASSERT(!g_Context.SplittingEnabled);
 
-	ExAcquireFastMutex(&g_Context.IpAddresses.Lock);
+	//
+	// There are no readers at this time so we can update at leasure and without
+	// taking the lock.
+	//
 
 	g_Context.IpAddresses.Addresses = *IpAddresses;
 
-	auto ipv4 = g_Context.IpAddresses.Addresses.TunnelIpv4;
-	auto ipv6 = g_Context.IpAddresses.Addresses.TunnelIpv6;
+	UpdateIpv6Action(&g_Context.IpAddresses);
 
-	ExReleaseFastMutex(&g_Context.IpAddresses.Lock);
-
-	if (g_Context.BindRedirectFilterPresent)
-	{
-		return STATUS_SUCCESS;
-	}
+	const auto registerIpv6 = (g_Context.IpAddresses.Ipv6Action == IPV6_ACTION::SPLIT);
+	const auto blockIpv6 = (g_Context.IpAddresses.Ipv6Action == IPV6_ACTION::BLOCK);
 
 	//
 	// Update WFP inside a transaction.
@@ -246,19 +263,42 @@ EnableSplitting
 		return status;
 	}
 
-	status = RegisterFilterBindRedirectTx(g_Context.WfpSession);
+	status = RegisterFilterBindRedirectTx(g_Context.WfpSession, registerIpv6);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Exit_abort;
 	}
 
-	status = RegisterFilterPermitSplitAppsTx(g_Context.WfpSession, &ipv4, &ipv6);
+	status = RegisterFilterPermitSplitAppsTx
+	(
+		g_Context.WfpSession,
+		&g_Context.IpAddresses.Addresses.TunnelIpv4,
+		registerIpv6 ? &g_Context.IpAddresses.Addresses.TunnelIpv6 : NULL
+	);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Exit_abort;
 	}
+
+	//
+	// If we are not splitting IPv6, we may need to block it.
+	//
+
+	if (blockIpv6)
+	{
+		status = blocking::RegisterFilterBlockSplitAppsIpv6Tx(g_Context.BlockingContext);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Exit_abort;
+		}
+	}
+
+	//
+	// Commit filters.
+	//
 
 	status = FwpmTransactionCommit0(g_Context.WfpSession);
 
@@ -269,7 +309,7 @@ EnableSplitting
 		goto Exit_abort;
 	}
 
-	g_Context.BindRedirectFilterPresent = true;
+	g_Context.SplittingEnabled = true;
 
 	return STATUS_SUCCESS;
 
@@ -296,11 +336,7 @@ NTSTATUS
 DisableSplitting()
 {
 	NT_ASSERT(g_Context.Initialized);
-
-	if (!g_Context.BindRedirectFilterPresent)
-	{
-		return STATUS_SUCCESS;
-	}
+	NT_ASSERT(g_Context.SplittingEnabled);
 
 	//
 	// Update WFP inside a transaction.
@@ -313,19 +349,40 @@ DisableSplitting()
 		return status;
 	}
 
-	status = RemoveFilterBindRedirectTx(g_Context.WfpSession);
+	const auto removeIpv6 = (g_Context.IpAddresses.Ipv6Action == IPV6_ACTION::SPLIT);
+	const auto removeBlockIpv6 = (g_Context.IpAddresses.Ipv6Action == IPV6_ACTION::BLOCK);
+
+	status = RemoveFilterBindRedirectTx(g_Context.WfpSession, removeIpv6);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Exit_abort;
 	}
 
-	status = RemoveFilterPermitSplitAppsTx(g_Context.WfpSession);
+	status = RemoveFilterPermitSplitAppsTx(g_Context.WfpSession, removeIpv6);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Exit_abort;
 	}
+
+	//
+	// If we were blocking IPv6, remove those filters as well.
+	//
+
+	if (removeBlockIpv6)
+	{
+		status = blocking::RemoveFilterBlockSplitAppsIpv6Tx(g_Context.BlockingContext);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Exit_abort;
+		}
+	}
+
+	//
+	// TODO: Signal to blocking subsystem that it should remove all filters.
+	//
 
 	status = FwpmTransactionCommit0(g_Context.WfpSession);
 
@@ -336,7 +393,7 @@ DisableSplitting()
 		goto Exit_abort;
 	}
 
-	g_Context.BindRedirectFilterPresent = false;
+	g_Context.SplittingEnabled = false;
 
 	return STATUS_SUCCESS;
 
@@ -357,31 +414,198 @@ Exit_abort:
 NTSTATUS
 RegisterUpdatedIpAddresses
 (
-	ST_IP_ADDRESSES *IpAddresses
+	const ST_IP_ADDRESSES *IpAddresses
 )
 {
 	NT_ASSERT(g_Context.Initialized);
 
+	if (!g_Context.SplittingEnabled)
+	{
+		return STATUS_SUCCESS;
+	}
+
+	//
+	// Create temporary management structure for IP addresses.
+	//
+
+	IP_ADDRESSES_MGMT IpMgmt;
+
+	IpMgmt.Addresses = *IpAddresses;
+
+	UpdateIpv6Action(&IpMgmt);
+
+	const auto registerIpv6 = (IpMgmt.Ipv6Action == IPV6_ACTION::SPLIT);
+	const auto blockIpv6 = (IpMgmt.Ipv6Action == IPV6_ACTION::BLOCK);
+
+	//
+	// Using a transaction, remove and add back relevant filters.
+	//
+	// Relevant filters in this case are all those that directly reference an IP address
+	// or are registered conditionally depending on which IP addresses are present.
+	//
+
+	auto status = FwpmTransactionBegin0(g_Context.WfpSession, 0);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	const auto removeIpv6 = (g_Context.IpAddresses.Ipv6Action == IPV6_ACTION::SPLIT);
+	const auto removeBlockIpv6 = (g_Context.IpAddresses.Ipv6Action == IPV6_ACTION::BLOCK);
+
+	if (registerIpv6 != removeIpv6)
+	{
+		status = RemoveFilterBindRedirectTx(g_Context.WfpSession, removeIpv6);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Exit_abort;
+		}
+
+		status = RegisterFilterBindRedirectTx(g_Context.WfpSession, registerIpv6);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Exit_abort;
+		}
+	}
+
+	status = RemoveFilterPermitSplitAppsTx(g_Context.WfpSession, removeIpv6);
+
+	if (!NT_SUCCESS(status))
+	{
+		goto Exit_abort;
+	}
+
+	status = RegisterFilterPermitSplitAppsTx
+	(
+		g_Context.WfpSession,
+		&IpMgmt.Addresses.TunnelIpv4,
+		registerIpv6 ? &IpMgmt.Addresses.TunnelIpv6 : NULL
+	);
+
+	if (blockIpv6 != removeBlockIpv6)
+	{
+		status = blocking::RemoveFilterBlockSplitAppsIpv6Tx(g_Context.BlockingContext);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Exit_abort;
+		}
+
+		status = blocking::RegisterFilterBlockSplitAppsIpv6Tx(g_Context.BlockingContext);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Exit_abort;
+		}
+	}
+
+	//
+	// Update blocking subsystem.
+	//
+
+	status = blocking::TransactionBegin(g_Context.BlockingContext);
+
+	if (!NT_SUCCESS(status))
+	{
+		goto Exit_abort;
+	}
+
+	status = blocking::UpdateBlockingFiltersTx2(g_Context.BlockingContext,
+		&IpAddresses->TunnelIpv4, &IpAddresses->TunnelIpv6);
+
+	if (!NT_SUCCESS(status))
+	{
+		blocking::TransactionAbort(g_Context.BlockingContext);
+
+		goto Exit_abort;
+	}
+
+	//
+	// Finalize.
+	//
+
+	status = FwpmTransactionCommit0(g_Context.WfpSession);
+
+	if (!NT_SUCCESS(status))
+	{
+		blocking::TransactionAbort(g_Context.BlockingContext);
+
+		DbgPrint("Failed to commit transaction\n");
+
+		goto Exit_abort;
+	}
+
+	blocking::TransactionCommit(g_Context.BlockingContext);
+
 	ExAcquireFastMutex(&g_Context.IpAddresses.Lock);
 
-	g_Context.IpAddresses.Addresses = *IpAddresses;
+	g_Context.IpAddresses.Addresses = IpMgmt.Addresses;
+	g_Context.IpAddresses.Ipv6Action = IpMgmt.Ipv6Action;
 
 	ExReleaseFastMutex(&g_Context.IpAddresses.Lock);
 
+	return STATUS_SUCCESS;
+
+Exit_abort:
+
 	//
-	// TODO: Recreate all blocking filters that reference IP addresses.
+	// Do not overwrite error code in status variable.
 	//
 
-	return STATUS_SUCCESS;
+	if (!NT_SUCCESS(FwpmTransactionAbort0(g_Context.WfpSession)))
+	{
+		DbgPrint("Failed to abort transaction\n");
+	}
+
+	return status;
 }
 
 NTSTATUS
-RegisterAppBecomingSplit
+TransactionBegin
 (
-	LOWER_UNICODE_STRING *ImageName
 )
 {
-	NT_ASSERT(g_Context.Initialized && g_Context.BlockingContext != NULL);
+	NT_ASSERT(g_Context.Initialized);
+	NT_ASSERT(g_Context.SplittingEnabled);
+	
+	return blocking::TransactionBegin(g_Context.BlockingContext);
+}
+
+void
+TransactionCommit
+(
+)
+{
+	NT_ASSERT(g_Context.Initialized);
+	NT_ASSERT(g_Context.SplittingEnabled);
+	
+	blocking::TransactionCommit(g_Context.BlockingContext);
+}
+
+void
+TransactionAbort
+(
+)
+{
+	NT_ASSERT(g_Context.Initialized);
+	NT_ASSERT(g_Context.SplittingEnabled);
+	
+	blocking::TransactionAbort(g_Context.BlockingContext);
+}
+
+NTSTATUS
+RegisterAppBecomingSplitTx2
+(
+	const LOWER_UNICODE_STRING *ImageName
+)
+{
+	NT_ASSERT(g_Context.Initialized);
+
+	// TODO: Maybe wrong depending on who should queue events that cannot currently be processed.
+	NT_ASSERT(g_Context.SplittingEnabled);
 
 	ExAcquireFastMutex(&g_Context.IpAddresses.Lock);
 
@@ -397,56 +621,56 @@ RegisterAppBecomingSplit
 		return STATUS_SUCCESS;
 	}
 
-	return BlockApplicationTunnelTraffic(g_Context.BlockingContext, ImageName, &ipv4, &ipv6);
-}
+	auto status = blocking::RegisterFilterBlockSplitAppTx2(g_Context.BlockingContext, ImageName, &ipv4, &ipv6);
 
-NTSTATUS
-RegisterAppBecomingUnsplit
-(
-	LOWER_UNICODE_STRING *ImageName
-)
-{
-	NT_ASSERT(g_Context.Initialized && g_Context.BlockingContext != NULL);
+	//
+	// Temp hack
+	//
 
-	ExAcquireFastMutex(&g_Context.IpAddresses.Lock);
-
-	auto ipv4 = g_Context.IpAddresses.Addresses.TunnelIpv4;
-	auto ipv6 = g_Context.IpAddresses.Addresses.TunnelIpv6;
-
-	ExReleaseFastMutex(&g_Context.IpAddresses.Lock);
-
-	auto status = BlockApplicationNonTunnelTraffic(g_Context.BlockingContext, ImageName, &ipv4, &ipv6);
-	auto status2 = UnblockApplicationTunnelTraffic(g_Context.BlockingContext, ImageName);
-
-	if (!NT_SUCCESS(status))
+	if (NT_SUCCESS(status))
 	{
-		return status;
+		TransactionCommit();
+	}
+	else
+	{
+		TransactionAbort();
 	}
 
-	if (!NT_SUCCESS(status2))
+	return status;
+}
+
+NTSTATUS
+RegisterAppBecomingUnsplitTx2
+(
+	const LOWER_UNICODE_STRING *ImageName
+)
+{
+	NT_ASSERT(g_Context.Initialized);
+
+	// TODO: Maybe wrong depending on who should queue events that cannot currently be processed.
+	NT_ASSERT(g_Context.SplittingEnabled);
+
+	//
+	// TODO: Don't forget to force a re-auth if necessary.
+	// That code should possibly be hidden inside the "blocking module".
+	//
+
+	auto status = blocking::RemoveFilterBlockSplitAppTx2(g_Context.BlockingContext, ImageName);
+
+	//
+	// Temp hack
+	//
+
+	if (NT_SUCCESS(status))
 	{
-		return status2;
+		TransactionCommit();
+	}
+	else
+	{
+		TransactionAbort();
 	}
 
-	return STATUS_SUCCESS;
-}
-
-NTSTATUS
-RegisterSplitAppDeparting
-(
-	LOWER_UNICODE_STRING *ImageName
-)
-{
-	return UnblockApplicationTunnelTraffic(g_Context.BlockingContext, ImageName);
-}
-
-NTSTATUS
-RegisterUnsplitAppDeparting
-(
-	LOWER_UNICODE_STRING *ImageName
-)
-{
-	return UnblockApplicationNonTunnelTraffic(g_Context.BlockingContext, ImageName);
+	return status;
 }
 
 } // namespace firewall
