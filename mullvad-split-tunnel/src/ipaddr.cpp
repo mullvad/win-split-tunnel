@@ -4,7 +4,7 @@
 bool
 StHasTunnelIpv4Address
 (
-	ST_IP_ADDRESSES *IpAddresses
+	const ST_IP_ADDRESSES *IpAddresses
 )
 {
 	return !StIsEmptyRange(&IpAddresses->TunnelIpv4, sizeof(IpAddresses->TunnelIpv4));
@@ -13,7 +13,7 @@ StHasTunnelIpv4Address
 bool
 StHasInternetIpv4Address
 (
-	ST_IP_ADDRESSES *IpAddresses
+	const ST_IP_ADDRESSES *IpAddresses
 )
 {
 	return !StIsEmptyRange(&IpAddresses->InternetIpv4, sizeof(IpAddresses->InternetIpv4));
@@ -22,7 +22,7 @@ StHasInternetIpv4Address
 bool
 StHasTunnelIpv6Address
 (
-	ST_IP_ADDRESSES *IpAddresses
+	const ST_IP_ADDRESSES *IpAddresses
 )
 {
 	return !StIsEmptyRange(&IpAddresses->TunnelIpv6, sizeof(IpAddresses->TunnelIpv6));
@@ -31,7 +31,7 @@ StHasTunnelIpv6Address
 bool
 StHasInternetIpv6Address
 (
-	ST_IP_ADDRESSES *IpAddresses
+	const ST_IP_ADDRESSES *IpAddresses
 )
 {
 	return !StIsEmptyRange(&IpAddresses->InternetIpv6, sizeof(IpAddresses->InternetIpv6));

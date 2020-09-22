@@ -17,23 +17,23 @@ ST_IP_ADDRESSES;
 bool
 StHasTunnelIpv4Address
 (
-	ST_IP_ADDRESSES *IpAddresses
+	const ST_IP_ADDRESSES *IpAddresses
 );
 
 bool
 StHasInternetIpv4Address
 (
-	ST_IP_ADDRESSES *IpAddresses
+	const ST_IP_ADDRESSES *IpAddresses
 );
 
 bool
 StHasTunnelIpv6Address
 (
-	ST_IP_ADDRESSES *IpAddresses
+	const ST_IP_ADDRESSES *IpAddresses
 );
 
 bool
 StHasInternetIpv6Address
 (
-	ST_IP_ADDRESSES *IpAddresses
+	const ST_IP_ADDRESSES *IpAddresses
 );
