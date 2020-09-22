@@ -185,7 +185,8 @@ Cleanup_handle:
 NTSTATUS
 RegisterFilterBindRedirectTx
 (
-	HANDLE WfpSession
+	HANDLE WfpSession,
+	bool RegisterIpv6
 )
 {
 	//
@@ -219,6 +220,11 @@ RegisterFilterBindRedirectTx
 		return status;
 	}
 
+	if (!RegisterIpv6)
+	{
+		return STATUS_SUCCESS;
+	}
+
 	//
 	// Again, for IPv6 also.
 	//
@@ -230,14 +236,7 @@ RegisterFilterBindRedirectTx
 	filter.layerKey = FWPM_LAYER_ALE_BIND_REDIRECT_V6;
 	filter.action.calloutKey = ST_FW_CALLOUT_CLASSIFY_BIND_IPV6_KEY;
 
-	status = FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
-
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
-
-	return STATUS_SUCCESS;
+	return FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
 }
 
 //
@@ -250,7 +249,8 @@ RegisterFilterBindRedirectTx
 NTSTATUS
 RemoveFilterBindRedirectTx
 (
-	HANDLE WfpSession
+	HANDLE WfpSession,
+	bool RemoveIpv6
 )
 {
 	auto status = FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_CLASSIFY_BIND_IPV4_KEY);
@@ -260,14 +260,12 @@ RemoveFilterBindRedirectTx
 		return status;
 	}
 
-	status = FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_CLASSIFY_BIND_IPV6_KEY);
-
-	if (!NT_SUCCESS(status))
+	if (!RemoveIpv6)
 	{
-		return status;
+		return STATUS_SUCCESS;
 	}
 
-	return STATUS_SUCCESS;
+	return FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_CLASSIFY_BIND_IPV6_KEY);
 }
 
 //
@@ -348,6 +346,11 @@ RegisterFilterPermitSplitAppsTx
 		return status;
 	}
 
+	if (TunnelIpv6 == NULL)
+	{
+		return STATUS_SUCCESS;
+	}
+
 	//
 	// IPv6 outbound.
 	//
@@ -383,7 +386,8 @@ RegisterFilterPermitSplitAppsTx
 NTSTATUS
 RemoveFilterPermitSplitAppsTx
 (
-	HANDLE WfpSession
+	HANDLE WfpSession,
+	bool RemoveIpv6
 )
 {
 	auto status = FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_CONN_KEY);
@@ -398,6 +402,11 @@ RemoveFilterPermitSplitAppsTx
 	if (!NT_SUCCESS(status))
 	{
 		return status;
+	}
+
+	if (!RemoveIpv6)
+	{
+		return STATUS_SUCCESS;
 	}
 
 	status = FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_CONN_KEY);

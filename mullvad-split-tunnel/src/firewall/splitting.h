@@ -15,18 +15,34 @@ RewriteBind
 	FWPS_CLASSIFY_OUT0 *ClassifyOut
 );
 
+//
+// RegisterFilterBindRedirectTx()
+//
+// Register filters, with linked callout, that rewrites binds for
+// applications being split.
+//
 NTSTATUS
 RegisterFilterBindRedirectTx
 (
-	HANDLE WfpSession
+	HANDLE WfpSession,
+	bool RegisterIpv6
 );
 
 NTSTATUS
 RemoveFilterBindRedirectTx
 (
-	HANDLE WfpSession
+	HANDLE WfpSession,
+	bool RemoveIpv6
 );
 
+//
+// RegisterFilterPermitSplitAppsTx()
+//
+// Register filters, with linked callout, that permits non-tunnel connections
+// associated with applications being split.
+//
+// This ensures winfw filters are not applied to these apps.
+//
 NTSTATUS
 RegisterFilterPermitSplitAppsTx
 (
@@ -38,7 +54,8 @@ RegisterFilterPermitSplitAppsTx
 NTSTATUS
 RemoveFilterPermitSplitAppsTx
 (
-	HANDLE WfpSession
+	HANDLE WfpSession,
+	bool RemoveIpv6
 );
 
 } // namespace firewall
