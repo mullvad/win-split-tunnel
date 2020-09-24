@@ -326,7 +326,7 @@ StCreateProcessNotifyRoutineEx
         {
             DbgPrint("Dropping process event\n");
             DbgPrint("  Could not determine image filename, status: 0x%X\n", status);
-            DbgPrint("  PID of arriving process 0x%X\n", record->ProcessId);
+            DbgPrint("  PID of arriving process 0x%X\n", ProcessId);
 
             return;
         }
@@ -342,7 +342,7 @@ StCreateProcessNotifyRoutineEx
         {
             DbgPrint("Dropping process event\n");
             DbgPrint("  Failed to allocate memory\n");
-            DbgPrint("  PID of arriving process 0x%X\n", record->ProcessId);
+            DbgPrint("  PID of arriving process 0x%X\n", ProcessId);
 
             ExFreePoolWithTag(processImage, ST_POOL_TAG);
 
