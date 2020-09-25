@@ -29,10 +29,11 @@ StRegisteredImageCreate
 //
 // StRegisteredImageAddEntry()
 //
-// IRQL <= APC
+// IRQL == PASSIVE_LEVEL
 //
 // Converts imagename to lower case before creating an entry.
 //
+_IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 StRegisteredImageAddEntry
 (

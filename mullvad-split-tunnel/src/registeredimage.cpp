@@ -164,6 +164,7 @@ StRegisteredImageCreate
 	return STATUS_SUCCESS;
 }
 
+_IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS
 StRegisteredImageAddEntry
 (
@@ -171,7 +172,7 @@ StRegisteredImageAddEntry
 	UNICODE_STRING *ImageName
 )
 {
-	NT_ASSERT(KeGetCurrentIrql() <= APC_LEVEL);
+	NT_ASSERT(KeGetCurrentIrql() == PASSIVE_LEVEL);
 
 	//
 	// Avoid storing duplicates.
