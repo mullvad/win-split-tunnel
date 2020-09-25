@@ -163,6 +163,9 @@ CalloutPermitSplitApps
 	FWPS_CLASSIFY_OUT0 *ClassifyOut
 )
 {
+#if !DBG
+	UNREFERENCED_PARAMETER(FixedValues);
+#endif
 	UNREFERENCED_PARAMETER(LayerData);
 	UNREFERENCED_PARAMETER(ClassifyContext);
 	UNREFERENCED_PARAMETER(Filter);
@@ -226,6 +229,9 @@ CalloutBlockSplitApps
 	FWPS_CLASSIFY_OUT0 *ClassifyOut
 )
 {
+#if !DBG
+	UNREFERENCED_PARAMETER(FixedValues);
+#endif
 	UNREFERENCED_PARAMETER(LayerData);
 	UNREFERENCED_PARAMETER(ClassifyContext);
 	UNREFERENCED_PARAMETER(Filter);
