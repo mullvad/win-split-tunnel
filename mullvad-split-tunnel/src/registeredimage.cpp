@@ -141,9 +141,6 @@ StRegisteredImageRemoveEntryInner
 
 } // anonymous namespace
 
-extern "C"
-{
-
 NTSTATUS
 StRegisteredImageCreate
 (
@@ -321,5 +318,3 @@ StRegisteredImageIsEmpty
 {
 	return bool_cast(IsListEmpty(&Imageset->ListEntry));
 }
-
-} // extern "C"

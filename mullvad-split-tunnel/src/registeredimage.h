@@ -3,9 +3,6 @@
 #include <wdm.h>
 #include "defs/types.h"
 
-extern "C"
-{
-
 typedef struct tag_ST_REGISTERED_IMAGE
 {
 	LIST_ENTRY ListEntry;
@@ -140,5 +137,3 @@ StRegisteredImageIsEmpty
 (
 	ST_REGISTERED_IMAGE_SET *Imageset
 );
-
-} // extern "C"

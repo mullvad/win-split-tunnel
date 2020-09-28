@@ -2,9 +2,6 @@
 
 #include <wdm.h>
 
-extern "C"
-{
-
 typedef struct tag_ST_PROCESS_STATUS
 {
 	HANDLE ProcessId;
@@ -103,5 +100,3 @@ StProcessStatusDelete
 (
     ST_PROCESS_STATUS_SET *Array
 );
-
-} // extern "C"

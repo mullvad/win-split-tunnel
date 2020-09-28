@@ -3,9 +3,6 @@
 #include "procmgmt.h"
 #include "procregistry.h"
 
-extern "C"
-{
-
 NTSTATUS
 StInitializeRegisteredImageMgmt
 (
@@ -342,5 +339,3 @@ StDestroyProcessEventMgmt
 
     WdfObjectDelete(Context->OperationLock);
 }
-
-} // extern "C"

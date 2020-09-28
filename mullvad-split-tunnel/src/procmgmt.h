@@ -3,9 +3,6 @@
 #include <ntddk.h>
 #include <wdf.h>
 
-extern "C"
-{
-
 void
 StCreateProcessNotifyRoutineEx
 (
@@ -19,5 +16,3 @@ StProcessManagementThread
 (
     PVOID StartContext
 );
-
-} // extern "C"

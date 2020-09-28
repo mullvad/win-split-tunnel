@@ -70,9 +70,6 @@ TreeFreeRoutine
 
 } // anonymous namespace
 
-extern "C"
-{
-
 NTSTATUS
 StProcessRegistryCreate
 (
@@ -302,5 +299,3 @@ StProcessRegistryIsEmpty
 {
 	return NULL == RtlEnumerateGenericTableAvl(&Registry->Tree, TRUE);
 }
-
-} // extern "C"

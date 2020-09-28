@@ -3,9 +3,6 @@
 #include "defs/process.h"
 #include "util.h"
 
-extern "C"
-{
-
 bool
 ValidateUserBufferConfiguration
 (
@@ -103,5 +100,3 @@ ValidateUserBufferProcesses
 
     return true;
 }
-
-} // extern "C"

@@ -3,9 +3,6 @@
 #include <ntddk.h>
 #include "defs/types.h"
 
-extern "C"
-{
-
 enum ST_PROCESS_SPLIT_STATUS
 {
 	// Traffic should be split.
@@ -171,5 +168,3 @@ StProcessRegistryIsEmpty
 (
 	ST_PROCESS_REGISTRY *Registry
 );
-
-} // extern "C"

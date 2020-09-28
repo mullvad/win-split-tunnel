@@ -291,9 +291,6 @@ StClearApplySplitSetting
 
 } // anonymous namespace
 
-extern "C"
-{
-
 NTSTATUS
 StIoControlInitialize()
 {
@@ -1032,5 +1029,3 @@ StIoControlQueryProcessComplete
 
     WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, requiredLength);
 }
-
-} // extern "C"

@@ -15,37 +15,17 @@
 extern "C"
 DRIVER_INITIALIZE DriverEntry;
 
-extern "C"
+extern "C" // Because alloc_text requires this.
 NTSTATUS
 StCreateDevice
 (
     IN WDFDRIVER WdfDriver
 );
 
-extern "C"
-NTSTATUS
-StInitializeProcessManagement
-(
-    _In_ WDFDEVICE WdfDevice,
-    _Inout_ ST_PROCESS_EVENT_MGMT *context
-);
-
-extern "C"
-void
-StCreateProcessNotifyRoutineEx
-(
-  PEPROCESS Process,
-  HANDLE ProcessId,
-  PPS_CREATE_NOTIFY_INFO CreateInfo
-);
-
-extern "C"
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL StEvtIoDeviceControl;
 
-extern "C"
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL StEvtIoDeviceControlSerial;
 
-extern "C"
 EVT_WDF_DRIVER_UNLOAD StEvtDriverUnload;
 
 #pragma alloc_text (INIT, DriverEntry)
@@ -59,7 +39,6 @@ EVT_WDF_DRIVER_UNLOAD StEvtDriverUnload;
 
 #define ST_DEVICE_NAME_STRING L"\\Device\\MULLVADSPLITTUNNEL"
 #define ST_SYMBOLIC_NAME_STRING L"\\Global??\\MULLVADSPLITTUNNEL"
-
 
 //
 // DriverEntry
@@ -318,7 +297,6 @@ Cleanup:
 // Will dequeue an event from the driver and deliver to usermode.
 // Or pend the request if there are no queued events.
 //
-extern "C"
 void
 StDequeueEventComplete
 (
@@ -330,7 +308,6 @@ StDequeueEventComplete
     // Todo: smart code.
 }
 
-extern "C"
 VOID
 StEvtIoDeviceControl
 (
@@ -492,7 +469,6 @@ StUpdateState
     }
 }
 
-extern "C"
 VOID
 StEvtIoDeviceControlSerial
 (
@@ -663,9 +639,6 @@ StEvtIoDeviceControlSerial
     WdfRequestComplete(Request, STATUS_INVALID_DEVICE_REQUEST);
 }
 
-
-
-extern "C"
 VOID
 StEvtDriverUnload
 (
@@ -691,9 +664,3 @@ StEvtDriverUnload
     // More stuff here...
     //
 }
-
-
-
-
-
-

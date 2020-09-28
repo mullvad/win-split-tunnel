@@ -4,9 +4,6 @@
 #include <wdf.h>
 #include "registeredimage.h"
 
-extern "C"
-{
-
 NTSTATUS
 StIoControlInitialize
 (
@@ -76,5 +73,3 @@ StIoControlQueryProcessComplete
 (
     WDFREQUEST Request
 );
-
-} // extern "C"

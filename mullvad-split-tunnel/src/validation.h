@@ -2,9 +2,6 @@
 
 #include <wdm.h>
 
-extern "C"
-{
-
 //
 // ValidateUserBufferConfiguration()
 //
@@ -28,5 +25,3 @@ ValidateUserBufferProcesses
     void *Buffer,
     size_t BufferLength
 );
-
-} // extern "C"

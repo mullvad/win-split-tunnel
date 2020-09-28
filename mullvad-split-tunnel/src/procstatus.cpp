@@ -106,9 +106,6 @@ StProcessStatusFindInsert
 
 } // anonymous namespace
 
-extern "C"
-{
-
 NTSTATUS
 StProcessStatusAllocate
 (
@@ -306,5 +303,3 @@ StProcessStatusDelete
 {
     ExFreePoolWithTag(Array, ST_POOL_TAG);
 }
-
-} // extern "C"

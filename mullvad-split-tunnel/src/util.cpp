@@ -1,9 +1,6 @@
 #include <ntifs.h>
 #include "util.h"
 
-extern "C"
-{
-
 void
 StReparentList(LIST_ENTRY *dest, LIST_ENTRY *src)
 {
@@ -45,6 +42,7 @@ typedef NTSTATUS (*QUERY_INFO_PROCESS) (
 	__out_opt PULONG ReturnLength
 );
 
+extern "C"
 NTSTATUS
 StGetPhysicalProcessFilename
 (
@@ -304,5 +302,3 @@ StDuplicateString
 
 	return STATUS_SUCCESS;
 }
-
-} // extern "C"

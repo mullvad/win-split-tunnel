@@ -4,9 +4,6 @@
 #include <wdf.h>
 #include "shared.h"
 
-extern "C"
-{
-
 NTSTATUS
 StInitializeRegisteredImageMgmt
 (
@@ -43,5 +40,3 @@ StDestroyProcessEventMgmt
 (
     ST_PROCESS_EVENT_MGMT *Data
 );
-
-} // extern "C"

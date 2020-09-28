@@ -289,9 +289,6 @@ StHandleProcessEvent
 
 } // anonymous namespace
 
-extern "C"
-{
-
 void
 StCreateProcessNotifyRoutineEx
 (
@@ -402,7 +399,6 @@ StCreateProcessNotifyRoutineEx
     WdfWaitLockRelease(context->ProcessEvent.Lock);
 }
 
-extern "C"
 void
 StProcessManagementThread
 (
@@ -457,5 +453,3 @@ StProcessManagementThread
         WdfWaitLockRelease(context->OperationLock);
     }
 }
-
-} // extern "C"

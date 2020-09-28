@@ -19,9 +19,6 @@ bool bool_cast(T t)
 	return t != 0;
 }
 
-extern "C"
-{
-
 void
 StReparentList(LIST_ENTRY *dest, LIST_ENTRY *src);
 
@@ -35,6 +32,10 @@ StReparentList(LIST_ENTRY *dest, LIST_ENTRY *src);
 // A UNICODE_STRING structure and an associated filename buffer
 // is allocated and returned.
 //
+// TODO: The type PEPROCESS seems to require C-linkage on any function
+// that uses it as an argument. Fix, maybe.
+//
+extern "C"
 NTSTATUS
 StGetPhysicalProcessFilename
 (
@@ -90,5 +91,3 @@ void
 StopIfDebugBuild
 (
 );
-
-} // extern "C"
