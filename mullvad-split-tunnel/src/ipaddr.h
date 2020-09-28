@@ -1,6 +1,5 @@
 #pragma once
 
-#include <wdm.h>
 #include <inaddr.h>
 #include <in6addr.h>
 

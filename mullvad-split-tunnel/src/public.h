@@ -1,6 +1,6 @@
 #pragma once
 
-#include <wdm.h>
+#include "ipaddr.h"
 #include "state.h"
 
 //

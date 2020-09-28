@@ -1,3 +1,4 @@
+#include <wdm.h>
 #include "ipaddr.h"
 #include "util.h"
 
