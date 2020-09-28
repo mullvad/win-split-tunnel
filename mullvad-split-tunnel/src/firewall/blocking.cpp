@@ -1,7 +1,7 @@
 #include "wfp.h"
 #include "identifiers.h"
 #include "constants.h"
-#include "../types.h"
+#include "../defs/types.h"
 #include "../util.h"
 #include "blocking.h"
 

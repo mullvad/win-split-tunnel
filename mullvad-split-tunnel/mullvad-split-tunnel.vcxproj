@@ -274,6 +274,12 @@
     <Inf Include="src\mullvad-split-tunnel.inf" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\defs\config.h" />
+    <ClInclude Include="src\defs\ioctl.h" />
+    <ClInclude Include="src\defs\process.h" />
+    <ClInclude Include="src\defs\queryprocess.h" />
+    <ClInclude Include="src\defs\state.h" />
+    <ClInclude Include="src\defs\types.h" />
     <ClInclude Include="src\firewall\blocking.h" />
     <ClInclude Include="src\firewall\callouts.h" />
     <ClInclude Include="src\firewall\constants.h" />
@@ -292,8 +298,6 @@
     <ClInclude Include="src\public.h" />
     <ClInclude Include="src\registeredimage.h" />
     <ClInclude Include="src\shared.h" />
-    <ClInclude Include="src\state.h" />
-    <ClInclude Include="src\types.h" />
     <ClInclude Include="src\util.h" />
     <ClInclude Include="src\validation.h" />
   </ItemGroup>

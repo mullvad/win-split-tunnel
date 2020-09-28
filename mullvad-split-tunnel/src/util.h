@@ -1,7 +1,7 @@
 #pragma once
 
 #include <wdm.h>
-#include "types.h"
+#include "defs/types.h"
 
 #define ntohs(s) (((s & 0xFF) << 8) | ((s >> 8) & 0xFF))
 

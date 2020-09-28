@@ -2,7 +2,6 @@
 
 #include <ntddk.h>
 #include <wdf.h>
-#include "public.h"
 
 extern "C"
 {

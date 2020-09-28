@@ -3,7 +3,7 @@
 //
 // types.h
 //
-// Used to resolve dependencies between public.h/shared.h
+// Miscellaneous types and defines used internally.
 //
 
 #define ST_POOL_TAG 'UTPS'

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <wdm.h>
-#include "types.h"
+#include "defs/types.h"
 
 extern "C"
 {

@@ -42,7 +42,6 @@
     <ClInclude Include="src\globals.h" />
     <ClInclude Include="src\procmgmt.h" />
     <ClInclude Include="src\procregistry.h" />
-    <ClInclude Include="src\types.h" />
     <ClInclude Include="src\validation.h" />
     <ClInclude Include="src\firewall\blocking.h">
       <Filter>firewall</Filter>
@@ -69,11 +68,31 @@
       <Filter>firewall</Filter>
     </ClInclude>
     <ClInclude Include="src\ipaddr.h" />
-    <ClInclude Include="src\state.h" />
+    <ClInclude Include="src\defs\config.h">
+      <Filter>defs</Filter>
+    </ClInclude>
+    <ClInclude Include="src\defs\ioctl.h">
+      <Filter>defs</Filter>
+    </ClInclude>
+    <ClInclude Include="src\defs\process.h">
+      <Filter>defs</Filter>
+    </ClInclude>
+    <ClInclude Include="src\defs\queryprocess.h">
+      <Filter>defs</Filter>
+    </ClInclude>
+    <ClInclude Include="src\defs\state.h">
+      <Filter>defs</Filter>
+    </ClInclude>
+    <ClInclude Include="src\defs\types.h">
+      <Filter>defs</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="firewall">
       <UniqueIdentifier>{928a5c2c-1bf7-4e3c-acc6-8ba6d886c732}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="defs">
+      <UniqueIdentifier>{290a2ff5-e1cf-4d3c-acc0-4ca5cdb2df6a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

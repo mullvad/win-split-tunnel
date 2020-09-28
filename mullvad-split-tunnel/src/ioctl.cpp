@@ -1,11 +1,13 @@
 #include "ioctl.h"
 #include "init.h"
 #include "shared.h"
-#include "public.h"
 #include "globals.h"
 #include "util.h"
 #include "ipaddr.h"
 #include "firewall/firewall.h"
+#include "defs/config.h"
+#include "defs/process.h"
+#include "defs/queryprocess.h"
 #include "validation.h"
 
 //

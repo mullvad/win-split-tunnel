@@ -1,6 +1,6 @@
 #include <ntddk.h>
 #include "procstatus.h"
-#include "types.h"
+#include "defs/types.h"
 
 namespace
 {

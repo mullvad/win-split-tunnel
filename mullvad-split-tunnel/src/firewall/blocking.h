@@ -3,7 +3,7 @@
 #include <wdm.h>
 #include <inaddr.h>
 #include <in6addr.h>
-#include "../types.h"
+#include "../defs/types.h"
 
 namespace firewall::blocking
 {

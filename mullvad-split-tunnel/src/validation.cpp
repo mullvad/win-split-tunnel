@@ -1,5 +1,6 @@
 #include "validation.h"
-#include "public.h"
+#include "defs/config.h"
+#include "defs/process.h"
 #include "util.h"
 
 extern "C"

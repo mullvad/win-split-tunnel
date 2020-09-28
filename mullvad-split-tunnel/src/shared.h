@@ -1,10 +1,10 @@
 #pragma once
 
 #include <wdf.h>
-#include "public.h"
 #include "registeredimage.h"
 #include "procregistry.h"
 #include "ipaddr.h"
+#include "defs/state.h"
 
 //
 // TODO: Get rid of this file.

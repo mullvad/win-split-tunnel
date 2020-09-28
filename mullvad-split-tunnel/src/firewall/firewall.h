@@ -2,7 +2,7 @@
 
 #include <wdm.h>
 #include "../ipaddr.h"
-#include "../types.h"
+#include "../defs/types.h"
 
 namespace firewall
 {

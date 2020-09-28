@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ntddk.h>
-#include "types.h"
+#include "defs/types.h"
 
 extern "C"
 {

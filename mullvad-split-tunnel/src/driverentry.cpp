@@ -7,10 +7,10 @@
 #include "util.h"
 #include "procstatus.h"
 #include "registeredimage.h"
-#include "public.h"
 #include "globals.h"
 #include "ioctl.h"
 #include "firewall/firewall.h"
+#include "defs/ioctl.h"
 
 extern "C"
 DRIVER_INITIALIZE DriverEntry;
