@@ -3,11 +3,6 @@
 #include "procmgmt.h"
 #include "procregistry.h"
 
-#pragma alloc_text (PAGE, StInitializeRegisteredImageMgmt)
-#pragma alloc_text (PAGE, StDestroyRegisteredImageMgmt)
-#pragma alloc_text (PAGE, StInitializeProcessEventMgmt)
-#pragma alloc_text (PAGE, StDestroyProcessEventMgmt)
-
 extern "C"
 {
 

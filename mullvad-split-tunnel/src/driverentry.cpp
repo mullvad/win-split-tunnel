@@ -50,11 +50,6 @@ EVT_WDF_DRIVER_UNLOAD StEvtDriverUnload;
 
 #pragma alloc_text (INIT, DriverEntry)
 #pragma alloc_text (INIT, StCreateDevice)
-#pragma alloc_text (PAGE, StInitializeProcessManagement)
-#pragma alloc_text (PAGE, StCreateProcessNotifyRoutineEx)
-#pragma alloc_text (PAGE, StEvtIoDeviceControl)
-
-#pragma alloc_text (PAGE, StEvtDriverUnload)
 
 #if DBG
 #define ST_DEVICE_SECURITY_DESCRIPTOR SDDL_DEVOBJ_SYS_ALL_ADM_RWX_WORLD_RWX_RES_RWX

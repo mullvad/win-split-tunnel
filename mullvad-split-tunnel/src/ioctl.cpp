@@ -9,13 +9,6 @@
 #include "validation.h"
 
 //
-// Public functions.
-//
-#pragma alloc_text (PAGE, StIoControlInitialize)
-#pragma alloc_text (PAGE, StIoControlSetConfiguration)
-#pragma alloc_text (PAGE, StIoControlGetConfigurationComplete)
-
-//
 // Minimum buffer sizes for requests.
 //
 
