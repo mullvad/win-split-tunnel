@@ -112,8 +112,8 @@ Abort_unlock_break:
 
 Abort_break:
 
-    DbgPrint("Process registry instance at 0x%p\n", Context->ProcessRegistry.Instance);
-    DbgPrint("PID of arriving process 0x%X\n", Record->ProcessId);
+    DbgPrint("Process registry instance at %p\n", Context->ProcessRegistry.Instance);
+    DbgPrint("PID of arriving process %p\n", Record->ProcessId);
 
     StopIfDebugBuild();
 }
@@ -148,7 +148,7 @@ StHandleProcessArriving
     if (!NT_SUCCESS(status))
     {
         DbgPrint("Failed to initialize entry for arriving process: status 0x%X.\n", status);
-        DbgPrint("  PID of arriving process 0x%X\n", Record->ProcessId);
+        DbgPrint("  PID of arriving process %p\n", Record->ProcessId);
 
         return;
     }
@@ -216,7 +216,7 @@ StHandleProcessArriving
     if (!NT_SUCCESS(status))
     {
         DbgPrint("Failed to add entry for arriving process: status 0x%X.\n", status);
-        DbgPrint("  PID of arriving process 0x%X\n", Record->ProcessId);
+        DbgPrint("  PID of arriving process %p\n", Record->ProcessId);
 
         return;
     }
@@ -323,7 +323,7 @@ StCreateProcessNotifyRoutineEx
         {
             DbgPrint("Dropping process event\n");
             DbgPrint("  Could not determine image filename, status: 0x%X\n", status);
-            DbgPrint("  PID of arriving process 0x%X\n", ProcessId);
+            DbgPrint("  PID of arriving process %p\n", ProcessId);
 
             return;
         }
@@ -339,7 +339,7 @@ StCreateProcessNotifyRoutineEx
         {
             DbgPrint("Dropping process event\n");
             DbgPrint("  Failed to allocate memory\n");
-            DbgPrint("  PID of arriving process 0x%X\n", ProcessId);
+            DbgPrint("  PID of arriving process %p\n", ProcessId);
 
             ExFreePoolWithTag(processImage, ST_POOL_TAG);
 
@@ -373,7 +373,7 @@ StCreateProcessNotifyRoutineEx
         {
             DbgPrint("Dropping process event\n");
             DbgPrint("  Failed to allocate memory\n");
-            DbgPrint("  PID of departing process 0x%X\n", ProcessId);
+            DbgPrint("  PID of departing process %p\n", ProcessId);
 
             return;
         }
