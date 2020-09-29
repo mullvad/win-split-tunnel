@@ -420,6 +420,7 @@ StProcessManagementThread
             DbgPrint("Process management thread is exiting\n");
 
             PsTerminateSystemThread(STATUS_SUCCESS);
+            return;
         }
 
         //
