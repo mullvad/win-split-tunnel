@@ -647,8 +647,6 @@ StEvtDriverUnload
 {
     UNREFERENCED_PARAMETER(WdfDriver);
 
-    PAGED_CODE();
-
     //
     // TODO: Move this to "device unload", if such an event exists.
     //
