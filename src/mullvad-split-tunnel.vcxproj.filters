@@ -1,0 +1,173 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="driverentry.cpp" />
+    <ClCompile Include="util.cpp" />
+    <ClCompile Include="ioctl.cpp" />
+    <ClCompile Include="validation.cpp" />
+    <ClCompile Include="firewall\blocking.cpp">
+      <Filter>firewall</Filter>
+    </ClCompile>
+    <ClCompile Include="firewall\callouts.cpp">
+      <Filter>firewall</Filter>
+    </ClCompile>
+    <ClCompile Include="firewall\firewall.cpp">
+      <Filter>firewall</Filter>
+    </ClCompile>
+    <ClCompile Include="firewall\splitting.cpp">
+      <Filter>firewall</Filter>
+    </ClCompile>
+    <ClCompile Include="ipaddr.cpp" />
+    <ClCompile Include="procmon\procmon.cpp">
+      <Filter>procmon</Filter>
+    </ClCompile>
+    <ClCompile Include="procmgmt\procmgmt.cpp">
+      <Filter>procmgmt</Filter>
+    </ClCompile>
+    <ClCompile Include="eventing\eventing.cpp">
+      <Filter>eventing</Filter>
+    </ClCompile>
+    <ClCompile Include="eventing\builder.cpp">
+      <Filter>eventing</Filter>
+    </ClCompile>
+    <ClCompile Include="containers\registeredimage.cpp">
+      <Filter>containers</Filter>
+    </ClCompile>
+    <ClCompile Include="containers\procregistry.cpp">
+      <Filter>containers</Filter>
+    </ClCompile>
+    <ClCompile Include="procbroker\procbroker.cpp">
+      <Filter>procbroker</Filter>
+    </ClCompile>
+    <ClCompile Include="firewall\asyncbind.cpp">
+      <Filter>firewall</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Inf Include="mullvad-split-tunnel.inf" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="public.h" />
+    <ClInclude Include="util.h" />
+    <ClInclude Include="ioctl.h" />
+    <ClInclude Include="validation.h" />
+    <ClInclude Include="firewall\blocking.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="firewall\identifiers.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="firewall\constants.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="firewall\callouts.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="firewall\firewall.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="firewall\context.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="firewall\splitting.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="firewall\wfp.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="ipaddr.h" />
+    <ClInclude Include="defs\config.h">
+      <Filter>defs</Filter>
+    </ClInclude>
+    <ClInclude Include="defs\ioctl.h">
+      <Filter>defs</Filter>
+    </ClInclude>
+    <ClInclude Include="defs\process.h">
+      <Filter>defs</Filter>
+    </ClInclude>
+    <ClInclude Include="defs\queryprocess.h">
+      <Filter>defs</Filter>
+    </ClInclude>
+    <ClInclude Include="defs\state.h">
+      <Filter>defs</Filter>
+    </ClInclude>
+    <ClInclude Include="defs\types.h">
+      <Filter>defs</Filter>
+    </ClInclude>
+    <ClInclude Include="procmon\procmon.h">
+      <Filter>procmon</Filter>
+    </ClInclude>
+    <ClInclude Include="procmon\context.h">
+      <Filter>procmon</Filter>
+    </ClInclude>
+    <ClInclude Include="procmgmt\procmgmt.h">
+      <Filter>procmgmt</Filter>
+    </ClInclude>
+    <ClInclude Include="procmgmt\context.h">
+      <Filter>procmgmt</Filter>
+    </ClInclude>
+    <ClInclude Include="devicecontext.h" />
+    <ClInclude Include="eventing\eventing.h">
+      <Filter>eventing</Filter>
+    </ClInclude>
+    <ClInclude Include="eventing\context.h">
+      <Filter>eventing</Filter>
+    </ClInclude>
+    <ClInclude Include="eventing\builder.h">
+      <Filter>eventing</Filter>
+    </ClInclude>
+    <ClInclude Include="defs\events.h">
+      <Filter>defs</Filter>
+    </ClInclude>
+    <ClInclude Include="containers\registeredimage.h">
+      <Filter>containers</Filter>
+    </ClInclude>
+    <ClInclude Include="containers\procregistry.h">
+      <Filter>containers</Filter>
+    </ClInclude>
+    <ClInclude Include="procbroker\context.h">
+      <Filter>procbroker</Filter>
+    </ClInclude>
+    <ClInclude Include="procbroker\procbroker.h">
+      <Filter>procbroker</Filter>
+    </ClInclude>
+    <ClInclude Include="firewall\asyncbind.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="procmgmt\callbacks.h">
+      <Filter>procmgmt</Filter>
+    </ClInclude>
+    <ClInclude Include="containers.h" />
+    <ClInclude Include="x64guard.h" />
+    <ClInclude Include="version.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="firewall">
+      <UniqueIdentifier>{928a5c2c-1bf7-4e3c-acc6-8ba6d886c732}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="defs">
+      <UniqueIdentifier>{290a2ff5-e1cf-4d3c-acc0-4ca5cdb2df6a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="procmon">
+      <UniqueIdentifier>{acf27993-d281-4696-855e-8d5ce53aa007}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="procmgmt">
+      <UniqueIdentifier>{115be191-5ceb-46b8-b6ae-69469f030f45}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="eventing">
+      <UniqueIdentifier>{8014a3a4-3238-4a49-9289-c6f34abf23dc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="containers">
+      <UniqueIdentifier>{59fed122-0778-4ba5-96a5-35a86e1467d2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="procbroker">
+      <UniqueIdentifier>{1d2963d7-a048-4609-b8e7-812f4c6ed7a9}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="custom-stampinf.bat" />
+  </ItemGroup>
+</Project>

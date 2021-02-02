@@ -1,0 +1,34 @@
+#include "version.h"
+
+#define STRINGIFY(X) #X
+#define EXPANDSTR(X) STRINGIFY(X)
+#define MAKE_VERSION_STR(A,B,C,D) EXPANDSTR(A) "." EXPANDSTR(B) "." EXPANDSTR(C) "." EXPANDSTR(D)
+#define CALL(A,B) A B
+#define DRIVER_VERSION_STR_HELPER(X) CALL(MAKE_VERSION_STR,(X))
+
+#define DRIVER_VERSION DRIVER_VERSION_MAJOR,DRIVER_VERSION_MINOR,DRIVER_VERSION_PATCH,DRIVER_VERSION_BUILD
+#define DRIVER_VERSION_STR DRIVER_VERSION_STR_HELPER(DRIVER_VERSION)
+
+1 VERSIONINFO
+FILEVERSION     DRIVER_VERSION
+PRODUCTVERSION  DRIVER_VERSION
+BEGIN
+BLOCK "StringFileInfo"
+BEGIN
+    BLOCK "040904E4"
+    BEGIN
+        VALUE "CompanyName", "Mullvad VPN AB"
+        VALUE "FileDescription", "Split Tunnel Kernel Driver"
+        VALUE "FileVersion", DRIVER_VERSION_STR
+        VALUE "InternalName", "mullvad-split-tunnel"
+        VALUE "LegalCopyright", "(c) 2021 Mullvad VPN AB"
+        VALUE "OriginalFilename", "mullvad-split-tunnel.sys"
+        VALUE "ProductName", "Mullvad VPN"
+        VALUE "ProductVersion", DRIVER_VERSION_STR
+    END
+END
+BLOCK "VarFileInfo"
+BEGIN
+    VALUE "Translation", 0x409, 1252
+END
+END
