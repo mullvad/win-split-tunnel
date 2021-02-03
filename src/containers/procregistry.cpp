@@ -364,7 +364,7 @@ IsEmpty
 	CONTEXT *Context
 )
 {
-	return NULL == RtlEnumerateGenericTableAvl(&Context->Tree, TRUE);
+	return FALSE != RtlIsGenericTableEmptyAvl(&Context->Tree);
 }
 
 } // namespace procregistry
