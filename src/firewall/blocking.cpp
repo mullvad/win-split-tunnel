@@ -299,19 +299,7 @@ FindBlockConnectionsEntry
 	{
 		auto candidate = (BLOCK_CONNECTIONS_ENTRY*)entry;
 
-		if (candidate->ImageName.Length != ImageName->Length)
-		{
-			continue;
-		}
-
-		const auto equalBytes = RtlCompareMemory
-		(
-			candidate->ImageName.Buffer,
-			ImageName->Buffer,
-			ImageName->Length
-		);
-
-		if (equalBytes == ImageName->Length)
+		if (util::Equal(ImageName, &candidate->ImageName))
 		{
 			return candidate;
 		}

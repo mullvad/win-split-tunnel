@@ -54,19 +54,7 @@ ValidateCollision
         goto Approved;
     }
 
-    //
-    // Both the existing entry and the proposed entry will have lower-case
-    // imagenames so it's straight forward to compare the strings.
-    //
-
-	const auto equalBytes = RtlCompareMemory
-	(
-		existingEntry->ImageName.Buffer,
-		newEntry->ImageName.Buffer,
-		newEntry->ImageName.Length
-	);
-
-    if (equalBytes != newEntry->ImageName.Length)
+    if (!util::Equal(&existingEntry->ImageName, &newEntry->ImageName))
     {
         DbgPrint("Validate PR collision - mismatched image name\n");
 

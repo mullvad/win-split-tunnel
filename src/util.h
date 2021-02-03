@@ -118,4 +118,11 @@ SplittingEnabled
 	ST_PROCESS_SPLIT_STATUS Status
 );
 
+bool
+Equal
+(
+	const LOWER_UNICODE_STRING *a,
+	const LOWER_UNICODE_STRING *b
+);
+
 } // namespace util
