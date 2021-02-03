@@ -1,5 +1,10 @@
 @echo off
 
+if [%VisualStudioVersion%]==[] (
+  echo Please launch this build script from a Visual Studio command prompt
+  exit /b 1
+)
+
 if [%1]==[] goto USAGE
 
 set CERT_THUMBPRINT=%1
@@ -7,10 +12,6 @@ set CROSSCERT=digicert-high-assurance-ev.crt
 set TIMESTAMP_SERVER=http://timestamp.digicert.com
 
 set ROOT=%~dp0
-
-:: Register "x64 Native Tools" environment
-
-call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
 
 :: Build driver but do not sign it
 :: It's not possible to control all arguments to signtool through msbuild
