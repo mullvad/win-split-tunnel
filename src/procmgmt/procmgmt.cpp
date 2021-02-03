@@ -14,7 +14,7 @@ namespace
 // ValidateCollision()
 //
 // Find and validate existing entry in process registry that prevented the insertion
-// of a a new entry, because they share the same PID.
+// of a new entry, because they share the same PID.
 //
 bool
 ValidateCollision
