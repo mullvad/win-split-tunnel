@@ -89,8 +89,7 @@ ClassifyUnknownBind
 	HANDLE ProcessId,
 	UINT64 FilterId,
 	const void *ClassifyContext,
-	FWPS_CLASSIFY_OUT0 *ClassifyOut,
-	bool Ipv4
+	FWPS_CLASSIFY_OUT0 *ClassifyOut
 )
 {
 	//
@@ -103,8 +102,7 @@ ClassifyUnknownBind
 		ProcessId,
 		const_cast<void*>(ClassifyContext),
 		FilterId,
-		ClassifyOut,
-		Ipv4
+		ClassifyOut
 	);
 
 	if (NT_SUCCESS(status))
@@ -119,8 +117,7 @@ ClassifyUnknownBind
 		ProcessId,
 		const_cast<void*>(ClassifyContext),
 		FilterId,
-		ClassifyOut,
-		Ipv4
+		ClassifyOut
 	);
 }
 
@@ -210,8 +207,7 @@ CalloutClassifyBind
 				HANDLE(MetaValues->processId),
 				Filter->filterId,
 				ClassifyContext,
-				ClassifyOut,
-				FixedValues->layerId == FWPS_LAYER_ALE_BIND_REDIRECT_V4
+				ClassifyOut
 			);
 
 			break;
