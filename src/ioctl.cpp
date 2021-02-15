@@ -366,43 +366,6 @@ DbgPrintConfiguration
 }
 
 //
-// ClearApplySplitSetting()
-//
-// Clear splitting and notify responsible systems.
-//
-// Locks being held when called:
-//
-// Process event subsystem operation lock
-//
-bool
-NTAPI
-ClearApplySplitSetting
-(
-    procregistry::PROCESS_REGISTRY_ENTRY *Entry,
-    void *Context
-)
-{
-    auto context = (ST_DEVICE_CONTEXT *)Context;
-
-    Entry->TargetSettings.Split = ST_PROCESS_SPLIT_STATUS_OFF;
-    Entry->TargetSettings.HasFirewallState = false;
-
-    if (Entry->Settings.HasFirewallState)
-    {
-        auto status = firewall::RegisterAppBecomingUnsplitTx2(context->Firewall, &Entry->ImageName);
-
-        if (!NT_SUCCESS(status))
-        {
-            DbgPrint("Failed to update firewall 0x%X\n", status);
-
-            return false;
-        }
-    }
-
-    return true;
-}
-
-//
 // RealizeAnnounceSettingsChange()
 //
 // Update previous, current settings.

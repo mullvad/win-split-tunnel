@@ -58,9 +58,6 @@ struct PENDED_BIND
 
 	// The filter that triggered the classification.
 	UINT64 FilterId;
-
-	// Whether this is an IPv4 or IPv6 bind.
-	bool Ipv4;
 };
 
 struct PENDED_BIND_MGMT

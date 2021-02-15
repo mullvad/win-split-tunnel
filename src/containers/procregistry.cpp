@@ -80,7 +80,7 @@ TreeFreeRoutine
 // ClearDepartingParentLink()
 //
 // `Entry` is an enumerated entry in the tree.
-// `Context` is an entry that's being removed from the tree.
+// `Context` is the PID corresponding to an entry that's being removed from the tree.
 //
 // If `Entry` is a child of `Context` it needs to be updated to indicate that the parent process
 // is no longer available.
@@ -93,12 +93,10 @@ ClearDepartingParentLink
 	void *Context
 )
 {
-	auto parentEntry = (PROCESS_REGISTRY_ENTRY*)Context;
+	auto departingProcessId = (HANDLE)Context;
 
-	if (Entry->ParentEntry == parentEntry)
+	if (Entry->ParentProcessId == departingProcessId)
 	{
-		NT_ASSERT(Entry->ParentProcessId == parentEntry->ProcessId);
-
 		Entry->ParentProcessId = 0;
 		Entry->ParentEntry = NULL;
 	}
@@ -297,7 +295,7 @@ DeleteEntry
 	PROCESS_REGISTRY_ENTRY *Entry
 )
 {
-	ForEach(Context, ClearDepartingParentLink, Entry);
+	ForEach(Context, ClearDepartingParentLink, Entry->ProcessId);
 
 	InnerDeleteEntry(Context, Entry);
 }
@@ -364,7 +362,7 @@ IsEmpty
 	CONTEXT *Context
 )
 {
-	return NULL == RtlEnumerateGenericTableAvl(&Context->Tree, TRUE);
+	return FALSE != RtlIsGenericTableEmptyAvl(&Context->Tree);
 }
 
 } // namespace procregistry

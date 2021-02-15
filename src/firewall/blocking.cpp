@@ -124,12 +124,12 @@ PushTransactionEvent
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
-	InitializeListHead((LIST_ENTRY*)evt);
+	InitializeListHead(&evt->ListEntry);
 
 	evt->EventType = EventType;
 	evt->Target = Target;
 
-	InsertHeadList(TransactionEvents, (LIST_ENTRY*)evt);
+	InsertHeadList(TransactionEvents, &evt->ListEntry);
 
 	return STATUS_SUCCESS;
 }
@@ -195,13 +195,13 @@ TransactionRemovedEntry
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
-	InitializeListHead((LIST_ENTRY*)evt);
+	InitializeListHead(&evt->ListEntry);
 
 	evt->EventType = TRANSACTION_EVENT_TYPE::ADD_ENTRY;
 	evt->Target = Target;
 	evt->MockHead = MockHead;
 
-	InsertHeadList(TransactionEvents, (LIST_ENTRY*)evt);
+	InsertHeadList(TransactionEvents, &evt->ListEntry);
 
 	return STATUS_SUCCESS;
 }
@@ -221,7 +221,7 @@ TransactionSwappedLists
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
-	InitializeListHead((LIST_ENTRY*)evt);
+	InitializeListHead(&evt->ListEntry);
 
 	evt->EventType = TRANSACTION_EVENT_TYPE::SWAP_LISTS;
 
@@ -231,7 +231,7 @@ TransactionSwappedLists
 
 	util::ReparentList(&evt->BlockedTunnelConnections, BlockedTunnelConnections);
 
-	InsertHeadList(TransactionEvents, (LIST_ENTRY*)evt);
+	InsertHeadList(TransactionEvents, &evt->ListEntry);
 
 	return STATUS_SUCCESS;
 }
@@ -299,19 +299,7 @@ FindBlockConnectionsEntry
 	{
 		auto candidate = (BLOCK_CONNECTIONS_ENTRY*)entry;
 
-		if (candidate->ImageName.Length != ImageName->Length)
-		{
-			continue;
-		}
-
-		const auto equalBytes = RtlCompareMemory
-		(
-			candidate->ImageName.Buffer,
-			ImageName->Buffer,
-			ImageName->Length
-		);
-
-		if (equalBytes == ImageName->Length)
+		if (util::Equal(ImageName, &candidate->ImageName))
 		{
 			return candidate;
 		}
@@ -638,7 +626,7 @@ RemoveBlockFiltersAndEntryTx
 		return status;
 	}
 
-	RemoveEntryList((LIST_ENTRY*)Entry);
+	RemoveEntryList(&Entry->ListEntry);
 
 	return STATUS_SUCCESS;
 }
@@ -933,13 +921,13 @@ TransactionAbort
 			{
 				auto addEvent = (TRANSACTION_EVENT_ADD_ENTRY*)rawEvent;
 
-				InsertHeadList(addEvent->MockHead, (LIST_ENTRY*)addEvent->Target);
+				InsertHeadList(addEvent->MockHead, &addEvent->Target->ListEntry);
 
 				break;
 			}
 			case TRANSACTION_EVENT_TYPE::REMOVE_ENTRY:
 			{
-				RemoveEntryList((LIST_ENTRY*)evt->Target);
+				RemoveEntryList(&evt->Target->ListEntry);
 
 				ExFreePoolWithTag(evt->Target, ST_POOL_TAG);
 
@@ -1222,7 +1210,7 @@ UpdateBlockingFiltersTx2
 
 		newEntry->RefCount = entry->RefCount;
 
-		InsertTailList(&newList, (LIST_ENTRY*)newEntry);
+		InsertTailList(&newList, &newEntry->ListEntry);
 	}
 
 	//

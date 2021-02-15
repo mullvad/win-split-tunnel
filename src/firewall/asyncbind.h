@@ -14,8 +14,7 @@ PendBindRequest
     HANDLE ProcessId,
     void *ClassifyContext,
     UINT64 FilterId,
-    FWPS_CLASSIFY_OUT0 *ClassifyOut,
-    bool Ipv4
+    FWPS_CLASSIFY_OUT0 *ClassifyOut
 );
 
 void
@@ -24,8 +23,7 @@ FailBindRequest
     HANDLE ProcessId,
     void *ClassifyContext,
     UINT64 FilterId,
-    FWPS_CLASSIFY_OUT0 *ClassifyOut,
-    bool Ipv4
+    FWPS_CLASSIFY_OUT0 *ClassifyOut
 );
 
 void

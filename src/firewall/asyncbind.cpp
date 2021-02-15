@@ -15,8 +15,7 @@ FailBindRequest
     HANDLE ProcessId,
     FWPS_CLASSIFY_OUT0 *ClassifyOut,
     UINT64 ClassifyHandle,
-    UINT64 FilterId,
-    bool Ipv4
+    UINT64 FilterId
 )
 {
     DbgPrint("Failing bind request from process %p\n", ProcessId);
@@ -48,36 +47,10 @@ FailBindRequest
 	ClassifyOut->actionType = FWP_ACTION_PERMIT;
 	ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
 
-	if (Ipv4)
-	{
-		auto bindTarget = (SOCKADDR_IN*)&(bindRequest->localAddressAndPort);
-
-        IN_ADDR localhost;
-        
-        localhost.S_un.S_un_b.s_b1 = 127;
-        localhost.S_un.S_un_b.s_b2 = 0;
-        localhost.S_un.S_un_b.s_b3 = 0;
-        localhost.S_un.S_un_b.s_b4 = 1;
-
-		bindTarget->sin_addr = localhost;
-	}
-	else
-	{
-		auto bindTarget = (SOCKADDR_IN6*)&(bindRequest->localAddressAndPort);
-
-		IN6_ADDR localhost;
-		
-        localhost.u.Word[0] = 0;
-        localhost.u.Word[1] = 0;
-        localhost.u.Word[2] = 0;
-        localhost.u.Word[3] = 0;
-        localhost.u.Word[4] = 0;
-        localhost.u.Word[5] = 0;
-        localhost.u.Word[6] = 0;
-        localhost.u.Word[7] = htons(USHORT(1));
-
-		bindTarget->sin6_addr = localhost;
-	}
+    //
+    // This sets the port to 0, as well.
+    //
+    INETADDR_SETLOOPBACK((PSOCKADDR)&(bindRequest->localAddressAndPort));
 
 	FwpsApplyModifiedLayerData0(ClassifyHandle, (PVOID*)&bindRequest, 0);
 
@@ -105,7 +78,7 @@ FailPendedBindRequest
 )
 {
     const auto status = FailBindRequest(Record->ProcessId, &Record->ClassifyOut,
-        Record->ClassifyHandle, Record->FilterId, Record->Ipv4);
+        Record->ClassifyHandle, Record->FilterId);
 
     if (!status)
     {
@@ -138,8 +111,7 @@ PendBindRequest
     HANDLE ProcessId,
     void *ClassifyContext,
     UINT64 FilterId,
-    FWPS_CLASSIFY_OUT0 *ClassifyOut,
-    bool Ipv4
+    FWPS_CLASSIFY_OUT0 *ClassifyOut
 )
 {
    DbgPrint("Pending bind request from process %p\n", ProcessId);
@@ -179,7 +151,6 @@ PendBindRequest
     record->ClassifyHandle = classifyHandle;
     record->ClassifyOut = *ClassifyOut;
     record->FilterId = FilterId;
-    record->Ipv4 = Ipv4;
 
     WdfWaitLockAcquire(Context->PendedBinds.Lock, NULL);
 
@@ -196,8 +167,7 @@ FailBindRequest
     HANDLE ProcessId,
     void *ClassifyContext,
     UINT64 FilterId,
-    FWPS_CLASSIFY_OUT0 *ClassifyOut,
-    bool Ipv4
+    FWPS_CLASSIFY_OUT0 *ClassifyOut
 )
 {
 	UINT64 classifyHandle = 0;
@@ -216,7 +186,7 @@ FailBindRequest
 		return;
 	}
 
-    FailBindRequest(ProcessId, ClassifyOut, classifyHandle, FilterId, Ipv4);
+    FailBindRequest(ProcessId, ClassifyOut, classifyHandle, FilterId);
 
     FwpsReleaseClassifyHandle0(classifyHandle);
 }

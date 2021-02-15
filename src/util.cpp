@@ -336,4 +336,26 @@ SplittingEnabled
 		|| Status == ST_PROCESS_SPLIT_STATUS_ON_BY_INHERITANCE);
 }
 
+bool
+Equal
+(
+	const LOWER_UNICODE_STRING *a,
+	const LOWER_UNICODE_STRING *b
+)
+{
+	if (a->Length != b->Length)
+	{
+		return false;
+	}
+
+	const auto equalBytes = RtlCompareMemory
+	(
+		a->Buffer,
+		b->Buffer,
+		b->Length
+	);
+
+	return equalBytes == b->Length;
+}
+
 } // namespace util
