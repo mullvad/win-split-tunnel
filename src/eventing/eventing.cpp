@@ -9,6 +9,40 @@ namespace eventing
 namespace
 {
 
+void EnqueueEvent
+(
+    CONTEXT *Context,
+    RAW_EVENT *evt
+)
+{
+    WdfSpinLockAcquire(Context->EventQueueLock);
+
+    const SIZE_T MAX_QUEUED_EVENTS = 100;
+
+    //
+    // Discard oldest events if events are too numerous.
+    //
+
+    while (Context->NumEvents >= MAX_QUEUED_EVENTS)
+    {
+        auto oldEvent = (RAW_EVENT*)RemoveHeadList(&Context->EventQueue);
+
+        --Context->NumEvents;
+
+        ReleaseEvent(&oldEvent);
+    }
+
+    //
+    // Add new event at end of queue.
+    //
+
+    InsertTailList(&Context->EventQueue, &evt->ListEntry);
+
+    ++Context->NumEvents;
+
+    WdfSpinLockRelease(Context->EventQueueLock);
+}
+
 void CompleteRequestReleaseEvent
 (
     WDFREQUEST Request,
@@ -114,6 +148,8 @@ TearDown
 		ReleaseEvent(&evt);
 	}
 
+    context->NumEvents = 0;
+
     //
     // Cancel all queued requests.
     //
@@ -181,11 +217,7 @@ Emit
 
         if (!NT_SUCCESS(status) || pendedRequest == NULL)
         {
-            WdfSpinLockAcquire(Context->EventQueueLock);
-
-            InsertTailList(&Context->EventQueue, &evt->ListEntry);
-
-            WdfSpinLockRelease(Context->EventQueueLock);
+            EnqueueEvent(Context, evt);
 
             return;
         }
@@ -223,6 +255,8 @@ CollectOne
 	if (FALSE == IsListEmpty(&Context->EventQueue))
 	{
 		evt = (RAW_EVENT*)RemoveHeadList(&Context->EventQueue);
+
+        --Context->NumEvents;
 	}
 
     WdfSpinLockRelease(Context->EventQueueLock);
@@ -266,6 +300,8 @@ CollectOne
         WdfSpinLockAcquire(Context->EventQueueLock);
 
         InsertHeadList(&Context->EventQueue, &evt->ListEntry);
+
+        ++Context->NumEvents;
 
         WdfSpinLockRelease(Context->EventQueueLock);
 

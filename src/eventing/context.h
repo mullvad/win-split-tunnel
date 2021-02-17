@@ -14,6 +14,8 @@ struct CONTEXT
 	WDFSPINLOCK EventQueueLock;
 
 	LIST_ENTRY EventQueue;
+
+	SIZE_T NumEvents;
 };
 
 } // namespace eventing
