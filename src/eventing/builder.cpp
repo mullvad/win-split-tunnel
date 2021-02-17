@@ -100,7 +100,8 @@ WrapEvent
 		return NULL;
 	}
 
-	evt->SListEntry.Next = NULL;
+	InitializeListHead(&evt->ListEntry);
+
 	evt->Buffer = Buffer;
 	evt->BufferSize = BufferSize;
 
