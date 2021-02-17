@@ -38,6 +38,13 @@ BuildStopSplittingErrorEvent
 	LOWER_UNICODE_STRING *ImageName
 );
 
+RAW_EVENT*
+BuildErrorMessageEvent
+(
+	NTSTATUS Status,
+	const UNICODE_STRING *ErrorMessage
+);
+
 void
 ReleaseEvent
 (

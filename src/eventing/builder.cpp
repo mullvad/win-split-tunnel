@@ -192,6 +192,38 @@ BuildStopSplittingErrorEvent
 	return WrapEvent(buffer, bufferSize);
 }
 
+RAW_EVENT*
+BuildErrorMessageEvent
+(
+	NTSTATUS Status,
+	const UNICODE_STRING *ErrorMessage
+)
+{
+	auto headerSize = FIELD_OFFSET(ST_EVENT_HEADER, EventData);
+	auto eventSize = FIELD_OFFSET(ST_ERROR_MESSAGE_EVENT, ErrorMessage) + ErrorMessage->Length;
+	auto allocationSize = headerSize + eventSize;
+
+	auto buffer = ExAllocatePoolWithTag(NonPagedPool, allocationSize, ST_POOL_TAG);
+
+	if (buffer == NULL)
+	{
+		return NULL;
+	}
+
+	auto header = (ST_EVENT_HEADER*)buffer;
+	auto evt = (ST_ERROR_MESSAGE_EVENT*)(((UCHAR*)buffer) + FIELD_OFFSET(ST_EVENT_HEADER, EventData));
+
+	header->EventId = ST_EVENT_ERROR_MESSAGE;
+	header->EventSize = eventSize;
+
+	evt->Status = Status;
+	evt->ErrorMessageLength = ErrorMessage->Length;
+
+	RtlCopyMemory(evt->ErrorMessage, ErrorMessage->Buffer, ErrorMessage->Length);
+
+	return WrapEvent(buffer, allocationSize);
+}
+
 void
 ReleaseEvent
 (
