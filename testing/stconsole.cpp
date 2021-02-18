@@ -615,7 +615,7 @@ void ParseDisplayEvent(const uint8_t *evt, size_t eventSize)
 
 	switch (header->EventId)
 	{
-		case ST_EVENT_START_SPLITTING_PROCESS:
+		case ST_EVENT_ID_START_SPLITTING_PROCESS:
 		{
 			std::wcout << L"Type: ST_EVENT_START_SPLITTING_PROCESS" << std::endl;
 
@@ -623,7 +623,7 @@ void ParseDisplayEvent(const uint8_t *evt, size_t eventSize)
 
 			break;
 		}
-		case ST_EVENT_STOP_SPLITTING_PROCESS:
+		case ST_EVENT_ID_STOP_SPLITTING_PROCESS:
 		{
 			std::wcout << L"Type: ST_EVENT_STOP_SPLITTING_PROCESS" << std::endl;
 
@@ -631,7 +631,7 @@ void ParseDisplayEvent(const uint8_t *evt, size_t eventSize)
 
 			break;
 		}
-		case ST_EVENT_ERROR_START_SPLITTING_PROCESS:
+		case ST_EVENT_ID_ERROR_START_SPLITTING_PROCESS:
 		{
 			std::wcout << L"Type: ST_EVENT_ERROR_START_SPLITTING_PROCESS" << std::endl;
 
@@ -639,7 +639,7 @@ void ParseDisplayEvent(const uint8_t *evt, size_t eventSize)
 
 			break;
 		}
-		case ST_EVENT_ERROR_STOP_SPLITTING_PROCESS:
+		case ST_EVENT_ID_ERROR_STOP_SPLITTING_PROCESS:
 		{
 			std::wcout << L"Type: ST_EVENT_ERROR_STOP_SPLITTING_PROCESS" << std::endl;
 
