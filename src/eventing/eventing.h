@@ -23,7 +23,7 @@ TearDown
 
 struct RAW_EVENT
 {
-	SLIST_ENTRY SListEntry;
+	LIST_ENTRY ListEntry;
 
 	size_t BufferSize;
 

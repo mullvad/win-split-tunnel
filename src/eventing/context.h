@@ -11,9 +11,11 @@ struct CONTEXT
 	// Pended IOCTL requests for inverted call.
 	WDFQUEUE RequestQueue;
 
-	KSPIN_LOCK EventQueueLock;
+	WDFSPINLOCK EventQueueLock;
 
-	SLIST_HEADER EventQueue;
+	LIST_ENTRY EventQueue;
+
+	SIZE_T NumEvents;
 };
 
 } // namespace eventing

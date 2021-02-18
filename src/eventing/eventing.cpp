@@ -9,6 +9,40 @@ namespace eventing
 namespace
 {
 
+void EnqueueEvent
+(
+    CONTEXT *Context,
+    RAW_EVENT *evt
+)
+{
+    WdfSpinLockAcquire(Context->EventQueueLock);
+
+    const SIZE_T MAX_QUEUED_EVENTS = 100;
+
+    //
+    // Discard oldest events if events are too numerous.
+    //
+
+    while (Context->NumEvents >= MAX_QUEUED_EVENTS)
+    {
+        auto oldEvent = (RAW_EVENT*)RemoveHeadList(&Context->EventQueue);
+
+        --Context->NumEvents;
+
+        ReleaseEvent(&oldEvent);
+    }
+
+    //
+    // Add new event at end of queue.
+    //
+
+    InsertTailList(&Context->EventQueue, &evt->ListEntry);
+
+    ++Context->NumEvents;
+
+    WdfSpinLockRelease(Context->EventQueueLock);
+}
+
 void CompleteRequestReleaseEvent
 (
     WDFREQUEST Request,
@@ -43,8 +77,16 @@ Initialize
 
 	RtlZeroMemory(context, sizeof(*context));
 
-    InitializeSListHead(&context->EventQueue);
-    KeInitializeSpinLock(&context->EventQueueLock);
+    InitializeListHead(&context->EventQueue);
+
+    auto status = WdfSpinLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &context->EventQueueLock);
+
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint("WdfSpinLockCreate() failed 0x%X\n", status);
+
+        goto Abort;
+    }
 
     WDF_IO_QUEUE_CONFIG queueConfig;
 
@@ -56,7 +98,7 @@ Initialize
 
     queueConfig.PowerManaged = WdfFalse;
 
-    auto status = WdfIoQueueCreate
+    status = WdfIoQueueCreate
     (
         Device,
         &queueConfig,
@@ -68,14 +110,22 @@ Initialize
     {
         DbgPrint("WdfIoQueueCreate() failed 0x%X\n", status);
 
-	    ExFreePoolWithTag(context, ST_POOL_TAG);
-
-	    return status;
+        goto Abort_delete_lock;
     }
 
     *Context = context;
 
     return STATUS_SUCCESS;
+
+Abort_delete_lock:
+
+    WdfObjectDelete(context->EventQueueLock);
+
+Abort:
+
+    ExFreePoolWithTag(context, ST_POOL_TAG);
+
+    return status;
 }
 
 void
@@ -86,16 +136,19 @@ TearDown
 {
     auto context = *Context;
 
-    RAW_EVENT *evt = NULL;
-
     //
     // Discard and release all queued events.
+    // Don't use the lock because if there's contension we've already failed.
     //
-    
-    while (NULL != (evt = (RAW_EVENT*)ExInterlockedPopEntrySList(&context->EventQueue, &context->EventQueueLock)))
-    {
-        ReleaseEvent(&evt);
-    }
+
+	while (FALSE == IsListEmpty(&context->EventQueue))
+	{
+		auto evt = (RAW_EVENT*)RemoveHeadList(&context->EventQueue);
+
+		ReleaseEvent(&evt);
+	}
+
+    context->NumEvents = 0;
 
     //
     // Cancel all queued requests.
@@ -115,7 +168,12 @@ TearDown
         WdfRequestComplete(pendedRequest, STATUS_CANCELLED);
     }
 
+    //
+    // Delete all objects.
+    //
+
     WdfObjectDelete(context->RequestQueue);
+    WdfObjectDelete(context->EventQueueLock);
 
     //
     // Release context.
@@ -133,7 +191,7 @@ Emit
     RAW_EVENT **Event
 )
 {
-    auto *evt = *Event;
+    auto evt = *Event;
 
     if (evt == NULL)
     {
@@ -159,7 +217,7 @@ Emit
 
         if (!NT_SUCCESS(status) || pendedRequest == NULL)
         {
-            ExInterlockedPushEntrySList(&Context->EventQueue, &evt->SListEntry, &Context->EventQueueLock);
+            EnqueueEvent(Context, evt);
 
             return;
         }
@@ -190,7 +248,18 @@ CollectOne
     WDFREQUEST Request
 )
 {
-    auto evt = (RAW_EVENT*)ExInterlockedPopEntrySList(&Context->EventQueue, &Context->EventQueueLock);
+    RAW_EVENT *evt = NULL;
+
+    WdfSpinLockAcquire(Context->EventQueueLock);
+
+	if (FALSE == IsListEmpty(&Context->EventQueue))
+	{
+		evt = (RAW_EVENT*)RemoveHeadList(&Context->EventQueue);
+
+        --Context->NumEvents;
+	}
+
+    WdfSpinLockRelease(Context->EventQueueLock);
 
     if (evt == NULL)
     {
@@ -228,7 +297,13 @@ CollectOne
         // Put the event back.
         //
 
-        ExInterlockedPushEntrySList(&Context->EventQueue, &evt->SListEntry, &Context->EventQueueLock);
+        WdfSpinLockAcquire(Context->EventQueueLock);
+
+        InsertHeadList(&Context->EventQueue, &evt->ListEntry);
+
+        ++Context->NumEvents;
+
+        WdfSpinLockRelease(Context->EventQueueLock);
 
         return;
     }
