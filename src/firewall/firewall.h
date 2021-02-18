@@ -4,6 +4,7 @@
 #include "../ipaddr.h"
 #include "../defs/types.h"
 #include "../procbroker/procbroker.h"
+#include "../eventing/eventing.h"
 
 namespace firewall
 {
@@ -53,7 +54,8 @@ Initialize
 	CONTEXT **Context,
 	PDEVICE_OBJECT DeviceObject,
 	const CALLBACKS *Callbacks,
-	procbroker::CONTEXT *ProcessEventBroker
+	procbroker::CONTEXT *ProcessEventBroker,
+	eventing::CONTEXT *Eventing
 );
 
 NTSTATUS

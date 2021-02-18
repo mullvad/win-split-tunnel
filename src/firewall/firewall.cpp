@@ -262,7 +262,8 @@ Initialize
 	CONTEXT **Context,
 	PDEVICE_OBJECT DeviceObject,
 	const CALLBACKS *Callbacks,
-	procbroker::CONTEXT *ProcessEventBroker
+	procbroker::CONTEXT *ProcessEventBroker,
+	eventing::CONTEXT *Eventing
 )
 {
 	auto context = (CONTEXT*)ExAllocatePoolWithTag(NonPagedPool, sizeof(CONTEXT), ST_POOL_TAG);
@@ -279,6 +280,7 @@ Initialize
 	context->IpAddresses.Ipv6Action = IPV6_ACTION::NONE;
 	context->Callbacks = *Callbacks;
 	context->ProcessEventBroker = ProcessEventBroker;
+	context->Eventing = Eventing;
 
     auto status = WdfWaitLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &context->IpAddresses.Lock);
 

@@ -898,7 +898,8 @@ Initialize
         &context->Firewall,
         WdfDeviceWdmGetDeviceObject(Device),
         &callbacks,
-        context->ProcessEventBroker
+        context->ProcessEventBroker,
+        context->Eventing
     );
 
     if (!NT_SUCCESS(status))
