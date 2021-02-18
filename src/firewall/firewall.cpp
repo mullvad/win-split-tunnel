@@ -7,6 +7,7 @@
 #include "constants.h"
 #include "asyncbind.h"
 #include "../util.h"
+#include "../eventing/builder.h"
 #include "firewall.h"
 
 namespace firewall
@@ -242,6 +243,72 @@ ResetClientCallbacks
 {
 	Context->Callbacks.QueryProcess = DummyQueryProcessFunc;
 	Context->Callbacks.Context = NULL;
+}
+
+NTSTATUS
+WfpTransactionBegin
+(
+	CONTEXT *Context
+)
+{
+	auto status = FwpmTransactionBegin0(Context->WfpSession, 0);
+
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("Could not create WFP transaction: 0x%X", status);
+
+		DECLARE_CONST_UNICODE_STRING(errorMessage, L"Could not create WFP transaction");
+
+		auto evt = eventing::BuildErrorMessageEvent(status, &errorMessage);
+
+		eventing::Emit(Context->Eventing, &evt);
+	}
+
+	return status;
+}
+
+NTSTATUS
+WfpTransactionCommit
+(
+	CONTEXT *Context
+)
+{
+	auto status = FwpmTransactionCommit0(Context->WfpSession);
+
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("Could not commit WFP transaction: 0x%X", status);
+
+		DECLARE_CONST_UNICODE_STRING(errorMessage, L"Could not commit WFP transaction");
+
+		auto evt = eventing::BuildErrorMessageEvent(status, &errorMessage);
+
+		eventing::Emit(Context->Eventing, &evt);
+	}
+
+	return status;
+}
+
+NTSTATUS
+WfpTransactionAbort
+(
+	CONTEXT *Context
+)
+{
+	auto status = FwpmTransactionAbort0(Context->WfpSession);
+
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("Could not abort WFP transaction: 0x%X", status);
+
+		DECLARE_CONST_UNICODE_STRING(errorMessage, L"Could not abort WFP transaction");
+
+		auto evt = eventing::BuildErrorMessageEvent(status, &errorMessage);
+
+		eventing::Emit(Context->Eventing, &evt);
+	}
+
+	return status;
 }
 
 } // anonymous namespace
@@ -500,7 +567,7 @@ EnableSplitting
 	// Update WFP inside a transaction.
 	//
 
-	auto status = FwpmTransactionBegin0(Context->WfpSession, 0);
+	auto status = WfpTransactionBegin(Context);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -544,12 +611,10 @@ EnableSplitting
 	// Commit filters.
 	//
 
-	status = FwpmTransactionCommit0(Context->WfpSession);
+	status = WfpTransactionCommit(Context);
 
 	if (!NT_SUCCESS(status))
 	{
-		DbgPrint("Failed to commit transaction\n");
-
 		goto Abort;
 	}
 
@@ -559,14 +624,7 @@ EnableSplitting
 
 Abort:
 
-	//
-	// Do not overwrite error code in status variable.
-	//
-
-	if (!NT_SUCCESS(FwpmTransactionAbort0(Context->WfpSession)))
-	{
-		DbgPrint("Failed to abort transaction\n");
-	}
+	WfpTransactionAbort(Context);
 
 	return status;
 }
@@ -639,14 +697,7 @@ DisableSplitting
 
 Abort:
 
-	//
-	// Do not overwrite error code in status variable.
-	//
-
-	if (!NT_SUCCESS(TransactionAbort(Context)))
-	{
-		DbgPrint("Failed to abort transaction\n");
-	}
+	TransactionAbort(Context);
 
 	return status;
 }
@@ -683,7 +734,7 @@ RegisterUpdatedIpAddresses
 	// or are registered conditionally depending on which IP addresses are present.
 	//
 
-	auto status = FwpmTransactionBegin0(Context->WfpSession, 0);
+	auto status = WfpTransactionBegin(Context);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -771,13 +822,11 @@ RegisterUpdatedIpAddresses
 	// Finalize.
 	//
 
-	status = FwpmTransactionCommit0(Context->WfpSession);
+	status = WfpTransactionCommit(Context);
 
 	if (!NT_SUCCESS(status))
 	{
 		blocking::TransactionAbort(Context->BlockingContext);
-
-		DbgPrint("Failed to commit transaction\n");
 
 		goto Abort;
 	}
@@ -795,14 +844,7 @@ RegisterUpdatedIpAddresses
 
 Abort:
 
-	//
-	// Do not overwrite error code in status variable.
-	//
-
-	if (!NT_SUCCESS(FwpmTransactionAbort0(Context->WfpSession)))
-	{
-		DbgPrint("Failed to abort transaction\n");
-	}
+	WfpTransactionAbort(Context);
 
 	return status;
 }
@@ -822,12 +864,10 @@ TransactionBegin
 
 	WdfWaitLockAcquire(Context->Transaction.Lock, NULL);
 
-	auto status = FwpmTransactionBegin0(Context->WfpSession, 0);
+	auto status = WfpTransactionBegin(Context);
 
 	if (!NT_SUCCESS(status))
 	{
-		DbgPrint("Could not create WFP transaction: 0x%X", status);
-
 		goto Abort;
 	}
 	
@@ -847,12 +887,7 @@ TransactionBegin
 
 Abort_cancel_wfp:
 
-	auto s2 = FwpmTransactionAbort0(Context->WfpSession);
-
-	if (!NT_SUCCESS(s2))
-	{
-		DbgPrint("Could not abort WFP transaction: 0x%X", s2);
-	}
+	WfpTransactionAbort(Context);
 
 Abort:
 
@@ -882,12 +917,10 @@ TransactionCommit
 		return STATUS_UNSUCCESSFUL;
 	}
 
-	auto status = FwpmTransactionCommit0(Context->WfpSession);
+	auto status = WfpTransactionCommit(Context);
 
 	if (!NT_SUCCESS(status))
 	{
-		DbgPrint("Could not commit WFP transaction: 0x%X", status);
-
 		return status;
 	}
 	
@@ -922,12 +955,10 @@ TransactionAbort
 		return STATUS_UNSUCCESSFUL;
 	}
 
-	auto status = FwpmTransactionAbort0(Context->WfpSession);
+	auto status = WfpTransactionAbort(Context);
 
 	if (!NT_SUCCESS(status))
 	{
-		DbgPrint("Could not abort WFP transaction: 0x%X", status);
-
 		return status;
 	}
 	
