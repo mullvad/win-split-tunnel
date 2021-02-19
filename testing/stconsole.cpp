@@ -5,6 +5,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <sstream>
+#include <iomanip>
 #include <windows.h>
 #include <conio.h>
 #include <ip2string.h>
@@ -600,6 +602,19 @@ void DisplaySplittingErrorEvent(const ST_SPLITTING_ERROR_EVENT *evt, size_t /*ev
 	std::wcout << L"Imagename: " << imageName << std::endl;
 }
 
+void DisplayErrorMessageEvent(const ST_ERROR_MESSAGE_EVENT *evt, size_t /*eventSize*/)
+{
+	std::wstringstream ss;
+
+	ss << L"Status: 0x" << std::setw(8) << std::setfill(L'0') << std::hex << evt->Status;
+
+	std::wcout << ss.str() << std::endl;
+
+	std::wstring message(&evt->ErrorMessage[0], &evt->ErrorMessage[0] + (evt->ErrorMessageLength / sizeof(wchar_t)));
+
+	std::wcout << L"Error message: " << message << std::endl;
+}
+
 void ParseDisplayEvent(const uint8_t *evt, size_t eventSize)
 {
 	if (!g_DisplayEvents)
@@ -615,7 +630,7 @@ void ParseDisplayEvent(const uint8_t *evt, size_t eventSize)
 
 	switch (header->EventId)
 	{
-		case ST_EVENT_START_SPLITTING_PROCESS:
+		case ST_EVENT_ID_START_SPLITTING_PROCESS:
 		{
 			std::wcout << L"Type: ST_EVENT_START_SPLITTING_PROCESS" << std::endl;
 
@@ -623,7 +638,7 @@ void ParseDisplayEvent(const uint8_t *evt, size_t eventSize)
 
 			break;
 		}
-		case ST_EVENT_STOP_SPLITTING_PROCESS:
+		case ST_EVENT_ID_STOP_SPLITTING_PROCESS:
 		{
 			std::wcout << L"Type: ST_EVENT_STOP_SPLITTING_PROCESS" << std::endl;
 
@@ -631,7 +646,7 @@ void ParseDisplayEvent(const uint8_t *evt, size_t eventSize)
 
 			break;
 		}
-		case ST_EVENT_ERROR_START_SPLITTING_PROCESS:
+		case ST_EVENT_ID_ERROR_START_SPLITTING_PROCESS:
 		{
 			std::wcout << L"Type: ST_EVENT_ERROR_START_SPLITTING_PROCESS" << std::endl;
 
@@ -639,11 +654,19 @@ void ParseDisplayEvent(const uint8_t *evt, size_t eventSize)
 
 			break;
 		}
-		case ST_EVENT_ERROR_STOP_SPLITTING_PROCESS:
+		case ST_EVENT_ID_ERROR_STOP_SPLITTING_PROCESS:
 		{
 			std::wcout << L"Type: ST_EVENT_ERROR_STOP_SPLITTING_PROCESS" << std::endl;
 
 			DisplaySplittingErrorEvent((ST_SPLITTING_ERROR_EVENT*)&header->EventData[0], header->EventSize);
+
+			break;
+		}
+		case ST_EVENT_ID_ERROR_MESSAGE:
+		{
+			std::wcout << L"Type: ST_EVENT_ID_ERROR_MESSAGE" << std::endl;
+
+			DisplayErrorMessageEvent((ST_ERROR_MESSAGE_EVENT*)&header->EventData[0], header->EventSize);
 
 			break;
 		}

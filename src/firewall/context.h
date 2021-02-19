@@ -5,6 +5,7 @@
 #include "firewall.h"
 #include "../ipaddr.h"
 #include "../procbroker/procbroker.h"
+#include "../eventing/eventing.h"
 
 namespace firewall
 {
@@ -91,6 +92,8 @@ struct CONTEXT
 	PENDED_BIND_MGMT PendedBinds;
 
 	procbroker::CONTEXT *ProcessEventBroker;
+
+	eventing::CONTEXT *Eventing;
 
 	TRANSACTION_MGMT Transaction;
 
