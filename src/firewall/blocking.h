@@ -83,19 +83,39 @@ RemoveFilterBlockSplitAppTx2
 );
 
 //
-// RegisterFilterBlockSplitAppsTunnelIpv6Tx()
+// RegisterFilterBlockSplitAppsTunnelIpv4Tx()
 //
-// Block all tunnel IPv6 traffic for applications being split.
-// To be used when the physical adapter doesn't have an IPv6 interface.
+// Block all tunnel IPv4 traffic for applications being split.
+// To be used when the primary physical adapter doesn't have an IPv4 interface.
 //
 NTSTATUS
-RegisterFilterBlockSplitAppsIpv6Tx
+RegisterFilterBlockSplitAppsTunnelIpv4Tx
+(
+	void *Context,
+	const IN_ADDR *TunnelIp
+);
+
+NTSTATUS
+RemoveFilterBlockSplitAppsTunnelIpv4Tx
 (
 	void *Context
 );
 
+//
+// RegisterFilterBlockSplitAppsTunnelIpv6Tx()
+//
+// Block all tunnel IPv6 traffic for applications being split.
+// To be used when the primary physical adapter doesn't have an IPv6 interface.
+//
 NTSTATUS
-RemoveFilterBlockSplitAppsIpv6Tx
+RegisterFilterBlockSplitAppsTunnelIpv6Tx
+(
+	void *Context,
+	const IN6_ADDR *TunnelIp
+);
+
+NTSTATUS
+RemoveFilterBlockSplitAppsTunnelIpv6Tx
 (
 	void *Context
 );

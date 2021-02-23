@@ -599,7 +599,11 @@ EnableSplitting
 
 	if (blockIpv6)
 	{
-		status = blocking::RegisterFilterBlockSplitAppsIpv6Tx(Context->BlockingContext);
+		status = blocking::RegisterFilterBlockSplitAppsTunnelIpv6Tx
+		(
+			Context->BlockingContext,
+			&Context->IpAddresses.Addresses.TunnelIpv6
+		);
 
 		if (!NT_SUCCESS(status))
 		{
@@ -780,16 +784,28 @@ RegisterUpdatedIpAddresses
 		goto Abort;
 	}
 
+	//
+	// TODO-NOW
+	//
+	// This if-statement is incorrect, since the IPv6 tunnel address may have changed
+	// and the tunnel address is now being used as a filter condition.
+	//
+	// The implentation being remove/register is wrong, too.
+	//
 	if (blockIpv6 != removeBlockIpv6)
 	{
-		status = blocking::RemoveFilterBlockSplitAppsIpv6Tx(Context->BlockingContext);
+		status = blocking::RemoveFilterBlockSplitAppsTunnelIpv6Tx(Context->BlockingContext);
 
 		if (!NT_SUCCESS(status))
 		{
 			goto Abort;
 		}
 
-		status = blocking::RegisterFilterBlockSplitAppsIpv6Tx(Context->BlockingContext);
+		status = blocking::RegisterFilterBlockSplitAppsTunnelIpv6Tx
+		(
+			Context->BlockingContext,
+			&IpMgmt.Addresses.TunnelIpv6
+		);
 
 		if (!NT_SUCCESS(status))
 		{
