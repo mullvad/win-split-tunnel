@@ -989,7 +989,7 @@ TransactionAbort
 }
 
 NTSTATUS
-RegisterAppBecomingSplitTx2
+RegisterAppBecomingSplitTx
 (
 	CONTEXT *Context,
 	const LOWER_UNICODE_STRING *ImageName
@@ -1005,7 +1005,7 @@ RegisterAppBecomingSplitTx2
 
 	if (Context->Transaction.OwnerId != PsGetCurrentThreadId())
 	{
-		DbgPrint("RegisterAppBecomingSplitTx2() called by other than transaction owner");
+		DbgPrint("RegisterAppBecomingSplitTx() called by other than transaction owner");
 
 		return STATUS_UNSUCCESSFUL;
 	}
@@ -1027,7 +1027,7 @@ RegisterAppBecomingSplitTx2
 }
 
 NTSTATUS
-RegisterAppBecomingUnsplitTx2
+RegisterAppBecomingUnsplitTx
 (
 	CONTEXT *Context,
 	const LOWER_UNICODE_STRING *ImageName
@@ -1043,7 +1043,7 @@ RegisterAppBecomingUnsplitTx2
 
 	if (Context->Transaction.OwnerId != PsGetCurrentThreadId())
 	{
-		DbgPrint("RegisterAppBecomingUnsplitTx2() called by other than transaction owner");
+		DbgPrint("RegisterAppBecomingUnsplitTx() called by other than transaction owner");
 
 		return STATUS_UNSUCCESSFUL;
 	}
