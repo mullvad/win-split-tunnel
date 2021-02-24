@@ -321,7 +321,7 @@ UpdateFirewallDepartingProcess
         return status;
     }
 
-    status = firewall::RegisterAppBecomingUnsplitTx2(Context->Firewall, &registryEntry->ImageName);
+    status = firewall::RegisterAppBecomingUnsplitTx(Context->Firewall, &registryEntry->ImageName);
 
     if (!NT_SUCCESS(status))
     {

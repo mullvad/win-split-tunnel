@@ -167,7 +167,7 @@ ApplyFinalizeTargetSettings
         // Not split -> split
         //
 
-        auto status = firewall::RegisterAppBecomingSplitTx2(Context->Firewall, &Entry->ImageName);
+        auto status = firewall::RegisterAppBecomingSplitTx(Context->Firewall, &Entry->ImageName);
 
         if (!NT_SUCCESS(status))
         {
@@ -190,7 +190,7 @@ ApplyFinalizeTargetSettings
 
     if (Entry->Settings.HasFirewallState)
     {
-        auto status = firewall::RegisterAppBecomingUnsplitTx2(Context->Firewall, &Entry->ImageName);
+        auto status = firewall::RegisterAppBecomingUnsplitTx(Context->Firewall, &Entry->ImageName);
 
         if (!NT_SUCCESS(status))
         {
