@@ -174,19 +174,10 @@ Cleanup_handle:
 	FwpsReleaseClassifyHandle0(classifyHandle);
 }
 
-//
-// RegisterFilterBindRedirectTx()
-//
-// Register WFP filters that will pass all bind requests through the bind callout
-// for validation/redirection.
-//
-// "Tx" (in transaction) suffix means there is no clean-up in failure paths.
-//
 NTSTATUS
-RegisterFilterBindRedirectTx
+RegisterFilterBindRedirectIpv4Tx
 (
-	HANDLE WfpSession,
-	bool RegisterIpv6
+	HANDLE WfpSession
 )
 {
 	//
@@ -212,75 +203,64 @@ RegisterFilterBindRedirectTx
 	filter.action.calloutKey = ST_FW_CALLOUT_CLASSIFY_BIND_IPV4_KEY;
 	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
 
-	auto status = FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
+	return FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
+}
 
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
+NTSTATUS
+RemoveFilterBindRedirectIpv4Tx
+(
+	HANDLE WfpSession
+)
+{
+	return FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_CLASSIFY_BIND_IPV4_KEY);
+}
 
-	if (!RegisterIpv6)
-	{
-		return STATUS_SUCCESS;
-	}
-
+NTSTATUS
+RegisterFilterBindRedirectIpv6Tx
+(
+	HANDLE WfpSession
+)
+{
 	//
-	// Again, for IPv6 also.
+	// Create filter that references callout.
+	// Not specifying any conditions makes it apply to all traffic.
 	//
 
-	const auto filterNameIpv6 = L"Mullvad Split Tunnel Bind Redirect Filter (IPv6)";
+	FWPM_FILTER0 filter = { 0 };
+
+	const auto filterName = L"Mullvad Split Tunnel Bind Redirect Filter (IPv6)";
+	const auto filterDescription = L"Redirects certain binds away from tunnel interface";
 
 	filter.filterKey = ST_FW_FILTER_CLASSIFY_BIND_IPV6_KEY;
-	filter.displayData.name = const_cast<wchar_t*>(filterNameIpv6);
+	filter.displayData.name = const_cast<wchar_t*>(filterName);
+	filter.displayData.description = const_cast<wchar_t*>(filterDescription);
+	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
+	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_BIND_REDIRECT_V6;
+	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.weight.type = FWP_UINT64;
+	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
+	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 	filter.action.calloutKey = ST_FW_CALLOUT_CLASSIFY_BIND_IPV6_KEY;
+	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
 
 	return FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
 }
 
-//
-// RemoveFilterBindRedirectTx()
-//
-// Remove WFP filters that activate the bind callout.
-//
-// "Tx" (in transaction) suffix means there is no clean-up in failure paths.
-//
 NTSTATUS
-RemoveFilterBindRedirectTx
+RemoveFilterBindRedirectIpv6Tx
 (
-	HANDLE WfpSession,
-	bool RemoveIpv6
+	HANDLE WfpSession
 )
 {
-	auto status = FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_CLASSIFY_BIND_IPV4_KEY);
-
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
-
-	if (!RemoveIpv6)
-	{
-		return STATUS_SUCCESS;
-	}
-
 	return FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_CLASSIFY_BIND_IPV6_KEY);
 }
 
-//
-// RegisterFilterPermitNonTunnelTrafficTx()
-//
-// Register WFP filters that will pass all non-tunnel connection attempts through the
-// connection callouts for validation.
-//
-// "Tx" (in transaction) suffix means there is no clean-up in failure paths.
-//
 NTSTATUS
-RegisterFilterPermitNonTunnelTrafficTx
+RegisterFilterPermitNonTunnelIpv4Tx
 (
 	HANDLE WfpSession,
-	const IN_ADDR *TunnelIpv4,
-	const IN6_ADDR *TunnelIpv6
+	const IN_ADDR *TunnelIpv4
 )
 {
 	//
@@ -314,13 +294,21 @@ RegisterFilterPermitNonTunnelTrafficTx
 
 	FWPM_FILTER_CONDITION0 cond;
 
-	cond.fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
-	cond.matchType = FWP_MATCH_NOT_EQUAL;
-	cond.conditionValue.type = FWP_UINT32;
-	cond.conditionValue.uint32 = RtlUlongByteSwap(TunnelIpv4->s_addr);
+	//
+	// If there's no tunnel IPv4 interface then traffic on all interfaces
+	// qualifies as non-tunnel traffic.
+	//
 
-	filter.filterCondition = &cond;
-	filter.numFilterConditions = 1;
+	if (TunnelIpv4 != NULL)
+	{
+		cond.fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
+		cond.matchType = FWP_MATCH_NOT_EQUAL;
+		cond.conditionValue.type = FWP_UINT32;
+		cond.conditionValue.uint32 = RtlUlongByteSwap(TunnelIpv4->s_addr);
+
+		filter.filterCondition = &cond;
+		filter.numFilterConditions = 1;
+	}
 
 	auto status = FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
 
@@ -337,33 +325,73 @@ RegisterFilterPermitNonTunnelTrafficTx
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
 	filter.action.calloutKey = ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV4_RECV_KEY;
 
-	status = FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
+	return FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
+}
+
+NTSTATUS
+RemoveFilterPermitNonTunnelIpv4Tx
+(
+	HANDLE WfpSession
+)
+{
+	auto status = FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_CONN_KEY);
 
 	if (!NT_SUCCESS(status))
 	{
 		return status;
 	}
 
-	if (TunnelIpv6 == NULL)
-	{
-		return STATUS_SUCCESS;
-	}
+	return FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_RECV_KEY);
+}
 
+NTSTATUS
+RegisterFilterPermitNonTunnelIpv6Tx
+(
+	HANDLE WfpSession,
+	const IN6_ADDR *TunnelIpv6
+)
+{
 	//
 	// IPv6 outbound.
 	//
 
-	const auto filterNameIpv6 = L"Mullvad Split Tunnel Permissive Filter (IPv6)";
+	FWPM_FILTER0 filter = { 0 };
+
+	const auto filterName = L"Mullvad Split Tunnel Permissive Filter (IPv6)";
+	const auto filterDescription = L"Approves selected connections outside the tunnel";
 
 	filter.filterKey = ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_CONN_KEY;
-	filter.displayData.name = const_cast<wchar_t*>(filterNameIpv6);
+	filter.displayData.name = const_cast<wchar_t*>(filterName);
+	filter.displayData.description = const_cast<wchar_t*>(filterDescription);
+	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
+	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
+	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.weight.type = FWP_UINT64;
+	filter.weight.uint64 = const_cast<UINT64*>(&ST_HIGH_FILTER_WEIGHT);
+	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 	filter.action.calloutKey = ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV6_CONN_KEY;
+	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
 
-	cond.conditionValue.type = FWP_BYTE_ARRAY16_TYPE;
-	cond.conditionValue.byteArray16 = (FWP_BYTE_ARRAY16*)TunnelIpv6->u.Byte;
+	FWPM_FILTER_CONDITION0 cond;
 
-	status = FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
+	//
+	// If there's no tunnel IPv6 interface then traffic on all interfaces
+	// qualifies as non-tunnel traffic.
+	//
+
+	if (TunnelIpv6 != NULL)
+	{
+		cond.fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
+		cond.matchType = FWP_MATCH_NOT_EQUAL;
+		cond.conditionValue.type = FWP_BYTE_ARRAY16_TYPE;
+		cond.conditionValue.byteArray16 = (FWP_BYTE_ARRAY16*)TunnelIpv6->u.Byte;
+
+		filter.filterCondition = &cond;
+		filter.numFilterConditions = 1;
+	}
+
+	auto status = FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -382,32 +410,12 @@ RegisterFilterPermitNonTunnelTrafficTx
 }
 
 NTSTATUS
-RemoveFilterPermitNonTunnelTrafficTx
+RemoveFilterPermitNonTunnelIpv6Tx
 (
-	HANDLE WfpSession,
-	bool RemoveIpv6
+	HANDLE WfpSession
 )
 {
-	auto status = FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_CONN_KEY);
-
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
-
-	status = FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_RECV_KEY);
-
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
-
-	if (!RemoveIpv6)
-	{
-		return STATUS_SUCCESS;
-	}
-
-	status = FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_CONN_KEY);
+	auto status = FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_CONN_KEY);
 
 	if (!NT_SUCCESS(status))
 	{

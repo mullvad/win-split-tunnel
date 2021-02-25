@@ -24,6 +24,9 @@ TearDown
 //
 // ResetTx2()
 //
+// TODO-NOW: Update this comment and make function read the context
+// to determine which filters need to be cleaned up, e.g. the non-app-specific filters.
+//
 // Remove all app specific blocking filters.
 // Remove generic IPv6 blocking if active.
 //
@@ -62,6 +65,8 @@ TransactionAbort
 //
 // This is used to block existing connections inside the tunnel for applications that are 
 // just now being split.
+//
+// All available tunnel addresses must be provided.
 //
 // IMPORTANT: These functions need to be running inside a WFP transaction as well as a
 // local transaction managed by this module.
@@ -104,8 +109,7 @@ RemoveFilterBlockTunnelIpv4Tx
 //
 // RegisterFilterBlockTunnelIpv6Tx()
 //
-// Block all tunnel IPv6 traffic for applications being split.
-// To be used when the primary physical adapter doesn't have an IPv6 interface.
+// Refer comment on corresponding function for IPv4.
 //
 NTSTATUS
 RegisterFilterBlockTunnelIpv6Tx

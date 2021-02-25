@@ -574,23 +574,46 @@ EnableSplitting
 		return status;
 	}
 
-	status = RegisterFilterBindRedirectTx(Context->WfpSession, registerIpv6);
+	status = RegisterFilterBindRedirectIpv4Tx(Context->WfpSession);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Abort;
 	}
 
-	status = RegisterFilterPermitNonTunnelTrafficTx
+	if (registerIpv6)
+	{
+		status = RegisterFilterBindRedirectIpv6Tx(Context->WfpSession);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Abort;
+		}
+	}
+
+	status = RegisterFilterPermitNonTunnelIpv4Tx
 	(
 		Context->WfpSession,
-		&Context->IpAddresses.Addresses.TunnelIpv4,
-		registerIpv6 ? &Context->IpAddresses.Addresses.TunnelIpv6 : NULL
+		&Context->IpAddresses.Addresses.TunnelIpv4
 	);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Abort;
+	}
+
+	if (registerIpv6)
+	{
+		status = RegisterFilterPermitNonTunnelIpv6Tx
+		(
+			Context->WfpSession,
+			&Context->IpAddresses.Addresses.TunnelIpv6
+		);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Abort;
+		}
 	}
 
 	//
@@ -665,18 +688,38 @@ DisableSplitting
 
 	const auto removeIpv6 = (Context->IpAddresses.Ipv6Action == IPV6_ACTION::SPLIT);
 
-	status = RemoveFilterBindRedirectTx(Context->WfpSession, removeIpv6);
+	status = RemoveFilterBindRedirectIpv4Tx(Context->WfpSession);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Abort;
 	}
 
-	status = RemoveFilterPermitNonTunnelTrafficTx(Context->WfpSession, removeIpv6);
+	if (removeIpv6)
+	{
+		status = RemoveFilterBindRedirectIpv6Tx(Context->WfpSession);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Abort;
+		}
+	}
+
+	status = RemoveFilterPermitNonTunnelIpv4Tx(Context->WfpSession);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Abort;
+	}
+
+	if (removeIpv6)
+	{
+		status = RemoveFilterPermitNonTunnelIpv6Tx(Context->WfpSession);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Abort;
+		}
 	}
 
 	status = blocking::ResetTx2(Context->BlockingContext);
@@ -750,38 +793,66 @@ RegisterUpdatedIpAddresses
 
 	if (registerIpv6 != removeIpv6)
 	{
-		status = RemoveFilterBindRedirectTx(Context->WfpSession, removeIpv6);
+		//
+		// TODO-NOW: This is all wrong, make IPv6 first-class
+		//
 
-		if (!NT_SUCCESS(status))
-		{
-			goto Abort;
-		}
+		//status = RemoveFilterBindRedirectTx(Context->WfpSession, removeIpv6);
 
-		status = RegisterFilterBindRedirectTx(Context->WfpSession, registerIpv6);
+		//if (!NT_SUCCESS(status))
+		//{
+		//	goto Abort;
+		//}
 
-		if (!NT_SUCCESS(status))
-		{
-			goto Abort;
-		}
+		//status = RegisterFilterBindRedirectTx(Context->WfpSession, registerIpv6);
+
+		//if (!NT_SUCCESS(status))
+		//{
+		//	goto Abort;
+		//}
 	}
 
-	status = RemoveFilterPermitNonTunnelTrafficTx(Context->WfpSession, removeIpv6);
+	status = RemoveFilterPermitNonTunnelIpv4Tx(Context->WfpSession);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Abort;
 	}
 
-	status = RegisterFilterPermitNonTunnelTrafficTx
+	if (removeIpv6)
+	{
+		status = RemoveFilterPermitNonTunnelIpv6Tx(Context->WfpSession);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Abort;
+		}
+
+	}
+
+	status = RegisterFilterPermitNonTunnelIpv4Tx
 	(
 		Context->WfpSession,
-		&IpMgmt.Addresses.TunnelIpv4,
-		registerIpv6 ? &IpMgmt.Addresses.TunnelIpv6 : NULL
+		&IpMgmt.Addresses.TunnelIpv4
 	);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Abort;
+	}
+
+	if (registerIpv6)
+	{
+		status = RegisterFilterPermitNonTunnelIpv6Tx
+		(
+			Context->WfpSession,
+			&IpMgmt.Addresses.TunnelIpv6
+		);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Abort;
+		}
 	}
 
 	//
