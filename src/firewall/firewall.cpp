@@ -581,7 +581,7 @@ EnableSplitting
 		goto Abort;
 	}
 
-	status = RegisterFilterPermitSplitAppsTx
+	status = RegisterFilterPermitNonTunnelTrafficTx
 	(
 		Context->WfpSession,
 		&Context->IpAddresses.Addresses.TunnelIpv4,
@@ -599,7 +599,7 @@ EnableSplitting
 
 	if (blockIpv6)
 	{
-		status = blocking::RegisterFilterBlockSplitAppsTunnelIpv6Tx
+		status = blocking::RegisterFilterBlockTunnelIpv6Tx
 		(
 			Context->BlockingContext,
 			&Context->IpAddresses.Addresses.TunnelIpv6
@@ -672,7 +672,7 @@ DisableSplitting
 		goto Abort;
 	}
 
-	status = RemoveFilterPermitSplitAppsTx(Context->WfpSession, removeIpv6);
+	status = RemoveFilterPermitNonTunnelTrafficTx(Context->WfpSession, removeIpv6);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -765,14 +765,14 @@ RegisterUpdatedIpAddresses
 		}
 	}
 
-	status = RemoveFilterPermitSplitAppsTx(Context->WfpSession, removeIpv6);
+	status = RemoveFilterPermitNonTunnelTrafficTx(Context->WfpSession, removeIpv6);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Abort;
 	}
 
-	status = RegisterFilterPermitSplitAppsTx
+	status = RegisterFilterPermitNonTunnelTrafficTx
 	(
 		Context->WfpSession,
 		&IpMgmt.Addresses.TunnelIpv4,
@@ -794,14 +794,14 @@ RegisterUpdatedIpAddresses
 	//
 	if (blockIpv6 != removeBlockIpv6)
 	{
-		status = blocking::RemoveFilterBlockSplitAppsTunnelIpv6Tx(Context->BlockingContext);
+		status = blocking::RemoveFilterBlockTunnelIpv6Tx(Context->BlockingContext);
 
 		if (!NT_SUCCESS(status))
 		{
 			goto Abort;
 		}
 
-		status = blocking::RegisterFilterBlockSplitAppsTunnelIpv6Tx
+		status = blocking::RegisterFilterBlockTunnelIpv6Tx
 		(
 			Context->BlockingContext,
 			&IpMgmt.Addresses.TunnelIpv6
@@ -1017,7 +1017,7 @@ RegisterAppBecomingSplitTx
 
 	WdfWaitLockRelease(Context->IpAddresses.Lock);
 
-	return blocking::RegisterFilterBlockSplitAppTx2
+	return blocking::RegisterFilterBlockAppTunnelTrafficTx2
 	(
 		Context->BlockingContext,
 		ImageName,
@@ -1048,7 +1048,7 @@ RegisterAppBecomingUnsplitTx
 		return STATUS_UNSUCCESSFUL;
 	}
 
-	return blocking::RemoveFilterBlockSplitAppTx2(Context->BlockingContext, ImageName);
+	return blocking::RemoveFilterBlockAppTunnelTrafficTx2(Context->BlockingContext, ImageName);
 }
 
 } // namespace firewall

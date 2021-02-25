@@ -731,8 +731,8 @@ TearDown
 	// Undo generic blocking filters.
 	//
 
-	RemoveFilterBlockSplitAppsTunnelIpv4Tx(*Context);
-	RemoveFilterBlockSplitAppsTunnelIpv6Tx(*Context);
+	RemoveFilterBlockTunnelIpv4Tx(*Context);
+	RemoveFilterBlockTunnelIpv6Tx(*Context);
 
 	//
 	// Remove all app specific filters.
@@ -793,7 +793,7 @@ ResetTx2
 
 	if (GenericIpv4BlockFiltersRegistered(stateData->WfpSession))
 	{
-		auto status = RemoveFilterBlockSplitAppsTunnelIpv4Tx(Context);
+		auto status = RemoveFilterBlockTunnelIpv4Tx(Context);
 
 		if (!NT_SUCCESS(status))
 		{
@@ -803,7 +803,7 @@ ResetTx2
 
 	if (GenericIpv6BlockFiltersRegistered(stateData->WfpSession))
 	{
-		auto status = RemoveFilterBlockSplitAppsTunnelIpv6Tx(Context);
+		auto status = RemoveFilterBlockTunnelIpv6Tx(Context);
 
 		if (!NT_SUCCESS(status))
 		{
@@ -983,7 +983,7 @@ TransactionAbort
 }
 
 NTSTATUS
-RegisterFilterBlockSplitAppTx2
+RegisterFilterBlockAppTunnelTrafficTx2
 (
 	void *Context,
 	const LOWER_UNICODE_STRING *ImageName,
@@ -1047,7 +1047,7 @@ RegisterFilterBlockSplitAppTx2
 }
 
 NTSTATUS
-RemoveFilterBlockSplitAppTx2
+RemoveFilterBlockAppTunnelTrafficTx2
 (
 	void *Context,
 	const LOWER_UNICODE_STRING *ImageName
@@ -1113,7 +1113,7 @@ RemoveFilterBlockSplitAppTx2
 }
 
 NTSTATUS
-RegisterFilterBlockSplitAppsTunnelIpv4Tx
+RegisterFilterBlockTunnelIpv4Tx
 (
 	void *Context,
 	const IN_ADDR *TunnelIp
@@ -1174,7 +1174,7 @@ RegisterFilterBlockSplitAppsTunnelIpv4Tx
 }
 
 NTSTATUS
-RemoveFilterBlockSplitAppsTunnelIpv4Tx
+RemoveFilterBlockTunnelIpv4Tx
 (
 	void *Context
 )
@@ -1192,7 +1192,7 @@ RemoveFilterBlockSplitAppsTunnelIpv4Tx
 }
 
 NTSTATUS
-RegisterFilterBlockSplitAppsTunnelIpv6Tx
+RegisterFilterBlockTunnelIpv6Tx
 (
 	void *Context,
 	const IN6_ADDR *TunnelIp
@@ -1253,7 +1253,7 @@ RegisterFilterBlockSplitAppsTunnelIpv6Tx
 }
 
 NTSTATUS
-RemoveFilterBlockSplitAppsTunnelIpv6Tx
+RemoveFilterBlockTunnelIpv6Tx
 (
 	void *Context
 )

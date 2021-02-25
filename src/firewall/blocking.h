@@ -55,7 +55,7 @@ TransactionAbort
 );
 
 //
-// RegisterFilterBlockSplitAppTx2()
+// RegisterFilterBlockAppTunnelTrafficTx2()
 //
 // Register WFP filters, with linked callout, that will block connections in the tunnel
 // from applications being split.
@@ -67,7 +67,7 @@ TransactionAbort
 // local transaction managed by this module.
 //
 NTSTATUS
-RegisterFilterBlockSplitAppTx2
+RegisterFilterBlockAppTunnelTrafficTx2
 (
 	void *Context,
 	const LOWER_UNICODE_STRING *ImageName,
@@ -76,46 +76,46 @@ RegisterFilterBlockSplitAppTx2
 );
 
 NTSTATUS
-RemoveFilterBlockSplitAppTx2
+RemoveFilterBlockAppTunnelTrafficTx2
 (
 	void *Context,
 	const LOWER_UNICODE_STRING *ImageName
 );
 
 //
-// RegisterFilterBlockSplitAppsTunnelIpv4Tx()
+// RegisterFilterBlockTunnelIpv4Tx()
 //
 // Block all tunnel IPv4 traffic for applications being split.
 // To be used when the primary physical adapter doesn't have an IPv4 interface.
 //
 NTSTATUS
-RegisterFilterBlockSplitAppsTunnelIpv4Tx
+RegisterFilterBlockTunnelIpv4Tx
 (
 	void *Context,
 	const IN_ADDR *TunnelIp
 );
 
 NTSTATUS
-RemoveFilterBlockSplitAppsTunnelIpv4Tx
+RemoveFilterBlockTunnelIpv4Tx
 (
 	void *Context
 );
 
 //
-// RegisterFilterBlockSplitAppsTunnelIpv6Tx()
+// RegisterFilterBlockTunnelIpv6Tx()
 //
 // Block all tunnel IPv6 traffic for applications being split.
 // To be used when the primary physical adapter doesn't have an IPv6 interface.
 //
 NTSTATUS
-RegisterFilterBlockSplitAppsTunnelIpv6Tx
+RegisterFilterBlockTunnelIpv6Tx
 (
 	void *Context,
 	const IN6_ADDR *TunnelIp
 );
 
 NTSTATUS
-RemoveFilterBlockSplitAppsTunnelIpv6Tx
+RemoveFilterBlockTunnelIpv6Tx
 (
 	void *Context
 );
