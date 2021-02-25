@@ -38,7 +38,7 @@ RemoveFilterBindRedirectTx
 );
 
 //
-// RegisterFilterPermitSplitAppsTx()
+// RegisterFilterPermitNonTunnelTrafficTx()
 //
 // Register filters, with linked callout, that permits non-tunnel connections
 // associated with applications being split.
@@ -46,7 +46,7 @@ RemoveFilterBindRedirectTx
 // This ensures winfw filters are not applied to these apps.
 //
 NTSTATUS
-RegisterFilterPermitSplitAppsTx
+RegisterFilterPermitNonTunnelTrafficTx
 (
 	HANDLE WfpSession,
 	const IN_ADDR *TunnelIpv4,
@@ -54,7 +54,7 @@ RegisterFilterPermitSplitAppsTx
 );
 
 NTSTATUS
-RemoveFilterPermitSplitAppsTx
+RemoveFilterPermitNonTunnelTrafficTx
 (
 	HANDLE WfpSession,
 	bool RemoveIpv6

@@ -268,15 +268,15 @@ RemoveFilterBindRedirectTx
 }
 
 //
-// RegisterFilterPermitSplitAppsTx()
+// RegisterFilterPermitNonTunnelTrafficTx()
 //
-// Register WFP filters that will pass all connection attempts through the
+// Register WFP filters that will pass all non-tunnel connection attempts through the
 // connection callouts for validation.
 //
 // "Tx" (in transaction) suffix means there is no clean-up in failure paths.
 //
 NTSTATUS
-RegisterFilterPermitSplitAppsTx
+RegisterFilterPermitNonTunnelTrafficTx
 (
 	HANDLE WfpSession,
 	const IN_ADDR *TunnelIpv4,
@@ -382,7 +382,7 @@ RegisterFilterPermitSplitAppsTx
 }
 
 NTSTATUS
-RemoveFilterPermitSplitAppsTx
+RemoveFilterPermitNonTunnelTrafficTx
 (
 	HANDLE WfpSession,
 	bool RemoveIpv6
