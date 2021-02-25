@@ -18,46 +18,86 @@ RewriteBind
 );
 
 //
-// RegisterFilterBindRedirectTx()
+// RegisterFilterBindRedirectIpv4Tx()
 //
-// Register filters, with linked callout, that rewrites binds for
-// applications being split.
+// Register filter, with linked callout, that will pass all bind requests through the bind callout
+// for validation/redirection.
+//
+// Applicable binds are rewritten for apps being split.
+//
+// "Tx" (in transaction) suffix means there's no clean-up in failure paths.
 //
 NTSTATUS
-RegisterFilterBindRedirectTx
+RegisterFilterBindRedirectIpv4Tx
 (
-	HANDLE WfpSession,
-	bool RegisterIpv6
+	HANDLE WfpSession
 );
 
 NTSTATUS
-RemoveFilterBindRedirectTx
+RemoveFilterBindRedirectIpv4Tx
 (
-	HANDLE WfpSession,
-	bool RemoveIpv6
+	HANDLE WfpSession
 );
 
 //
-// RegisterFilterPermitNonTunnelTrafficTx()
+// RegisterFilterBindRedirectIpv6Tx()
 //
-// Register filters, with linked callout, that permits non-tunnel connections
+// Refer comment on corresponding function for IPv4.
+//
+NTSTATUS
+RegisterFilterBindRedirectIpv6Tx
+(
+	HANDLE WfpSession
+);
+
+NTSTATUS
+RemoveFilterBindRedirectIpv6Tx
+(
+	HANDLE WfpSession
+);
+
+//
+// RegisterFilterPermitNonTunnelIpv4Tx()
+//
+// Register filters, with linked callout, that permit non-tunnel IPv4 traffic
 // associated with applications being split.
 //
 // This ensures winfw filters are not applied to these apps.
 //
+// The TunnelIpv4 argument is optional but must be specified if the tunnel adapter
+// uses an IPv4 interface.
+//
+// "Tx" (in transaction) suffix means there's no clean-up in failure paths.
+//
 NTSTATUS
-RegisterFilterPermitNonTunnelTrafficTx
+RegisterFilterPermitNonTunnelIpv4Tx
 (
 	HANDLE WfpSession,
-	const IN_ADDR *TunnelIpv4,
+	const IN_ADDR *TunnelIpv4
+);
+
+NTSTATUS
+RemoveFilterPermitNonTunnelIpv4Tx
+(
+	HANDLE WfpSession
+);
+
+//
+// RegisterFilterPermitNonTunnelIpv6Tx()
+//
+// Refer comment on corresponding function for IPv4.
+//
+NTSTATUS
+RegisterFilterPermitNonTunnelIpv6Tx
+(
+	HANDLE WfpSession,
 	const IN6_ADDR *TunnelIpv6
 );
 
 NTSTATUS
-RemoveFilterPermitNonTunnelTrafficTx
+RemoveFilterPermitNonTunnelIpv6Tx
 (
-	HANDLE WfpSession,
-	bool RemoveIpv6
+	HANDLE WfpSession
 );
 
 } // namespace firewall

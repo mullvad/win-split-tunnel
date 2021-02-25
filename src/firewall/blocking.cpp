@@ -321,6 +321,14 @@ AddTunnelBlockFiltersTx
 	UINT64 *InboundFilterIdV6
 )
 {
+	NT_ASSERT
+	(
+		OutboundFilterIdV4 != NULL
+		&& InboundFilterIdV4 != NULL
+		&& OutboundFilterIdV6 != NULL
+		&& InboundFilterIdV6 != NULL
+	);
+
 	//
 	// Format APP_ID payload that will be used with all filters.
 	//
@@ -334,125 +342,156 @@ AddTunnelBlockFiltersTx
 		return status;
 	}
 
-	//
-	// Register outbound IPv4 filter.
-	//
-
-	FWPM_FILTER0 filter = { 0 };
-
-	const auto FilterNameOutboundIpv4 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Outbound IPv4)";
-	const auto FilterDescription = L"Blocks existing connections in the tunnel";
-
-	filter.displayData.name = const_cast<wchar_t*>(FilterNameOutboundIpv4);
-	filter.displayData.description = const_cast<wchar_t*>(FilterDescription);
-	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
-	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
-	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
-	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
-	filter.weight.type = FWP_UINT64;
-	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
-	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
-	filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV4_CONN_KEY;
-	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
-
-	//
-	// Conditions are:
-	//
-	// APP_ID == ImageName
-	// LOCAL_ADDRESS == TunnelIp
-	//
-
-	FWPM_FILTER_CONDITION0 cond[2];
-
-	cond[0].fieldKey = FWPM_CONDITION_ALE_APP_ID;
-	cond[0].matchType = FWP_MATCH_EQUAL;
-	cond[0].conditionValue.type = FWP_BYTE_BLOB_TYPE;
-	cond[0].conditionValue.byteBlob = appIdPayload;
-
-	cond[1].fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
-	cond[1].matchType = FWP_MATCH_EQUAL;
-	cond[1].conditionValue.type = FWP_UINT32;
-	cond[1].conditionValue.uint32 = RtlUlongByteSwap(TunnelIpv4->s_addr);
-
-	filter.filterCondition = cond;
-	filter.numFilterConditions = ARRAYSIZE(cond);
-
-	status = FwpmFilterAdd0(WfpSession, &filter, NULL, OutboundFilterIdV4);
-
-	if (!NT_SUCCESS(status))
+	if (TunnelIpv4 == NULL)
 	{
-		goto Cleanup;
+		*OutboundFilterIdV4 = 0;
+		*InboundFilterIdV4 = 0;
 	}
-
-	//
-	// Register inbound IPv4 filter.
-	//
-
-	const auto FilterNameInboundIpv4 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Inbound IPv4)";
-
-	RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
-	filter.displayData.name = const_cast<wchar_t*>(FilterNameInboundIpv4);
-	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
-	filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV4_RECV_KEY;
-
-	status = FwpmFilterAdd0(WfpSession, &filter, NULL, InboundFilterIdV4);
-
-	if (!NT_SUCCESS(status))
+	else
 	{
-		goto Cleanup;
-	}
+		//
+		// Register outbound IPv4 filter.
+		//
 
-	//
-	// Skip IPv6 filters if IPv6 is not available.
-	//
+		FWPM_FILTER0 filter = { 0 };
+
+		const auto FilterNameOutboundIpv4 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Outbound IPv4)";
+		const auto FilterDescription = L"Blocks existing connections in the tunnel";
+
+		filter.displayData.name = const_cast<wchar_t*>(FilterNameOutboundIpv4);
+		filter.displayData.description = const_cast<wchar_t*>(FilterDescription);
+		filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
+		filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
+		filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
+		filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+		filter.weight.type = FWP_UINT64;
+		filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
+		filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
+		filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV4_CONN_KEY;
+		filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
+
+		//
+		// Conditions are:
+		//
+		// APP_ID == ImageName
+		// LOCAL_ADDRESS == TunnelIp
+		//
+
+		FWPM_FILTER_CONDITION0 cond[2];
+
+		cond[0].fieldKey = FWPM_CONDITION_ALE_APP_ID;
+		cond[0].matchType = FWP_MATCH_EQUAL;
+		cond[0].conditionValue.type = FWP_BYTE_BLOB_TYPE;
+		cond[0].conditionValue.byteBlob = appIdPayload;
+
+		cond[1].fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
+		cond[1].matchType = FWP_MATCH_EQUAL;
+		cond[1].conditionValue.type = FWP_UINT32;
+		cond[1].conditionValue.uint32 = RtlUlongByteSwap(TunnelIpv4->s_addr);
+
+		filter.filterCondition = cond;
+		filter.numFilterConditions = ARRAYSIZE(cond);
+
+		status = FwpmFilterAdd0(WfpSession, &filter, NULL, OutboundFilterIdV4);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Cleanup;
+		}
+
+		//
+		// Register inbound IPv4 filter.
+		//
+
+		const auto FilterNameInboundIpv4 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Inbound IPv4)";
+
+		RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
+		filter.displayData.name = const_cast<wchar_t*>(FilterNameInboundIpv4);
+		filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
+		filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV4_RECV_KEY;
+
+		status = FwpmFilterAdd0(WfpSession, &filter, NULL, InboundFilterIdV4);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Cleanup;
+		}
+	}
 
 	if (TunnelIpv6 == NULL)
 	{
 		*OutboundFilterIdV6 = 0;
 		*InboundFilterIdV6 = 0;
-
-		status = STATUS_SUCCESS;
-
-		goto Cleanup;
 	}
-
-	//
-	// Register outbound IPv6 filter.
-	//
-
-	const auto FilterNameOutboundIpv6 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Outbound IPv6)";
-
-	RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
-	filter.displayData.name = const_cast<wchar_t*>(FilterNameOutboundIpv6);
-	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
-	filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_CONN_KEY;
-
-	cond[1].conditionValue.type = FWP_BYTE_ARRAY16_TYPE;
-	cond[1].conditionValue.byteArray16 = (FWP_BYTE_ARRAY16*)TunnelIpv6->u.Byte;
-
-	status = FwpmFilterAdd0(WfpSession, &filter, NULL, OutboundFilterIdV6);
-
-	if (!NT_SUCCESS(status))
+	else
 	{
-		goto Cleanup;
-	}
+		//
+		// Register outbound IPv6 filter.
+		//
 
-	//
-	// Register inbound IPv6 filter.
-	//
+		FWPM_FILTER0 filter = { 0 };
 
-	const auto FilterNameInboundIpv6 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Inbound IPv6)";
+		const auto FilterNameOutboundIpv6 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Outbound IPv6)";
+		const auto FilterDescription = L"Blocks existing connections in the tunnel";
 
-	RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
-	filter.displayData.name = const_cast<wchar_t*>(FilterNameInboundIpv6);
-	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6;
-	filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_RECV_KEY;
+		filter.displayData.name = const_cast<wchar_t*>(FilterNameOutboundIpv6);
+		filter.displayData.description = const_cast<wchar_t*>(FilterDescription);
+		filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
+		filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
+		filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
+		filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+		filter.weight.type = FWP_UINT64;
+		filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
+		filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
+		filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_CONN_KEY;
+		filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
 
-	status = FwpmFilterAdd0(WfpSession, &filter, NULL, InboundFilterIdV6);
+		//
+		// Conditions are:
+		//
+		// APP_ID == ImageName
+		// LOCAL_ADDRESS == TunnelIp
+		//
 
-	if (!NT_SUCCESS(status))
-	{
-		goto Cleanup;
+		FWPM_FILTER_CONDITION0 cond[2];
+
+		cond[0].fieldKey = FWPM_CONDITION_ALE_APP_ID;
+		cond[0].matchType = FWP_MATCH_EQUAL;
+		cond[0].conditionValue.type = FWP_BYTE_BLOB_TYPE;
+		cond[0].conditionValue.byteBlob = appIdPayload;
+
+		cond[1].fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
+		cond[1].matchType = FWP_MATCH_EQUAL;
+		cond[1].conditionValue.type = FWP_BYTE_ARRAY16_TYPE;
+		cond[1].conditionValue.byteArray16 = (FWP_BYTE_ARRAY16*)TunnelIpv6->u.Byte;
+
+		filter.filterCondition = cond;
+		filter.numFilterConditions = ARRAYSIZE(cond);
+
+		status = FwpmFilterAdd0(WfpSession, &filter, NULL, OutboundFilterIdV6);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Cleanup;
+		}
+
+		//
+		// Register inbound IPv6 filter.
+		//
+
+		const auto FilterNameInboundIpv6 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Inbound IPv6)";
+
+		RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
+		filter.displayData.name = const_cast<wchar_t*>(FilterNameInboundIpv6);
+		filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6;
+		filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_RECV_KEY;
+
+		status = FwpmFilterAdd0(WfpSession, &filter, NULL, InboundFilterIdV6);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Cleanup;
+		}
 	}
 
 	status = STATUS_SUCCESS;
@@ -499,6 +538,8 @@ AddBlockFiltersCreateEntryTx
 	{
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
+
+	RtlZeroMemory(entry, allocationSize);
 
 	auto status = Blocker
 	(
@@ -552,23 +593,26 @@ RemoveBlockFiltersTx
 	UINT64 InboundFilterIdV6
 )
 {
-	auto status = FwpmFilterDeleteById0(WfpSession, OutboundFilterIdV4);
+	//
+	// Filters were installed in pairs.
+	//
 
-	if (!NT_SUCCESS(status))
+	NT_ASSERT(OutboundFilterIdV4 != 0 || OutboundFilterIdV6 != 0);
+
+	auto status = STATUS_SUCCESS;
+
+	if (OutboundFilterIdV4 != 0)
 	{
-		return status;
-	}
+		status = FwpmFilterDeleteById0(WfpSession, OutboundFilterIdV4);
 
-	status = FwpmFilterDeleteById0(WfpSession, InboundFilterIdV4);
+		if (!NT_SUCCESS(status))
+		{
+			return status;
+		}
 
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
+		NT_ASSERT(InboundFilterIdV4 != 0);
 
-	if (0 != OutboundFilterIdV6)
-	{
-		status = FwpmFilterDeleteById0(WfpSession, OutboundFilterIdV6);
+		status = FwpmFilterDeleteById0(WfpSession, InboundFilterIdV4);
 
 		if (!NT_SUCCESS(status))
 		{
@@ -576,8 +620,17 @@ RemoveBlockFiltersTx
 		}
 	}
 
-	if (0 != InboundFilterIdV6)
+	if (OutboundFilterIdV6 != 0)
 	{
+		status = FwpmFilterDeleteById0(WfpSession, OutboundFilterIdV6);
+
+		if (!NT_SUCCESS(status))
+		{
+			return status;
+		}
+
+		NT_ASSERT(InboundFilterIdV6 != 0);
+
 		status = FwpmFilterDeleteById0(WfpSession, InboundFilterIdV6);
 
 		if (!NT_SUCCESS(status))
@@ -991,6 +1044,11 @@ RegisterFilterBlockAppTunnelTrafficTx2
 	const IN6_ADDR *TunnelIpv6
 )
 {
+	if (TunnelIpv4 == NULL && TunnelIpv6 == NULL)
+	{
+		return STATUS_INVALID_PARAMETER;
+	}
+
 	auto stateData = (STATE_DATA*)Context;
 
 	auto existingEntry = FindBlockConnectionsEntry(&stateData->BlockedTunnelConnections, ImageName);
@@ -1346,7 +1404,7 @@ UpdateBlockingFiltersTx2
 	{
 		FreeList(&newList);
 
-		return STATUS_INSUFFICIENT_RESOURCES;
+		return status;
 	}
 
 	//
