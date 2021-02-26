@@ -6,19 +6,6 @@
 namespace firewall
 {
 
-// TODO-NOW Move this out to some place more suitable
-// Perhaps its own implementation file
-void
-RewriteBind
-(
-	CONTEXT *Context,
-	const FWPS_INCOMING_VALUES0 *FixedValues,
-	const FWPS_INCOMING_METADATA_VALUES0 *MetaValues,
-	UINT64 FilterId,
-	const void *ClassifyContext,
-	FWPS_CLASSIFY_OUT0 *ClassifyOut
-);
-
 //
 // RegisterFilterBindRedirectIpv4Tx()
 //
