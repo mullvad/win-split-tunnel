@@ -14,9 +14,6 @@
     <ClCompile Include="firewall\firewall.cpp">
       <Filter>firewall</Filter>
     </ClCompile>
-    <ClCompile Include="firewall\splitting.cpp">
-      <Filter>firewall</Filter>
-    </ClCompile>
     <ClCompile Include="ipaddr.cpp" />
     <ClCompile Include="procmon\procmon.cpp">
       <Filter>procmon</Filter>
@@ -45,6 +42,9 @@
     <ClCompile Include="firewall\mode.cpp">
       <Filter>firewall</Filter>
     </ClCompile>
+    <ClCompile Include="firewall\filters.cpp">
+      <Filter>firewall</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="mullvad-split-tunnel.inf" />
@@ -70,9 +70,6 @@
       <Filter>firewall</Filter>
     </ClInclude>
     <ClInclude Include="firewall\context.h">
-      <Filter>firewall</Filter>
-    </ClInclude>
-    <ClInclude Include="firewall\splitting.h">
       <Filter>firewall</Filter>
     </ClInclude>
     <ClInclude Include="firewall\wfp.h">
@@ -144,6 +141,9 @@
     <ClInclude Include="x64guard.h" />
     <ClInclude Include="version.h" />
     <ClInclude Include="firewall\mode.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="firewall\filters.h">
       <Filter>firewall</Filter>
     </ClInclude>
   </ItemGroup>

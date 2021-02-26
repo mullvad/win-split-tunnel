@@ -2,7 +2,7 @@
 #include "context.h"
 #include "identifiers.h"
 #include "blocking.h"
-#include "splitting.h"
+#include "filters.h"
 #include "callouts.h"
 #include "constants.h"
 #include "asyncbind.h"
@@ -622,9 +622,9 @@ EnableSplitting
 
 	if (blockIpv6)
 	{
-		status = blocking::RegisterFilterBlockTunnelIpv6Tx
+		status = RegisterFilterBlockTunnelIpv6Tx
 		(
-			Context->BlockingContext,
+			Context->WfpSession,
 			&Context->IpAddresses.Addresses.TunnelIpv6
 		);
 
@@ -865,16 +865,16 @@ RegisterUpdatedIpAddresses
 	//
 	if (blockIpv6 != removeBlockIpv6)
 	{
-		status = blocking::RemoveFilterBlockTunnelIpv6Tx(Context->BlockingContext);
+		status = RemoveFilterBlockTunnelIpv6Tx(Context->WfpSession);
 
 		if (!NT_SUCCESS(status))
 		{
 			goto Abort;
 		}
 
-		status = blocking::RegisterFilterBlockTunnelIpv6Tx
+		status = RegisterFilterBlockTunnelIpv6Tx
 		(
-			Context->BlockingContext,
+			Context->WfpSession,
 			&IpMgmt.Addresses.TunnelIpv6
 		);
 
