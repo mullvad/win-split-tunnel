@@ -88,43 +88,6 @@ RemoveFilterBlockAppTunnelTrafficTx2
 );
 
 //
-// RegisterFilterBlockTunnelIpv4Tx()
-//
-// Block all tunnel IPv4 traffic for applications being split.
-// To be used when the primary physical adapter doesn't have an IPv4 interface.
-//
-NTSTATUS
-RegisterFilterBlockTunnelIpv4Tx
-(
-	void *Context,
-	const IN_ADDR *TunnelIp
-);
-
-NTSTATUS
-RemoveFilterBlockTunnelIpv4Tx
-(
-	void *Context
-);
-
-//
-// RegisterFilterBlockTunnelIpv6Tx()
-//
-// Refer comment on corresponding function for IPv4.
-//
-NTSTATUS
-RegisterFilterBlockTunnelIpv6Tx
-(
-	void *Context,
-	const IN6_ADDR *TunnelIp
-);
-
-NTSTATUS
-RemoveFilterBlockTunnelIpv6Tx
-(
-	void *Context
-);
-
-//
 // UpdateBlockingFiltersTx2()
 //
 // Rewrite filters with updated IP addresses.

@@ -6,6 +6,8 @@
 namespace firewall
 {
 
+// TODO-NOW Move this out to some place more suitable
+// Perhaps its own implementation file
 void
 RewriteBind
 (
@@ -96,6 +98,43 @@ RegisterFilterPermitNonTunnelIpv6Tx
 
 NTSTATUS
 RemoveFilterPermitNonTunnelIpv6Tx
+(
+	HANDLE WfpSession
+);
+
+//
+// RegisterFilterBlockTunnelIpv4Tx()
+//
+// Block all tunnel IPv4 traffic for applications being split.
+// To be used when the primary physical adapter doesn't have an IPv4 interface.
+//
+NTSTATUS
+RegisterFilterBlockTunnelIpv4Tx
+(
+	HANDLE WfpSession,
+	const IN_ADDR *TunnelIp
+);
+
+NTSTATUS
+RemoveFilterBlockTunnelIpv4Tx
+(
+	HANDLE WfpSession
+);
+
+//
+// RegisterFilterBlockTunnelIpv6Tx()
+//
+// Refer comment on corresponding function for IPv4.
+//
+NTSTATUS
+RegisterFilterBlockTunnelIpv6Tx
+(
+	HANDLE WfpSession,
+	const IN6_ADDR *TunnelIp
+);
+
+NTSTATUS
+RemoveFilterBlockTunnelIpv6Tx
 (
 	HANDLE WfpSession
 );

@@ -196,9 +196,9 @@
     <ClCompile Include="firewall\asyncbind.cpp" />
     <ClCompile Include="firewall\blocking.cpp" />
     <ClCompile Include="firewall\callouts.cpp" />
+    <ClCompile Include="firewall\filters.cpp" />
     <ClCompile Include="firewall\firewall.cpp" />
     <ClCompile Include="firewall\mode.cpp" />
-    <ClCompile Include="firewall\splitting.cpp" />
     <ClCompile Include="ioctl.cpp" />
     <ClCompile Include="ipaddr.cpp" />
     <ClCompile Include="procbroker\procbroker.cpp" />
@@ -229,10 +229,10 @@
     <ClInclude Include="firewall\callouts.h" />
     <ClInclude Include="firewall\constants.h" />
     <ClInclude Include="firewall\context.h" />
+    <ClInclude Include="firewall\filters.h" />
     <ClInclude Include="firewall\firewall.h" />
     <ClInclude Include="firewall\identifiers.h" />
     <ClInclude Include="firewall\mode.h" />
-    <ClInclude Include="firewall\splitting.h" />
     <ClInclude Include="firewall\wfp.h" />
     <ClInclude Include="ioctl.h" />
     <ClInclude Include="ipaddr.h" />
