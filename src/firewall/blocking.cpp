@@ -698,50 +698,6 @@ FreeList
 	}
 }
 
-//
-// This is a little crude, but avoids having to maintain state around these filters
-// and managing registration/removal in a double transaction.
-//
-bool
-GenericIpv4BlockFiltersRegistered
-(
-	HANDLE WfpSession
-)
-{
-	FWPM_FILTER0 *filter;
-
-	auto status = FwpmFilterGetByKey0(WfpSession, &ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_TUNNEL_IPV4_CONN_KEY, &filter);
-
-	if (!NT_SUCCESS(status))
-	{
-		return false;
-	}
-
-	FwpmFreeMemory0((void**)&filter);
-
-	return true;
-}
-
-bool
-GenericIpv6BlockFiltersRegistered
-(
-	HANDLE WfpSession
-)
-{
-	FWPM_FILTER0 *filter;
-
-	auto status = FwpmFilterGetByKey0(WfpSession, &ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_TUNNEL_IPV6_CONN_KEY, &filter);
-
-	if (!NT_SUCCESS(status))
-	{
-		return false;
-	}
-
-	FwpmFreeMemory0((void**)&filter);
-
-	return true;
-}
-
 } // anonymous namespace
 
 NTSTATUS
@@ -780,13 +736,6 @@ TearDown
 
 	//
 	// This is a best effort venture so just keep going.
-	//
-	// Undo generic blocking filters.
-	//
-
-	RemoveFilterBlockTunnelIpv4Tx(*Context);
-	RemoveFilterBlockTunnelIpv6Tx(*Context);
-
 	//
 	// Remove all app specific filters.
 	//
@@ -843,26 +792,6 @@ ResetTx2
 )
 {
 	auto stateData = (STATE_DATA*)Context;
-
-	if (GenericIpv4BlockFiltersRegistered(stateData->WfpSession))
-	{
-		auto status = RemoveFilterBlockTunnelIpv4Tx(Context);
-
-		if (!NT_SUCCESS(status))
-		{
-			return status;
-		}
-	}
-
-	if (GenericIpv6BlockFiltersRegistered(stateData->WfpSession))
-	{
-		auto status = RemoveFilterBlockTunnelIpv6Tx(Context);
-
-		if (!NT_SUCCESS(status))
-		{
-			return status;
-		}
-	}
 
 	if (IsListEmpty(&stateData->BlockedTunnelConnections))
 	{
@@ -1168,164 +1097,6 @@ RemoveFilterBlockAppTunnelTrafficTx2
 	}
 
 	return status;
-}
-
-NTSTATUS
-RegisterFilterBlockTunnelIpv4Tx
-(
-	void *Context,
-	const IN_ADDR *TunnelIp
-)
-{
-	auto stateData = (STATE_DATA*)Context;
-
-	//
-	// Create filters that match all tunnel IPv4 traffic.
-	//
-	// The linked callout will then block all existing and attempted connections
-	// that can be associated with apps that are being split.
-	//
-
-	FWPM_FILTER0 filter = { 0 };
-
-	const auto filterNameOutbound = L"Mullvad Split Tunnel IPv4 Blocking Filter (Outbound)";
-	const auto filterDescription = L"Blocks tunnel IPv4 traffic for apps being split";
-
-	filter.filterKey = ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_TUNNEL_IPV4_CONN_KEY;
-	filter.displayData.name = const_cast<wchar_t*>(filterNameOutbound);
-	filter.displayData.description = const_cast<wchar_t*>(filterDescription);
-	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
-	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
-	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
-	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
-	filter.weight.type = FWP_UINT64;
-	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
-	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
-	filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV4_CONN_KEY;
-	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
-
-	FWPM_FILTER_CONDITION0 cond;
-
-	cond.fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
-	cond.matchType = FWP_MATCH_EQUAL;
-	cond.conditionValue.type = FWP_UINT32;
-	cond.conditionValue.uint32 = RtlUlongByteSwap(TunnelIp->s_addr);
-
-	filter.filterCondition = &cond;
-	filter.numFilterConditions = 1;
-
-	auto status = FwpmFilterAdd0(stateData->WfpSession, &filter, NULL, NULL);
-
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
-
-	const auto filterNameInbound = L"Mullvad Split Tunnel IPv4 Blocking Filter (Inbound)";
-
-	filter.filterKey = ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_TUNNEL_IPV4_RECV_KEY;
-	filter.displayData.name = const_cast<wchar_t*>(filterNameInbound);
-	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
-	filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV4_RECV_KEY;
-
-	return FwpmFilterAdd0(stateData->WfpSession, &filter, NULL, NULL);
-}
-
-NTSTATUS
-RemoveFilterBlockTunnelIpv4Tx
-(
-	void *Context
-)
-{
-	auto stateData = (STATE_DATA*)Context;
-
-	auto status = FwpmFilterDeleteByKey0(stateData->WfpSession, &ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_TUNNEL_IPV4_CONN_KEY);
-
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
-
-	return FwpmFilterDeleteByKey0(stateData->WfpSession, &ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_TUNNEL_IPV4_RECV_KEY);
-}
-
-NTSTATUS
-RegisterFilterBlockTunnelIpv6Tx
-(
-	void *Context,
-	const IN6_ADDR *TunnelIp
-)
-{
-	auto stateData = (STATE_DATA*)Context;
-
-	//
-	// Create filters that match all tunnel IPv6 traffic.
-	//
-	// The linked callout will then block all existing and attempted connections
-	// that can be associated with apps that are being split.
-	//
-
-	FWPM_FILTER0 filter = { 0 };
-
-	const auto filterNameOutbound = L"Mullvad Split Tunnel IPv6 Blocking Filter (Outbound)";
-	const auto filterDescription = L"Blocks tunnel IPv6 traffic for apps being split";
-
-	filter.filterKey = ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_TUNNEL_IPV6_CONN_KEY;
-	filter.displayData.name = const_cast<wchar_t*>(filterNameOutbound);
-	filter.displayData.description = const_cast<wchar_t*>(filterDescription);
-	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
-	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
-	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
-	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
-	filter.weight.type = FWP_UINT64;
-	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
-	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
-	filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_CONN_KEY;
-	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
-
-	FWPM_FILTER_CONDITION0 cond;
-
-	cond.fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
-	cond.matchType = FWP_MATCH_EQUAL;
-	cond.conditionValue.type = FWP_BYTE_ARRAY16_TYPE;
-	cond.conditionValue.byteArray16 = (FWP_BYTE_ARRAY16*)TunnelIp->u.Byte;
-
-	filter.filterCondition = &cond;
-	filter.numFilterConditions = 1;
-
-	auto status = FwpmFilterAdd0(stateData->WfpSession, &filter, NULL, NULL);
-
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
-
-	const auto filterNameInbound = L"Mullvad Split Tunnel IPv6 Blocking Filter (Inbound)";
-
-	filter.filterKey = ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_TUNNEL_IPV6_RECV_KEY;
-	filter.displayData.name = const_cast<wchar_t*>(filterNameInbound);
-	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6;
-	filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_RECV_KEY;
-
-	return FwpmFilterAdd0(stateData->WfpSession, &filter, NULL, NULL);
-}
-
-NTSTATUS
-RemoveFilterBlockTunnelIpv6Tx
-(
-	void *Context
-)
-{
-	auto stateData = (STATE_DATA*)Context;
-
-	auto status = FwpmFilterDeleteByKey0(stateData->WfpSession, &ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_TUNNEL_IPV6_CONN_KEY);
-
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
-
-	return FwpmFilterDeleteByKey0(stateData->WfpSession, &ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_TUNNEL_IPV6_RECV_KEY);
 }
 
 NTSTATUS

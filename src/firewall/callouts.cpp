@@ -2,7 +2,7 @@
 #include "firewall.h"
 #include "context.h"
 #include "identifiers.h"
-#include "splitting.h"
+#include "filters.h" // TODO-NOW: Correct this, since its only for RewriteBind()
 #include "asyncbind.h"
 #include "callouts.h"
 
