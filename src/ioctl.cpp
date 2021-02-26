@@ -33,7 +33,10 @@ enum class MIN_REQUEST_SIZE
 
 bool VpnActive(const ST_IP_ADDRESSES *IpAddresses)
 {
-    return ip::ValidInternetIpv4Address(IpAddresses) && ip::ValidTunnelIpv4Address(IpAddresses);
+    const auto VpnIpv4 = ip::ValidInternetIpv4Address(IpAddresses) && ip::ValidTunnelIpv4Address(IpAddresses);
+    const auto VpnIpv6 = ip::ValidInternetIpv6Address(IpAddresses) && ip::ValidTunnelIpv6Address(IpAddresses);
+
+    return VpnIpv4 || VpnIpv6;
 }
 
 NTSTATUS
