@@ -197,6 +197,7 @@
     <ClCompile Include="firewall\blocking.cpp" />
     <ClCompile Include="firewall\callouts.cpp" />
     <ClCompile Include="firewall\firewall.cpp" />
+    <ClCompile Include="firewall\mode.cpp" />
     <ClCompile Include="firewall\splitting.cpp" />
     <ClCompile Include="ioctl.cpp" />
     <ClCompile Include="ipaddr.cpp" />
@@ -230,6 +231,7 @@
     <ClInclude Include="firewall\context.h" />
     <ClInclude Include="firewall\firewall.h" />
     <ClInclude Include="firewall\identifiers.h" />
+    <ClInclude Include="firewall\mode.h" />
     <ClInclude Include="firewall\splitting.h" />
     <ClInclude Include="firewall\wfp.h" />
     <ClInclude Include="ioctl.h" />

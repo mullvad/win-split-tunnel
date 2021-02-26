@@ -42,6 +42,9 @@
     <ClCompile Include="firewall\asyncbind.cpp">
       <Filter>firewall</Filter>
     </ClCompile>
+    <ClCompile Include="firewall\mode.cpp">
+      <Filter>firewall</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="mullvad-split-tunnel.inf" />
@@ -140,6 +143,9 @@
     <ClInclude Include="containers.h" />
     <ClInclude Include="x64guard.h" />
     <ClInclude Include="version.h" />
+    <ClInclude Include="firewall\mode.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="firewall">
