@@ -5,7 +5,14 @@
 #include <in6addr.h>
 #include "../defs/types.h"
 
-namespace firewall::blocking
+//
+// This module is used to manage app-specific filters.
+//
+// App-specific filters apply only to apps being split and use the full app path
+// to qualify candidates.
+//
+
+namespace firewall::appfilters
 {
 
 NTSTATUS
@@ -19,24 +26,6 @@ void
 TearDown
 (
 	void **Context
-);
-
-//
-// ResetTx2()
-//
-// TODO-NOW: Update this comment and make function read the context
-// to determine which filters need to be cleaned up, e.g. the non-app-specific filters.
-//
-// Remove all app specific blocking filters.
-// Remove generic IPv6 blocking if active.
-//
-// IMPORTANT: This function needs to be running inside a WFP transaction as well as a
-// local transaction managed by this module.
-//
-NTSTATUS
-ResetTx2
-(
-	void *Context
 );
 
 NTSTATUS
@@ -88,7 +77,21 @@ RemoveFilterBlockAppTunnelTrafficTx2
 );
 
 //
-// UpdateBlockingFiltersTx2()
+// ResetTx2()
+//
+// Remove all app-specific blocking filters.
+//
+// IMPORTANT: This function needs to be running inside a WFP transaction as well as a
+// local transaction managed by this module.
+//
+NTSTATUS
+ResetTx2
+(
+	void *Context
+);
+
+//
+// UpdateFiltersTx2()
 //
 // Rewrite filters with updated IP addresses.
 //
@@ -96,11 +99,11 @@ RemoveFilterBlockAppTunnelTrafficTx2
 // local transaction managed by this module.
 //
 NTSTATUS
-UpdateBlockingFiltersTx2
+UpdateFiltersTx2
 (
 	void *Context,
 	const IN_ADDR *TunnelIpv4,
 	const IN6_ADDR *TunnelIpv6
 );
 
-} // namespace firewall::blocking
+} // namespace firewall::appfilters

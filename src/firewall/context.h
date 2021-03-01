@@ -98,9 +98,9 @@ struct CONTEXT
 	TRANSACTION_MGMT Transaction;
 
 	//
-	// Context used with the blocking subsystem.
+	// Context used with the appfilters subsystem.
 	//
-	void *BlockingContext;
+	void *AppFiltersContext;
 };
 
 } // namespace firewall
