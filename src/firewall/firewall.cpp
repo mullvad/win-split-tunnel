@@ -1,7 +1,7 @@
 #include "wfp.h"
 #include "context.h"
 #include "identifiers.h"
-#include "blocking.h"
+#include "appfilters.h"
 #include "filters.h"
 #include "callouts.h"
 #include "constants.h"
@@ -403,7 +403,7 @@ Initialize
 		goto Abort_destroy_session;
 	}
 
-	status = blocking::Initialize(context->WfpSession, &context->BlockingContext);
+	status = appfilters::Initialize(context->WfpSession, &context->AppFiltersContext);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -414,16 +414,16 @@ Initialize
 
 	if (!NT_SUCCESS(status))
 	{
-		goto Abort_teardown_blocking;
+		goto Abort_teardown_appfilters;
 	}
 
 	*Context = context;
 
 	return STATUS_SUCCESS;
 
-Abort_teardown_blocking:
+Abort_teardown_appfilters:
 
-	blocking::TearDown(&context->BlockingContext);
+	appfilters::TearDown(&context->AppFiltersContext);
 
 Abort_unregister_callouts:
 
@@ -487,7 +487,7 @@ TearDown
 
 	WdfObjectDelete(context->PendedBinds.Lock);
 
-	blocking::TearDown(&context->BlockingContext);
+	appfilters::TearDown(&context->AppFiltersContext);
 
 	//
 	// Since we're using a dynamic session we don't actually
@@ -722,7 +722,7 @@ DisableSplitting
 		}
 	}
 
-	status = blocking::ResetTx2(Context->BlockingContext);
+	status = appfilters::ResetTx2(Context->AppFiltersContext);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -888,19 +888,19 @@ RegisterUpdatedIpAddresses
 	// Update blocking subsystem.
 	//
 
-	status = blocking::TransactionBegin(Context->BlockingContext);
+	status = appfilters::TransactionBegin(Context->AppFiltersContext);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Abort;
 	}
 
-	status = blocking::UpdateBlockingFiltersTx2(Context->BlockingContext,
+	status = appfilters::UpdateFiltersTx2(Context->AppFiltersContext,
 		&IpMgmt.Addresses.TunnelIpv4, &IpMgmt.Addresses.TunnelIpv6);
 
 	if (!NT_SUCCESS(status))
 	{
-		blocking::TransactionAbort(Context->BlockingContext);
+		appfilters::TransactionAbort(Context->AppFiltersContext);
 
 		goto Abort;
 	}
@@ -913,12 +913,12 @@ RegisterUpdatedIpAddresses
 
 	if (!NT_SUCCESS(status))
 	{
-		blocking::TransactionAbort(Context->BlockingContext);
+		appfilters::TransactionAbort(Context->AppFiltersContext);
 
 		goto Abort;
 	}
 
-	blocking::TransactionCommit(Context->BlockingContext);
+	appfilters::TransactionCommit(Context->AppFiltersContext);
 
 	WdfWaitLockAcquire(Context->IpAddresses.Lock, NULL);
 
@@ -958,7 +958,7 @@ TransactionBegin
 		goto Abort;
 	}
 	
-	status = blocking::TransactionBegin(Context->BlockingContext);
+	status = appfilters::TransactionBegin(Context->AppFiltersContext);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -1011,7 +1011,7 @@ TransactionCommit
 		return status;
 	}
 	
-	blocking::TransactionCommit(Context->BlockingContext);
+	appfilters::TransactionCommit(Context->AppFiltersContext);
 
 	Context->Transaction.OwnerId = NULL;
 	Context->Transaction.Active = false;
@@ -1049,7 +1049,7 @@ TransactionAbort
 		return status;
 	}
 	
-	blocking::TransactionAbort(Context->BlockingContext);
+	appfilters::TransactionAbort(Context->AppFiltersContext);
 
 	Context->Transaction.OwnerId = NULL;
 	Context->Transaction.Active = false;
@@ -1088,9 +1088,9 @@ RegisterAppBecomingSplitTx
 
 	WdfWaitLockRelease(Context->IpAddresses.Lock);
 
-	return blocking::RegisterFilterBlockAppTunnelTrafficTx2
+	return appfilters::RegisterFilterBlockAppTunnelTrafficTx2
 	(
-		Context->BlockingContext,
+		Context->AppFiltersContext,
 		ImageName,
 		&ipv4,
 		&ipv6
@@ -1119,7 +1119,7 @@ RegisterAppBecomingUnsplitTx
 		return STATUS_UNSUCCESSFUL;
 	}
 
-	return blocking::RemoveFilterBlockAppTunnelTrafficTx2(Context->BlockingContext, ImageName);
+	return appfilters::RemoveFilterBlockAppTunnelTrafficTx2(Context->AppFiltersContext, ImageName);
 }
 
 } // namespace firewall

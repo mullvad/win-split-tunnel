@@ -3,26 +3,15 @@
 #include "constants.h"
 #include "../defs/types.h"
 #include "../util.h"
-#include "blocking.h"
+#include "appfilters.h"
 
-///////////////////////////////////////////////////////////////////////////////
-//
-// This module register filters that block tunnel traffic. This is done to
-// ensure an application's existing connections are blocked when they
-// start being split.
-//
-// When filters are added, a re-auth occurs, and matching existing connections
-// are presented to the linked callout, to approve or block.
-//
-///////////////////////////////////////////////////////////////////////////////
-
-namespace firewall::blocking
+namespace firewall::appfilters
 {
 
 namespace
 {
 
-typedef struct tag_BLOCK_CONNECTIONS_ENTRY
+struct BLOCK_CONNECTIONS_ENTRY
 {
 	LIST_ENTRY ListEntry;
 
@@ -43,18 +32,16 @@ typedef struct tag_BLOCK_CONNECTIONS_ENTRY
 	UINT64 InboundFilterIdV4;
 	UINT64 OutboundFilterIdV6;
 	UINT64 InboundFilterIdV6;
-}
-BLOCK_CONNECTIONS_ENTRY;
+};
 
-typedef struct tag_STATE_DATA
+struct APP_FILTERS_CONTEXT
 {
 	HANDLE WfpSession;
 
 	LIST_ENTRY BlockedTunnelConnections;
 
 	LIST_ENTRY TransactionEvents;
-}
-STATE_DATA;
+};
 
 //
 // Transaction events represent logically atomic operations on the list of
@@ -75,15 +62,14 @@ enum class TRANSACTION_EVENT_TYPE
 	SWAP_LISTS
 };
 
-typedef struct tag_TRANSACTION_EVENT
+struct TRANSACTION_EVENT
 {
 	LIST_ENTRY ListEntry;
 	TRANSACTION_EVENT_TYPE EventType;
 	BLOCK_CONNECTIONS_ENTRY *Target;
-}
-TRANSACTION_EVENT;
+};
 
-typedef struct tag_TRANSACTION_EVENT_ADD_ENTRY
+struct TRANSACTION_EVENT_ADD_ENTRY
 {
 	LIST_ENTRY ListEntry;
 	TRANSACTION_EVENT_TYPE EventType;
@@ -94,10 +80,9 @@ typedef struct tag_TRANSACTION_EVENT_ADD_ENTRY
 	// We insert to the right of it.
 	//
 	LIST_ENTRY *MockHead;
-}
-TRANSACTION_EVENT_ADD_ENTRY;
+};
 
-typedef struct tag_TRANSACTION_EVENT_SWAP_LISTS
+struct TRANSACTION_EVENT_SWAP_LISTS
 {
 	LIST_ENTRY ListEntry;
 	TRANSACTION_EVENT_TYPE EventType;
@@ -106,8 +91,7 @@ typedef struct tag_TRANSACTION_EVENT_SWAP_LISTS
 	// This is the list head of the previous list.
 	//
 	LIST_ENTRY BlockedTunnelConnections;
-}
-TRANSACTION_EVENT_SWAP_LISTS;
+};
 
 NTSTATUS
 PushTransactionEvent
@@ -707,21 +691,21 @@ Initialize
 	void **Context
 )
 {
-	auto stateData = (STATE_DATA*)
-		ExAllocatePoolWithTag(PagedPool, sizeof(STATE_DATA), ST_POOL_TAG);
+	auto context = (APP_FILTERS_CONTEXT*)
+		ExAllocatePoolWithTag(PagedPool, sizeof(APP_FILTERS_CONTEXT), ST_POOL_TAG);
 
-	if (stateData == NULL)
+	if (context == NULL)
 	{
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
-	stateData->WfpSession = WfpSession;
+	context->WfpSession = WfpSession;
 
-	InitializeListHead(&stateData->BlockedTunnelConnections);
+	InitializeListHead(&context->BlockedTunnelConnections);
 
-	InitializeListHead(&stateData->TransactionEvents);
+	InitializeListHead(&context->TransactionEvents);
 
-	*Context = stateData;
+	*Context = context;
 
 	return STATUS_SUCCESS;
 }
@@ -732,7 +716,7 @@ TearDown
 	void **Context
 )
 {
-	auto stateData = (STATE_DATA*)*Context;
+	auto context = (APP_FILTERS_CONTEXT*)*Context;
 
 	//
 	// This is a best effort venture so just keep going.
@@ -740,15 +724,15 @@ TearDown
 	// Remove all app specific filters.
 	//
 
-	for (auto rawEntry = stateData->BlockedTunnelConnections.Flink;
-			rawEntry != &stateData->BlockedTunnelConnections;
+	for (auto rawEntry = context->BlockedTunnelConnections.Flink;
+			rawEntry != &context->BlockedTunnelConnections;
 			/* no post-condition */)
 	{
 		auto entry = (BLOCK_CONNECTIONS_ENTRY*)rawEntry;
 
 		RemoveBlockFiltersTx
 		(
-			stateData->WfpSession,
+			context->WfpSession,
 			entry->OutboundFilterIdV4,
 			entry->InboundFilterIdV4,
 			entry->OutboundFilterIdV6,
@@ -762,16 +746,16 @@ TearDown
 		rawEntry = next;
 	}
 
-	InitializeListHead(&stateData->BlockedTunnelConnections);
+	InitializeListHead(&context->BlockedTunnelConnections);
 
 	//
 	// This works because a commit discards all transaction events.
 	// (Also, there shouldn't be any events at this time.)
 	//
 
-	if (!IsListEmpty(&stateData->TransactionEvents))
+	if (!IsListEmpty(&context->TransactionEvents))
 	{
-		DbgPrint("ERROR: Active transaction while tearing down blocking subsystem\n");
+		DbgPrint("ERROR: Active transaction while tearing down appfilters module\n");
 	}
 
 	TransactionCommit(*Context);
@@ -780,61 +764,9 @@ TearDown
 	// Release context.
 	//
 
-	ExFreePoolWithTag(stateData, ST_POOL_TAG);
+	ExFreePoolWithTag(context, ST_POOL_TAG);
 
 	*Context = NULL;
-}
-
-NTSTATUS
-ResetTx2
-(
-	void *Context
-)
-{
-	auto stateData = (STATE_DATA*)Context;
-
-	if (IsListEmpty(&stateData->BlockedTunnelConnections))
-	{
-		return STATUS_SUCCESS;
-	}
-
-	for (auto rawEntry = stateData->BlockedTunnelConnections.Flink;
-			rawEntry != &stateData->BlockedTunnelConnections;
-			rawEntry = rawEntry->Flink)
-	{
-		auto entry = (BLOCK_CONNECTIONS_ENTRY*)rawEntry;
-
-		auto status = RemoveBlockFiltersTx
-		(
-			stateData->WfpSession,
-			entry->OutboundFilterIdV4,
-			entry->InboundFilterIdV4,
-			entry->OutboundFilterIdV6,
-			entry->InboundFilterIdV6
-		);
-
-		if (!NT_SUCCESS(status))
-		{
-			return status;
-		}
-	}
-
-	//
-	// Create transaction event and pass ownership of list to it.
-	//
-	auto status = TransactionSwappedLists(&stateData->TransactionEvents, &stateData->BlockedTunnelConnections);
-
-	if (!NT_SUCCESS(status))
-	{
-		return STATUS_INSUFFICIENT_RESOURCES;
-	}
-
-	//
-	// Clear list to reflect new state.
-	//
-	InitializeListHead(&stateData->BlockedTunnelConnections);
-
-	return STATUS_SUCCESS;
 }
 
 NTSTATUS
@@ -843,9 +775,9 @@ TransactionBegin
 	void *Context
 )
 {
-	auto stateData = (STATE_DATA*)Context;
+	auto context = (APP_FILTERS_CONTEXT*)Context;
 
-	if (IsListEmpty(&stateData->TransactionEvents))
+	if (IsListEmpty(&context->TransactionEvents))
 	{
 		return STATUS_SUCCESS;
 	}
@@ -866,9 +798,9 @@ TransactionCommit
 	// a target entry which must also be released.
 	//
 
-	auto stateData = (STATE_DATA*)Context;
+	auto context = (APP_FILTERS_CONTEXT*)Context;
 
-	auto list = &stateData->TransactionEvents;
+	auto list = &context->TransactionEvents;
 	LIST_ENTRY *rawEvent;
 
 	while ((rawEvent = RemoveHeadList(list)) != list)
@@ -907,9 +839,9 @@ TransactionAbort
 	// Step back through event records and undo all changes.
 	//
 
-	auto stateData = (STATE_DATA*)Context;
+	auto context = (APP_FILTERS_CONTEXT*)Context;
 
-	auto list = &stateData->TransactionEvents;
+	auto list = &context->TransactionEvents;
 	LIST_ENTRY *rawEvent;
 
 	while ((rawEvent = RemoveHeadList(list)) != list)
@@ -948,7 +880,7 @@ TransactionAbort
 			}
 			case TRANSACTION_EVENT_TYPE::SWAP_LISTS:
 			{
-				auto liveList = &stateData->BlockedTunnelConnections;
+				auto liveList = &context->BlockedTunnelConnections;
 
 				FreeList(liveList);
 
@@ -964,6 +896,17 @@ TransactionAbort
 	}
 }
 
+//
+// RegisterFilterBlockAppTunnelTrafficTx2()
+//
+// Register filters that block tunnel traffic for a specific app.
+//
+// This is primarily done to ensure an application's existing connections are
+// blocked when the app starts being split.
+//
+// When filters are added, a re-auth occurs, and matching existing connections
+// are presented to the linked callout, to approve or block.
+//
 NTSTATUS
 RegisterFilterBlockAppTunnelTrafficTx2
 (
@@ -978,13 +921,13 @@ RegisterFilterBlockAppTunnelTrafficTx2
 		return STATUS_INVALID_PARAMETER;
 	}
 
-	auto stateData = (STATE_DATA*)Context;
+	auto context = (APP_FILTERS_CONTEXT*)Context;
 
-	auto existingEntry = FindBlockConnectionsEntry(&stateData->BlockedTunnelConnections, ImageName);
+	auto existingEntry = FindBlockConnectionsEntry(&context->BlockedTunnelConnections, ImageName);
 
 	if (existingEntry != NULL)
 	{
-		auto status = TransactionIncrementedRefCount(&stateData->TransactionEvents, existingEntry);
+		auto status = TransactionIncrementedRefCount(&context->TransactionEvents, existingEntry);
 
 		if (!NT_SUCCESS(status))
 		{
@@ -1002,7 +945,7 @@ RegisterFilterBlockAppTunnelTrafficTx2
 
 	auto status = AddBlockFiltersCreateEntryTx
 	(
-		stateData->WfpSession,
+		context->WfpSession,
 		ImageName,
 		TunnelIpv4,
 		TunnelIpv6,
@@ -1015,7 +958,7 @@ RegisterFilterBlockAppTunnelTrafficTx2
 		return status;
 	}
 
-	status = TransactionAddedEntry(&stateData->TransactionEvents, entry);
+	status = TransactionAddedEntry(&context->TransactionEvents, entry);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -1026,7 +969,7 @@ RegisterFilterBlockAppTunnelTrafficTx2
 		return status;
 	}
 
-	InsertTailList(&stateData->BlockedTunnelConnections, &entry->ListEntry);
+	InsertTailList(&context->BlockedTunnelConnections, &entry->ListEntry);
 
 	DbgPrint("Added tunnel block filters for %wZ\n", ImageName);
 
@@ -1040,9 +983,9 @@ RemoveFilterBlockAppTunnelTrafficTx2
 	const LOWER_UNICODE_STRING *ImageName
 )
 {
-	auto stateData = (STATE_DATA*)Context;
+	auto context = (APP_FILTERS_CONTEXT*)Context;
 
-	auto entry = FindBlockConnectionsEntry(&stateData->BlockedTunnelConnections, ImageName);
+	auto entry = FindBlockConnectionsEntry(&context->BlockedTunnelConnections, ImageName);
 
 	if (entry == NULL)
 	{
@@ -1051,7 +994,7 @@ RemoveFilterBlockAppTunnelTrafficTx2
 
 	if (entry->RefCount > 1)
 	{
-		auto status = TransactionDecrementedRefCount(&stateData->TransactionEvents, entry);
+		auto status = TransactionDecrementedRefCount(&context->TransactionEvents, entry);
 
 		if (!NT_SUCCESS(status))
 		{
@@ -1086,8 +1029,8 @@ RemoveFilterBlockAppTunnelTrafficTx2
 
 	auto status = RemoveBlockFiltersAndEntryTx
 	(
-		stateData->WfpSession,
-		&stateData->TransactionEvents,
+		context->WfpSession,
+		&context->TransactionEvents,
 		entry
 	);
 
@@ -1100,16 +1043,68 @@ RemoveFilterBlockAppTunnelTrafficTx2
 }
 
 NTSTATUS
-UpdateBlockingFiltersTx2
+ResetTx2
+(
+	void *Context
+)
+{
+	auto context = (APP_FILTERS_CONTEXT*)Context;
+
+	if (IsListEmpty(&context->BlockedTunnelConnections))
+	{
+		return STATUS_SUCCESS;
+	}
+
+	for (auto rawEntry = context->BlockedTunnelConnections.Flink;
+			rawEntry != &context->BlockedTunnelConnections;
+			rawEntry = rawEntry->Flink)
+	{
+		auto entry = (BLOCK_CONNECTIONS_ENTRY*)rawEntry;
+
+		auto status = RemoveBlockFiltersTx
+		(
+			context->WfpSession,
+			entry->OutboundFilterIdV4,
+			entry->InboundFilterIdV4,
+			entry->OutboundFilterIdV6,
+			entry->InboundFilterIdV6
+		);
+
+		if (!NT_SUCCESS(status))
+		{
+			return status;
+		}
+	}
+
+	//
+	// Create transaction event and pass ownership of list to it.
+	//
+	auto status = TransactionSwappedLists(&context->TransactionEvents, &context->BlockedTunnelConnections);
+
+	if (!NT_SUCCESS(status))
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	//
+	// Clear list to reflect new state.
+	//
+	InitializeListHead(&context->BlockedTunnelConnections);
+
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS
+UpdateFiltersTx2
 (
 	void *Context,
 	const IN_ADDR *TunnelIpv4,
 	const IN6_ADDR *TunnelIpv6
 )
 {
-	auto stateData = (STATE_DATA*)Context;
+	auto context = (APP_FILTERS_CONTEXT*)Context;
 
-	if (IsListEmpty(&stateData->BlockedTunnelConnections))
+	if (IsListEmpty(&context->BlockedTunnelConnections))
 	{
 		return STATUS_SUCCESS;
 	}
@@ -1118,15 +1113,15 @@ UpdateBlockingFiltersTx2
 
 	InitializeListHead(&newList);
 
-	for (auto rawEntry = stateData->BlockedTunnelConnections.Flink;
-			rawEntry != &stateData->BlockedTunnelConnections;
+	for (auto rawEntry = context->BlockedTunnelConnections.Flink;
+			rawEntry != &context->BlockedTunnelConnections;
 			rawEntry = rawEntry->Flink)
 	{
 		auto entry = (BLOCK_CONNECTIONS_ENTRY*)rawEntry;
 
 		auto status = RemoveBlockFiltersTx
 		(
-			stateData->WfpSession,
+			context->WfpSession,
 			entry->OutboundFilterIdV4,
 			entry->InboundFilterIdV4,
 			entry->OutboundFilterIdV6,
@@ -1144,7 +1139,7 @@ UpdateBlockingFiltersTx2
 
 		status = AddBlockFiltersCreateEntryTx
 		(
-			stateData->WfpSession,
+			context->WfpSession,
 			&entry->ImageName,
 			TunnelIpv4,
 			TunnelIpv6,
@@ -1165,11 +1160,11 @@ UpdateBlockingFiltersTx2
 	}
 
 	//
-	// stateData->BlockedTunnelConnections is now completely obsolete.
+	// context->BlockedTunnelConnections is now completely obsolete.
 	// newList has all the updated entries.
 	//
 
-	auto status = TransactionSwappedLists(&stateData->TransactionEvents, &stateData->BlockedTunnelConnections);
+	auto status = TransactionSwappedLists(&context->TransactionEvents, &context->BlockedTunnelConnections);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -1179,15 +1174,15 @@ UpdateBlockingFiltersTx2
 	}
 
 	//
-	// Ownership of the list formerly rooted at stateData->BlockedTunnelConnections
+	// Ownership of the list formerly rooted at context->BlockedTunnelConnections
 	// has been moved to the recently queued transaction event.
 	//
 	// Perform actual state update.
 	//
 
-	util::ReparentList(&stateData->BlockedTunnelConnections, &newList);
+	util::ReparentList(&context->BlockedTunnelConnections, &newList);
 
 	return STATUS_SUCCESS;
 }
 
-} // namespace firewall::blocking
+} // namespace firewall::appfilters
