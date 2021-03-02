@@ -3,6 +3,7 @@
 #include <wdm.h>
 #include <wdf.h>
 #include "firewall.h"
+#include "mode.h"
 #include "../ipaddr.h"
 #include "../procbroker/procbroker.h"
 #include "../eventing/eventing.h"
@@ -10,34 +11,11 @@
 namespace firewall
 {
 
-enum class IPV6_ACTION
-{
-	//
-	// There's an IPv6 address on both of the adapters we're working with.
-	// Split all IPV6 traffic.
-	//
-	SPLIT,
-
-	//
-	// Only the tunnel adapter has an IPV6 address.
-	// Block all IPv6 traffic to avoid it leaking inside the tunnel.
-	//
-	BLOCK,
-
-	//
-	// Only the internet connected adapter has an IPv6 address, or none
-	// of the adapters have one.
-	//
-	// Take no action.
-	//
-	NONE
-};
-
 struct IP_ADDRESSES_MGMT
 {
 	WDFWAITLOCK Lock;
 	ST_IP_ADDRESSES Addresses;
-	IPV6_ACTION Ipv6Action;
+	SPLITTING_MODE SplittingMode;
 };
 
 struct PENDED_BIND
@@ -79,9 +57,21 @@ struct TRANSACTION_MGMT
 	HANDLE OwnerId;
 };
 
+struct ACTIVE_FILTERS
+{
+	bool BindRedirectIpv4;
+	bool BindRedirectIpv6;
+	bool PermitNonTunnelIpv4;
+	bool PermitNonTunnelIpv6;
+	bool BlockTunnelIpv4;
+	bool BlockTunnelIpv6;
+};
+
 struct CONTEXT
 {
 	bool SplittingEnabled;
+
+	ACTIVE_FILTERS ActiveFilters;
 
 	CALLBACKS Callbacks;
 
@@ -98,7 +88,7 @@ struct CONTEXT
 	TRANSACTION_MGMT Transaction;
 
 	//
-	// Context used with the appfilters subsystem.
+	// Context used with the appfilters module.
 	//
 	void *AppFiltersContext;
 };
