@@ -119,25 +119,6 @@ ConfigureWfpTx
 	return STATUS_SUCCESS;
 }
 
-void
-UpdateIpv6Action
-(
-	IP_ADDRESSES_MGMT *IpAddresses
-)
-{
-	if (ip::ValidTunnelIpv6Address(&IpAddresses->Addresses))
-	{
-		IpAddresses->Ipv6Action =
-			(ip::ValidInternetIpv6Address(&IpAddresses->Addresses)
-			? IPV6_ACTION::SPLIT
-			: IPV6_ACTION::BLOCK);
-	}
-	else
-	{
-		IpAddresses->Ipv6Action = IPV6_ACTION::NONE;
-	}
-}
-
 NTSTATUS
 UnregisterCallouts
 (
@@ -255,7 +236,7 @@ WfpTransactionBegin
 
 	if (!NT_SUCCESS(status))
 	{
-		DbgPrint("Could not create WFP transaction: 0x%X", status);
+		DbgPrint("Could not create WFP transaction: 0x%X\n", status);
 
 		DECLARE_CONST_UNICODE_STRING(errorMessage, L"Could not create WFP transaction");
 
@@ -277,7 +258,7 @@ WfpTransactionCommit
 
 	if (!NT_SUCCESS(status))
 	{
-		DbgPrint("Could not commit WFP transaction: 0x%X", status);
+		DbgPrint("Could not commit WFP transaction: 0x%X\n", status);
 
 		DECLARE_CONST_UNICODE_STRING(errorMessage, L"Could not commit WFP transaction");
 
@@ -299,7 +280,7 @@ WfpTransactionAbort
 
 	if (!NT_SUCCESS(status))
 	{
-		DbgPrint("Could not abort WFP transaction: 0x%X", status);
+		DbgPrint("Could not abort WFP transaction: 0x%X\n", status);
 
 		DECLARE_CONST_UNICODE_STRING(errorMessage, L"Could not abort WFP transaction");
 
@@ -309,6 +290,410 @@ WfpTransactionAbort
 	}
 
 	return status;
+}
+
+void
+ResetStructure
+(
+	ACTIVE_FILTERS *ActiveFilters
+)
+{
+	ActiveFilters->BindRedirectIpv4 = false;
+	ActiveFilters->BindRedirectIpv6 = false;
+	ActiveFilters->BlockTunnelIpv4 = false;
+	ActiveFilters->BlockTunnelIpv6 = false;
+	ActiveFilters->PermitNonTunnelIpv4 = false;
+	ActiveFilters->PermitNonTunnelIpv6 = false;
+}
+
+//
+// RegisterFiltersForModeTx()
+//
+// Register filters according to mode.
+// Assumes no filters are installed to begin with.
+//
+// Will update ActiveFilters.
+//
+NTSTATUS
+RegisterFiltersForModeTx
+(
+	HANDLE WfpSession,
+	SPLITTING_MODE Mode,
+	const ST_IP_ADDRESSES *IpAddresses,
+	ACTIVE_FILTERS *ActiveFilters
+)
+{
+#define RFFM_SUCCEED_OR_RETURN(status, record) if(NT_SUCCESS(status)){ *record = true; } else { return status; }
+
+	ResetStructure(ActiveFilters);
+
+	switch (Mode)
+	{
+		case SPLITTING_MODE::MODE_1:
+		{
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBindRedirectIpv4Tx(WfpSession),
+				&ActiveFilters->BindRedirectIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				&ActiveFilters->PermitNonTunnelIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				&ActiveFilters->BlockTunnelIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBindRedirectIpv6Tx(WfpSession),
+				&ActiveFilters->BindRedirectIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				&ActiveFilters->PermitNonTunnelIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				&ActiveFilters->BlockTunnelIpv6
+			);
+
+			return STATUS_SUCCESS;
+		}
+		case SPLITTING_MODE::MODE_2:
+		{
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBindRedirectIpv4Tx(WfpSession),
+				&ActiveFilters->BindRedirectIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				&ActiveFilters->PermitNonTunnelIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				&ActiveFilters->BlockTunnelIpv4
+			);
+
+			return STATUS_SUCCESS;
+		}
+		case SPLITTING_MODE::MODE_3:
+		{
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBindRedirectIpv4Tx(WfpSession),
+				&ActiveFilters->BindRedirectIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				&ActiveFilters->PermitNonTunnelIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				&ActiveFilters->BlockTunnelIpv4
+			);
+
+			//
+			// Pass NULL for tunnel IP since Mode-3 doesn't have a tunnel IPv6 interface.
+			//
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, NULL),
+				&ActiveFilters->PermitNonTunnelIpv6
+			);
+
+			return STATUS_SUCCESS;
+		}
+		case SPLITTING_MODE::MODE_4:
+		{
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBindRedirectIpv4Tx(WfpSession),
+				&ActiveFilters->BindRedirectIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				&ActiveFilters->PermitNonTunnelIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				&ActiveFilters->BlockTunnelIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				&ActiveFilters->BlockTunnelIpv6
+			);
+
+			return STATUS_SUCCESS;
+		}
+		case SPLITTING_MODE::MODE_5:
+		{
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBindRedirectIpv6Tx(WfpSession),
+				&ActiveFilters->BindRedirectIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				&ActiveFilters->PermitNonTunnelIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				&ActiveFilters->BlockTunnelIpv6
+			);
+
+			return STATUS_SUCCESS;
+		}
+		case SPLITTING_MODE::MODE_6:
+		{
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBindRedirectIpv6Tx(WfpSession),
+				&ActiveFilters->BindRedirectIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				&ActiveFilters->PermitNonTunnelIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				&ActiveFilters->BlockTunnelIpv6
+			);
+
+			//
+			// Pass NULL for tunnel IP since Mode-6 doesn't have a tunnel IPv4 interface.
+			//
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, NULL),
+				&ActiveFilters->PermitNonTunnelIpv4
+			);
+
+			return STATUS_SUCCESS;
+		}
+		case SPLITTING_MODE::MODE_7:
+		{
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBindRedirectIpv6Tx(WfpSession),
+				&ActiveFilters->BindRedirectIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				&ActiveFilters->PermitNonTunnelIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				&ActiveFilters->BlockTunnelIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				&ActiveFilters->BlockTunnelIpv4
+			);
+
+			return STATUS_SUCCESS;
+		}
+		case SPLITTING_MODE::MODE_8:
+		{
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				&ActiveFilters->BlockTunnelIpv4
+			);
+
+			//
+			// Pass NULL for tunnel IP since Mode-8 doesn't have a tunnel IPv6 interface.
+			//
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, NULL),
+				&ActiveFilters->PermitNonTunnelIpv6
+			);
+
+			return STATUS_SUCCESS;
+		}
+		case SPLITTING_MODE::MODE_9:
+		{
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				&ActiveFilters->BlockTunnelIpv6
+			);
+
+			//
+			// Pass NULL for tunnel IP since Mode-9 doesn't have a tunnel IPv4 interface.
+			//
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, NULL),
+				&ActiveFilters->PermitNonTunnelIpv4
+			);
+
+			return STATUS_SUCCESS;
+		}
+	};
+
+	DbgPrint("Non-actionable SPLITTING_MODE argument\n");
+
+	return STATUS_UNSUCCESSFUL;
+}
+
+NTSTATUS
+RemoveActiveFiltersTx
+(
+	HANDLE WfpSession,
+	const ACTIVE_FILTERS *ActiveFilters
+)
+{
+#define RAF_SUCCEED_OR_RETURN(status) if(!NT_SUCCESS(status)){ return status; }
+
+	if (ActiveFilters->BindRedirectIpv4)
+	{
+		RAF_SUCCEED_OR_RETURN
+		(
+			RemoveFilterBindRedirectIpv4Tx(WfpSession)
+		);
+	}
+
+	if (ActiveFilters->BindRedirectIpv6)
+	{
+		RAF_SUCCEED_OR_RETURN
+		(
+			RemoveFilterBindRedirectIpv6Tx(WfpSession)
+		);
+	}
+
+	if (ActiveFilters->BlockTunnelIpv4)
+	{
+		RAF_SUCCEED_OR_RETURN
+		(
+			RemoveFilterBlockTunnelIpv4Tx(WfpSession)
+		);
+	}
+
+	if (ActiveFilters->BlockTunnelIpv6)
+	{
+		RAF_SUCCEED_OR_RETURN
+		(
+			RemoveFilterBlockTunnelIpv6Tx(WfpSession)
+		);
+	}
+
+	if (ActiveFilters->PermitNonTunnelIpv4)
+	{
+		RAF_SUCCEED_OR_RETURN
+		(
+			RemoveFilterPermitNonTunnelIpv4Tx(WfpSession)
+		);
+	}
+
+	if (ActiveFilters->PermitNonTunnelIpv6)
+	{
+		RAF_SUCCEED_OR_RETURN
+		(
+			RemoveFilterPermitNonTunnelIpv6Tx(WfpSession)
+		);
+	}
+
+	return STATUS_SUCCESS;
+}
+
+struct TUNNEL_ADDRESS_POINTERS
+{
+	const IN_ADDR *TunnelIpv4;
+	const IN6_ADDR *TunnelIpv6;
+};
+
+//
+// SelectTunnelAddresses()
+//
+// Select addresses based on mode. Both addresses are not valid in all modes.
+//
+NTSTATUS
+SelectTunnelAddresses
+(
+	const ST_IP_ADDRESSES *IpAddresses,
+	SPLITTING_MODE SplittingMode,
+	TUNNEL_ADDRESS_POINTERS *AddressPointers
+)
+{
+	AddressPointers->TunnelIpv4 = NULL;
+	AddressPointers->TunnelIpv6 = NULL;
+
+	switch (SplittingMode)
+	{
+		case SPLITTING_MODE::MODE_1:
+		case SPLITTING_MODE::MODE_4:
+		case SPLITTING_MODE::MODE_7:
+		{
+			AddressPointers->TunnelIpv4 = &IpAddresses->TunnelIpv4;
+			AddressPointers->TunnelIpv6 = &IpAddresses->TunnelIpv6;
+
+			return STATUS_SUCCESS;
+		}
+		case SPLITTING_MODE::MODE_2:
+		case SPLITTING_MODE::MODE_3:
+		case SPLITTING_MODE::MODE_8:
+		{
+			AddressPointers->TunnelIpv4 = &IpAddresses->TunnelIpv4;
+
+			return STATUS_SUCCESS;
+		}
+		case SPLITTING_MODE::MODE_5:
+		case SPLITTING_MODE::MODE_6:
+		case SPLITTING_MODE::MODE_9:
+		{
+			AddressPointers->TunnelIpv6 = &IpAddresses->TunnelIpv6;
+
+			return STATUS_SUCCESS;
+		}
+	};
+
+	DbgPrint("Non-actionable SPLITTING_MODE argument\n");
+
+	return STATUS_UNSUCCESSFUL;
 }
 
 } // anonymous namespace
@@ -344,7 +729,6 @@ Initialize
 
 	InitializeListHead(&context->PendedBinds.Records);
 
-	context->IpAddresses.Ipv6Action = IPV6_ACTION::NONE;
 	context->Callbacks = *Callbacks;
 	context->ProcessEventBroker = ProcessEventBroker;
 	context->Eventing = Eventing;
@@ -555,83 +939,51 @@ EnableSplitting
 	// There are no readers at this time so we can update at leasure and without
 	// taking the lock.
 	//
+	// IP addresses and mode should be updated before filters are committed.
+	//
 
 	Context->IpAddresses.Addresses = *IpAddresses;
 
-	UpdateIpv6Action(&Context->IpAddresses);
-
-	const auto registerIpv6 = (Context->IpAddresses.Ipv6Action == IPV6_ACTION::SPLIT);
-	const auto blockIpv6 = (Context->IpAddresses.Ipv6Action == IPV6_ACTION::BLOCK);
-
-	//
-	// Update WFP inside a transaction.
-	//
-
-	auto status = WfpTransactionBegin(Context);
+	auto status = DetermineSplittingMode
+	(
+		&Context->IpAddresses.Addresses,
+		&Context->IpAddresses.SplittingMode
+	);
 
 	if (!NT_SUCCESS(status))
 	{
 		return status;
 	}
 
-	status = RegisterFilterBindRedirectIpv4Tx(Context->WfpSession);
+	//
+	// Update WFP inside a transaction.
+	//
+
+	status = WfpTransactionBegin(Context);
 
 	if (!NT_SUCCESS(status))
 	{
-		goto Abort;
+		return status;
 	}
 
-	if (registerIpv6)
-	{
-		status = RegisterFilterBindRedirectIpv6Tx(Context->WfpSession);
+	//
+	// There are no filters installed at this time.
+	// Just go ahead and install the required filters.
+	//
 
-		if (!NT_SUCCESS(status))
-		{
-			goto Abort;
-		}
-	}
+	ACTIVE_FILTERS activeFilters;
 
-	status = RegisterFilterPermitNonTunnelIpv4Tx
+	status = RegisterFiltersForModeTx
 	(
 		Context->WfpSession,
-		&Context->IpAddresses.Addresses.TunnelIpv4
+		Context->IpAddresses.SplittingMode,
+		&Context->IpAddresses.Addresses,
+		&activeFilters
 	);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Abort;
-	}
-
-	if (registerIpv6)
-	{
-		status = RegisterFilterPermitNonTunnelIpv6Tx
-		(
-			Context->WfpSession,
-			&Context->IpAddresses.Addresses.TunnelIpv6
-		);
-
-		if (!NT_SUCCESS(status))
-		{
-			goto Abort;
-		}
-	}
-
-	//
-	// If we are not splitting IPv6, we may need to block it.
-	//
-
-	if (blockIpv6)
-	{
-		status = RegisterFilterBlockTunnelIpv6Tx
-		(
-			Context->WfpSession,
-			&Context->IpAddresses.Addresses.TunnelIpv6
-		);
-
-		if (!NT_SUCCESS(status))
-		{
-			goto Abort;
-		}
 	}
 
 	//
@@ -646,6 +998,7 @@ EnableSplitting
 	}
 
 	Context->SplittingEnabled = true;
+	Context->ActiveFilters = activeFilters;
 
 	return STATUS_SUCCESS;
 
@@ -668,15 +1021,14 @@ DisableSplitting
 )
 {
 	NT_ASSERT(Context->SplittingEnabled);
-	NT_ASSERT(!Context->Transaction.Active);
 
-	if (!Context->SplittingEnabled || Context->Transaction.Active)
+	if (!Context->SplittingEnabled)
 	{
 		return STATUS_UNSUCCESSFUL;
 	}
 
 	//
-	// Use double transaction because resetting blocking subsystem requires this.
+	// Use double transaction because resetting appfilters requires this.
 	//
 
 	auto status = TransactionBegin(Context);
@@ -686,40 +1038,11 @@ DisableSplitting
 		return status;
 	}
 
-	const auto removeIpv6 = (Context->IpAddresses.Ipv6Action == IPV6_ACTION::SPLIT);
-
-	status = RemoveFilterBindRedirectIpv4Tx(Context->WfpSession);
+	status = RemoveActiveFiltersTx(Context->WfpSession, &Context->ActiveFilters);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Abort;
-	}
-
-	if (removeIpv6)
-	{
-		status = RemoveFilterBindRedirectIpv6Tx(Context->WfpSession);
-
-		if (!NT_SUCCESS(status))
-		{
-			goto Abort;
-		}
-	}
-
-	status = RemoveFilterPermitNonTunnelIpv4Tx(Context->WfpSession);
-
-	if (!NT_SUCCESS(status))
-	{
-		goto Abort;
-	}
-
-	if (removeIpv6)
-	{
-		status = RemoveFilterPermitNonTunnelIpv6Tx(Context->WfpSession);
-
-		if (!NT_SUCCESS(status))
-		{
-			goto Abort;
-		}
 	}
 
 	status = appfilters::ResetTx2(Context->AppFiltersContext);
@@ -733,12 +1056,12 @@ DisableSplitting
 
 	if (!NT_SUCCESS(status))
 	{
-		DbgPrint("Failed to commit transaction\n");
-
 		goto Abort;
 	}
 
 	Context->SplittingEnabled = false;
+
+	ResetStructure(&Context->ActiveFilters);
 
 	return STATUS_SUCCESS;
 
@@ -762,78 +1085,46 @@ RegisterUpdatedIpAddresses
 	}
 
 	//
-	// Create temporary management structure for IP addresses.
+	// Determine which mode we're entering into.
 	//
 
-	IP_ADDRESSES_MGMT IpMgmt;
+	SPLITTING_MODE newMode;
 
-	IpMgmt.Addresses = *IpAddresses;
-
-	UpdateIpv6Action(&IpMgmt);
-
-	const auto registerIpv6 = (IpMgmt.Ipv6Action == IPV6_ACTION::SPLIT);
-	const auto blockIpv6 = (IpMgmt.Ipv6Action == IPV6_ACTION::BLOCK);
-
-	//
-	// Using a transaction, remove and add back relevant filters.
-	//
-	// Relevant filters in this case are all those that directly reference an IP address
-	// or are registered conditionally depending on which IP addresses are present.
-	//
-
-	auto status = WfpTransactionBegin(Context);
+	auto status = DetermineSplittingMode(IpAddresses, &newMode);
 
 	if (!NT_SUCCESS(status))
 	{
 		return status;
 	}
 
-	const auto removeIpv6 = (Context->IpAddresses.Ipv6Action == IPV6_ACTION::SPLIT);
-	const auto removeBlockIpv6 = (Context->IpAddresses.Ipv6Action == IPV6_ACTION::BLOCK);
+	//
+	// Use a double transaction
+	//
+	// Remove all generic filters, and add back still relevant ones
+	//
 
-	if (registerIpv6 != removeIpv6)
+	status = TransactionBegin(Context);
+
+	if (!NT_SUCCESS(status))
 	{
-		//
-		// TODO-NOW: This is all wrong, make IPv6 first-class
-		//
-
-		//status = RemoveFilterBindRedirectTx(Context->WfpSession, removeIpv6);
-
-		//if (!NT_SUCCESS(status))
-		//{
-		//	goto Abort;
-		//}
-
-		//status = RegisterFilterBindRedirectTx(Context->WfpSession, registerIpv6);
-
-		//if (!NT_SUCCESS(status))
-		//{
-		//	goto Abort;
-		//}
+		return status;
 	}
 
-	status = RemoveFilterPermitNonTunnelIpv4Tx(Context->WfpSession);
+	status = RemoveActiveFiltersTx(Context->WfpSession, &Context->ActiveFilters);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Abort;
 	}
 
-	if (removeIpv6)
-	{
-		status = RemoveFilterPermitNonTunnelIpv6Tx(Context->WfpSession);
+	ACTIVE_FILTERS newActiveFilters;
 
-		if (!NT_SUCCESS(status))
-		{
-			goto Abort;
-		}
-
-	}
-
-	status = RegisterFilterPermitNonTunnelIpv4Tx
+	status = RegisterFiltersForModeTx
 	(
 		Context->WfpSession,
-		&IpMgmt.Addresses.TunnelIpv4
+		newMode,
+		IpAddresses,
+		&newActiveFilters
 	);
 
 	if (!NT_SUCCESS(status))
@@ -841,67 +1132,28 @@ RegisterUpdatedIpAddresses
 		goto Abort;
 	}
 
-	if (registerIpv6)
-	{
-		status = RegisterFilterPermitNonTunnelIpv6Tx
-		(
-			Context->WfpSession,
-			&IpMgmt.Addresses.TunnelIpv6
-		);
-
-		if (!NT_SUCCESS(status))
-		{
-			goto Abort;
-		}
-	}
-
 	//
-	// TODO-NOW
-	//
-	// This if-statement is incorrect, since the IPv6 tunnel address may have changed
-	// and the tunnel address is now being used as a filter condition.
-	//
-	// The implentation being remove/register is wrong, too.
-	//
-	if (blockIpv6 != removeBlockIpv6)
-	{
-		status = RemoveFilterBlockTunnelIpv6Tx(Context->WfpSession);
-
-		if (!NT_SUCCESS(status))
-		{
-			goto Abort;
-		}
-
-		status = RegisterFilterBlockTunnelIpv6Tx
-		(
-			Context->WfpSession,
-			&IpMgmt.Addresses.TunnelIpv6
-		);
-
-		if (!NT_SUCCESS(status))
-		{
-			goto Abort;
-		}
-	}
-
-	//
-	// Update blocking subsystem.
+	// Update any app-specific filters.
 	//
 
-	status = appfilters::TransactionBegin(Context->AppFiltersContext);
+	TUNNEL_ADDRESS_POINTERS addressPointers;
+
+	status = SelectTunnelAddresses(IpAddresses, newMode, &addressPointers);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Abort;
 	}
 
-	status = appfilters::UpdateFiltersTx2(Context->AppFiltersContext,
-		&IpMgmt.Addresses.TunnelIpv4, &IpMgmt.Addresses.TunnelIpv6);
+	status = appfilters::UpdateFiltersTx2
+	(
+		Context->AppFiltersContext,
+		addressPointers.TunnelIpv4,
+		addressPointers.TunnelIpv6
+	);
 
 	if (!NT_SUCCESS(status))
 	{
-		appfilters::TransactionAbort(Context->AppFiltersContext);
-
 		goto Abort;
 	}
 
@@ -909,29 +1161,27 @@ RegisterUpdatedIpAddresses
 	// Finalize.
 	//
 
-	status = WfpTransactionCommit(Context);
+	status = TransactionCommit(Context);
 
 	if (!NT_SUCCESS(status))
 	{
-		appfilters::TransactionAbort(Context->AppFiltersContext);
-
 		goto Abort;
 	}
 
-	appfilters::TransactionCommit(Context->AppFiltersContext);
-
 	WdfWaitLockAcquire(Context->IpAddresses.Lock, NULL);
 
-	Context->IpAddresses.Addresses = IpMgmt.Addresses;
-	Context->IpAddresses.Ipv6Action = IpMgmt.Ipv6Action;
+	Context->IpAddresses.Addresses = *IpAddresses;
+	Context->IpAddresses.SplittingMode = newMode;
 
 	WdfWaitLockRelease(Context->IpAddresses.Lock);
+
+	Context->ActiveFilters = newActiveFilters;
 
 	return STATUS_SUCCESS;
 
 Abort:
 
-	WfpTransactionAbort(Context);
+	TransactionAbort(Context);
 
 	return status;
 }
@@ -962,7 +1212,7 @@ TransactionBegin
 
 	if (!NT_SUCCESS(status))
 	{
-		DbgPrint("Could not create transaction in blocking subsystem: 0x%X", status);
+		DbgPrint("Could not create appfilters transaction: 0x%X\n", status);
 
 		goto Abort_cancel_wfp;
 	}
@@ -994,12 +1244,14 @@ TransactionCommit
 
 	if (!Context->SplittingEnabled || !Context->Transaction.Active)
 	{
+		DbgPrint(__FUNCTION__ " called outside transaction\n");
+
 		return STATUS_UNSUCCESSFUL;
 	}
 
 	if (Context->Transaction.OwnerId != PsGetCurrentThreadId())
 	{
-		DbgPrint("TransactionCommit() called by other than transaction owner");
+		DbgPrint(__FUNCTION__ " called by other than transaction owner\n");
 
 		return STATUS_UNSUCCESSFUL;
 	}
@@ -1032,12 +1284,14 @@ TransactionAbort
 
 	if (!Context->SplittingEnabled || !Context->Transaction.Active)
 	{
+		DbgPrint(__FUNCTION__ " called outside transaction\n");
+
 		return STATUS_UNSUCCESSFUL;
 	}
 
 	if (Context->Transaction.OwnerId != PsGetCurrentThreadId())
 	{
-		DbgPrint("TransactionAbort() called by other than transaction owner");
+		DbgPrint(__FUNCTION__ " called by other than transaction owner\n");
 
 		return STATUS_UNSUCCESSFUL;
 	}
@@ -1076,24 +1330,35 @@ RegisterAppBecomingSplitTx
 
 	if (Context->Transaction.OwnerId != PsGetCurrentThreadId())
 	{
-		DbgPrint("RegisterAppBecomingSplitTx() called by other than transaction owner");
+		DbgPrint(__FUNCTION__ " called by other than transaction owner\n");
 
 		return STATUS_UNSUCCESSFUL;
 	}
 
-	WdfWaitLockAcquire(Context->IpAddresses.Lock, NULL);
+	//
+	// We're in a transaction so IP addresses won't be updated on another thread.
+	//
 
-	auto ipv4 = Context->IpAddresses.Addresses.TunnelIpv4;
-	auto ipv6 = Context->IpAddresses.Addresses.TunnelIpv6;
+	TUNNEL_ADDRESS_POINTERS addressPointers;
 
-	WdfWaitLockRelease(Context->IpAddresses.Lock);
+	auto status = SelectTunnelAddresses
+	(
+		&Context->IpAddresses.Addresses,
+		Context->IpAddresses.SplittingMode,
+		&addressPointers
+	);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
 
 	return appfilters::RegisterFilterBlockAppTunnelTrafficTx2
 	(
 		Context->AppFiltersContext,
 		ImageName,
-		&ipv4,
-		&ipv6
+		addressPointers.TunnelIpv4,
+		addressPointers.TunnelIpv6
 	);
 }
 
@@ -1114,7 +1379,7 @@ RegisterAppBecomingUnsplitTx
 
 	if (Context->Transaction.OwnerId != PsGetCurrentThreadId())
 	{
-		DbgPrint("RegisterAppBecomingUnsplitTx() called by other than transaction owner");
+		DbgPrint(__FUNCTION__ " called by other than transaction owner\n");
 
 		return STATUS_UNSUCCESSFUL;
 	}
