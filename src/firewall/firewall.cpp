@@ -1094,7 +1094,7 @@ RegisterUpdatedIpAddresses
 
 	if (!NT_SUCCESS(status))
 	{
-		return status;
+		return DisableSplitting(Context);
 	}
 
 	//
