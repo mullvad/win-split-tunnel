@@ -33,7 +33,7 @@ enum class MIN_REQUEST_SIZE
 
 bool VpnActive(const ST_IP_ADDRESSES *IpAddresses)
 {
-    return ip::ValidInternetIpv4Address(IpAddresses) && ip::ValidTunnelIpv4Address(IpAddresses);
+    return ip::ValidTunnelIpv4Address(IpAddresses) || ip::ValidTunnelIpv6Address(IpAddresses);
 }
 
 NTSTATUS
@@ -167,7 +167,7 @@ ApplyFinalizeTargetSettings
         // Not split -> split
         //
 
-        auto status = firewall::RegisterAppBecomingSplitTx2(Context->Firewall, &Entry->ImageName);
+        auto status = firewall::RegisterAppBecomingSplitTx(Context->Firewall, &Entry->ImageName);
 
         if (!NT_SUCCESS(status))
         {
@@ -190,7 +190,7 @@ ApplyFinalizeTargetSettings
 
     if (Entry->Settings.HasFirewallState)
     {
-        auto status = firewall::RegisterAppBecomingUnsplitTx2(Context->Firewall, &Entry->ImageName);
+        auto status = firewall::RegisterAppBecomingUnsplitTx(Context->Firewall, &Entry->ImageName);
 
         if (!NT_SUCCESS(status))
         {
@@ -609,7 +609,7 @@ RegisterIpAddressesAtReady
 
     if (!NT_SUCCESS(status))
     {
-        DbgPrint("Could not enter engaged state: 0x%X", status);
+        DbgPrint("Could not enter engaged state: 0x%X\n", status);
 
         return status;
     }
@@ -632,7 +632,7 @@ RegisterIpAddressesAtEngaged
 
         if (!NT_SUCCESS(status))
         {
-            DbgPrint("Could not leave engaged state: 0x%X", status);
+            DbgPrint("Could not leave engaged state: 0x%X\n", status);
 
             return status;
         }
@@ -651,7 +651,7 @@ RegisterIpAddressesAtEngaged
 
     if (!NT_SUCCESS(status))
     {
-        DbgPrint("Could not update firewall with new IPs: 0x%X", status);
+        DbgPrint("Could not update firewall with new IPs: 0x%X\n", status);
 
         return status;
     }
@@ -695,7 +695,7 @@ RegisterConfigurationAtReady
 
     if (!NT_SUCCESS(status))
     {
-        DbgPrint("Could not enter engaged state: 0x%X", status);
+        DbgPrint("Could not enter engaged state: 0x%X\n", status);
 
         Context->RegisteredImage.Instance = oldConfiguration;
 
@@ -979,7 +979,7 @@ SetConfigurationPrepare
 
     if (!NT_SUCCESS(status))
     {
-        DbgPrint("Could not access configuration buffer provided to IOCTL: 0x%X", status);
+        DbgPrint("Could not access configuration buffer provided to IOCTL: 0x%X\n", status);
 
         return status;
     }
@@ -1248,7 +1248,7 @@ ClearConfiguration
         {
             WdfWaitLockRelease(context->DriverState.Lock);
 
-            DbgPrint("Could not leave engaged state: 0x%X", status);
+            DbgPrint("Could not leave engaged state: 0x%X\n", status);
 
             return status;
         }

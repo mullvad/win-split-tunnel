@@ -3,26 +3,15 @@
 #include "constants.h"
 #include "../defs/types.h"
 #include "../util.h"
-#include "blocking.h"
+#include "appfilters.h"
 
-///////////////////////////////////////////////////////////////////////////////
-//
-// This module register filters that block tunnel traffic. This is done to
-// ensure an application's existing connections are blocked when they
-// start being split.
-//
-// When filters are added, a re-auth occurs, and matching existing connections
-// are presented to the linked callout, to approve or block.
-//
-///////////////////////////////////////////////////////////////////////////////
-
-namespace firewall::blocking
+namespace firewall::appfilters
 {
 
 namespace
 {
 
-typedef struct tag_BLOCK_CONNECTIONS_ENTRY
+struct BLOCK_CONNECTIONS_ENTRY
 {
 	LIST_ENTRY ListEntry;
 
@@ -43,18 +32,16 @@ typedef struct tag_BLOCK_CONNECTIONS_ENTRY
 	UINT64 InboundFilterIdV4;
 	UINT64 OutboundFilterIdV6;
 	UINT64 InboundFilterIdV6;
-}
-BLOCK_CONNECTIONS_ENTRY;
+};
 
-typedef struct tag_STATE_DATA
+struct APP_FILTERS_CONTEXT
 {
 	HANDLE WfpSession;
 
 	LIST_ENTRY BlockedTunnelConnections;
 
 	LIST_ENTRY TransactionEvents;
-}
-STATE_DATA;
+};
 
 //
 // Transaction events represent logically atomic operations on the list of
@@ -75,15 +62,14 @@ enum class TRANSACTION_EVENT_TYPE
 	SWAP_LISTS
 };
 
-typedef struct tag_TRANSACTION_EVENT
+struct TRANSACTION_EVENT
 {
 	LIST_ENTRY ListEntry;
 	TRANSACTION_EVENT_TYPE EventType;
 	BLOCK_CONNECTIONS_ENTRY *Target;
-}
-TRANSACTION_EVENT;
+};
 
-typedef struct tag_TRANSACTION_EVENT_ADD_ENTRY
+struct TRANSACTION_EVENT_ADD_ENTRY
 {
 	LIST_ENTRY ListEntry;
 	TRANSACTION_EVENT_TYPE EventType;
@@ -94,10 +80,9 @@ typedef struct tag_TRANSACTION_EVENT_ADD_ENTRY
 	// We insert to the right of it.
 	//
 	LIST_ENTRY *MockHead;
-}
-TRANSACTION_EVENT_ADD_ENTRY;
+};
 
-typedef struct tag_TRANSACTION_EVENT_SWAP_LISTS
+struct TRANSACTION_EVENT_SWAP_LISTS
 {
 	LIST_ENTRY ListEntry;
 	TRANSACTION_EVENT_TYPE EventType;
@@ -106,8 +91,7 @@ typedef struct tag_TRANSACTION_EVENT_SWAP_LISTS
 	// This is the list head of the previous list.
 	//
 	LIST_ENTRY BlockedTunnelConnections;
-}
-TRANSACTION_EVENT_SWAP_LISTS;
+};
 
 NTSTATUS
 PushTransactionEvent
@@ -321,6 +305,14 @@ AddTunnelBlockFiltersTx
 	UINT64 *InboundFilterIdV6
 )
 {
+	NT_ASSERT
+	(
+		OutboundFilterIdV4 != NULL
+		&& InboundFilterIdV4 != NULL
+		&& OutboundFilterIdV6 != NULL
+		&& InboundFilterIdV6 != NULL
+	);
+
 	//
 	// Format APP_ID payload that will be used with all filters.
 	//
@@ -334,125 +326,156 @@ AddTunnelBlockFiltersTx
 		return status;
 	}
 
-	//
-	// Register outbound IPv4 filter.
-	//
-
-	FWPM_FILTER0 filter = { 0 };
-
-	const auto FilterNameOutboundIpv4 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Outbound IPv4)";
-	const auto FilterDescription = L"Blocks existing connections in the tunnel";
-
-	filter.displayData.name = const_cast<wchar_t*>(FilterNameOutboundIpv4);
-	filter.displayData.description = const_cast<wchar_t*>(FilterDescription);
-	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
-	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
-	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
-	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
-	filter.weight.type = FWP_UINT64;
-	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
-	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
-	filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV4_CONN_KEY;
-	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
-
-	//
-	// Conditions are:
-	//
-	// APP_ID == ImageName
-	// LOCAL_ADDRESS == TunnelIp
-	//
-
-	FWPM_FILTER_CONDITION0 cond[2];
-
-	cond[0].fieldKey = FWPM_CONDITION_ALE_APP_ID;
-	cond[0].matchType = FWP_MATCH_EQUAL;
-	cond[0].conditionValue.type = FWP_BYTE_BLOB_TYPE;
-	cond[0].conditionValue.byteBlob = appIdPayload;
-
-	cond[1].fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
-	cond[1].matchType = FWP_MATCH_EQUAL;
-	cond[1].conditionValue.type = FWP_UINT32;
-	cond[1].conditionValue.uint32 = RtlUlongByteSwap(TunnelIpv4->s_addr);
-
-	filter.filterCondition = cond;
-	filter.numFilterConditions = ARRAYSIZE(cond);
-
-	status = FwpmFilterAdd0(WfpSession, &filter, NULL, OutboundFilterIdV4);
-
-	if (!NT_SUCCESS(status))
+	if (TunnelIpv4 == NULL)
 	{
-		goto Cleanup;
+		*OutboundFilterIdV4 = 0;
+		*InboundFilterIdV4 = 0;
 	}
-
-	//
-	// Register inbound IPv4 filter.
-	//
-
-	const auto FilterNameInboundIpv4 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Inbound IPv4)";
-
-	RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
-	filter.displayData.name = const_cast<wchar_t*>(FilterNameInboundIpv4);
-	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
-	filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV4_RECV_KEY;
-
-	status = FwpmFilterAdd0(WfpSession, &filter, NULL, InboundFilterIdV4);
-
-	if (!NT_SUCCESS(status))
+	else
 	{
-		goto Cleanup;
-	}
+		//
+		// Register outbound IPv4 filter.
+		//
 
-	//
-	// Skip IPv6 filters if IPv6 is not available.
-	//
+		FWPM_FILTER0 filter = { 0 };
+
+		const auto FilterNameOutboundIpv4 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Outbound IPv4)";
+		const auto FilterDescription = L"Blocks existing connections in the tunnel";
+
+		filter.displayData.name = const_cast<wchar_t*>(FilterNameOutboundIpv4);
+		filter.displayData.description = const_cast<wchar_t*>(FilterDescription);
+		filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
+		filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
+		filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
+		filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+		filter.weight.type = FWP_UINT64;
+		filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
+		filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
+		filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV4_CONN_KEY;
+		filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
+
+		//
+		// Conditions are:
+		//
+		// APP_ID == ImageName
+		// LOCAL_ADDRESS == TunnelIp
+		//
+
+		FWPM_FILTER_CONDITION0 cond[2];
+
+		cond[0].fieldKey = FWPM_CONDITION_ALE_APP_ID;
+		cond[0].matchType = FWP_MATCH_EQUAL;
+		cond[0].conditionValue.type = FWP_BYTE_BLOB_TYPE;
+		cond[0].conditionValue.byteBlob = appIdPayload;
+
+		cond[1].fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
+		cond[1].matchType = FWP_MATCH_EQUAL;
+		cond[1].conditionValue.type = FWP_UINT32;
+		cond[1].conditionValue.uint32 = RtlUlongByteSwap(TunnelIpv4->s_addr);
+
+		filter.filterCondition = cond;
+		filter.numFilterConditions = ARRAYSIZE(cond);
+
+		status = FwpmFilterAdd0(WfpSession, &filter, NULL, OutboundFilterIdV4);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Cleanup;
+		}
+
+		//
+		// Register inbound IPv4 filter.
+		//
+
+		const auto FilterNameInboundIpv4 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Inbound IPv4)";
+
+		RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
+		filter.displayData.name = const_cast<wchar_t*>(FilterNameInboundIpv4);
+		filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
+		filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV4_RECV_KEY;
+
+		status = FwpmFilterAdd0(WfpSession, &filter, NULL, InboundFilterIdV4);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Cleanup;
+		}
+	}
 
 	if (TunnelIpv6 == NULL)
 	{
 		*OutboundFilterIdV6 = 0;
 		*InboundFilterIdV6 = 0;
-
-		status = STATUS_SUCCESS;
-
-		goto Cleanup;
 	}
-
-	//
-	// Register outbound IPv6 filter.
-	//
-
-	const auto FilterNameOutboundIpv6 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Outbound IPv6)";
-
-	RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
-	filter.displayData.name = const_cast<wchar_t*>(FilterNameOutboundIpv6);
-	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
-	filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_CONN_KEY;
-
-	cond[1].conditionValue.type = FWP_BYTE_ARRAY16_TYPE;
-	cond[1].conditionValue.byteArray16 = (FWP_BYTE_ARRAY16*)TunnelIpv6->u.Byte;
-
-	status = FwpmFilterAdd0(WfpSession, &filter, NULL, OutboundFilterIdV6);
-
-	if (!NT_SUCCESS(status))
+	else
 	{
-		goto Cleanup;
-	}
+		//
+		// Register outbound IPv6 filter.
+		//
 
-	//
-	// Register inbound IPv6 filter.
-	//
+		FWPM_FILTER0 filter = { 0 };
 
-	const auto FilterNameInboundIpv6 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Inbound IPv6)";
+		const auto FilterNameOutboundIpv6 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Outbound IPv6)";
+		const auto FilterDescription = L"Blocks existing connections in the tunnel";
 
-	RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
-	filter.displayData.name = const_cast<wchar_t*>(FilterNameInboundIpv6);
-	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6;
-	filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_RECV_KEY;
+		filter.displayData.name = const_cast<wchar_t*>(FilterNameOutboundIpv6);
+		filter.displayData.description = const_cast<wchar_t*>(FilterDescription);
+		filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
+		filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
+		filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
+		filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+		filter.weight.type = FWP_UINT64;
+		filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
+		filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
+		filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_CONN_KEY;
+		filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
 
-	status = FwpmFilterAdd0(WfpSession, &filter, NULL, InboundFilterIdV6);
+		//
+		// Conditions are:
+		//
+		// APP_ID == ImageName
+		// LOCAL_ADDRESS == TunnelIp
+		//
 
-	if (!NT_SUCCESS(status))
-	{
-		goto Cleanup;
+		FWPM_FILTER_CONDITION0 cond[2];
+
+		cond[0].fieldKey = FWPM_CONDITION_ALE_APP_ID;
+		cond[0].matchType = FWP_MATCH_EQUAL;
+		cond[0].conditionValue.type = FWP_BYTE_BLOB_TYPE;
+		cond[0].conditionValue.byteBlob = appIdPayload;
+
+		cond[1].fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
+		cond[1].matchType = FWP_MATCH_EQUAL;
+		cond[1].conditionValue.type = FWP_BYTE_ARRAY16_TYPE;
+		cond[1].conditionValue.byteArray16 = (FWP_BYTE_ARRAY16*)TunnelIpv6->u.Byte;
+
+		filter.filterCondition = cond;
+		filter.numFilterConditions = ARRAYSIZE(cond);
+
+		status = FwpmFilterAdd0(WfpSession, &filter, NULL, OutboundFilterIdV6);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Cleanup;
+		}
+
+		//
+		// Register inbound IPv6 filter.
+		//
+
+		const auto FilterNameInboundIpv6 = L"Mullvad Split Tunnel In-Tunnel Blocking Filter (Inbound IPv6)";
+
+		RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
+		filter.displayData.name = const_cast<wchar_t*>(FilterNameInboundIpv6);
+		filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6;
+		filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_RECV_KEY;
+
+		status = FwpmFilterAdd0(WfpSession, &filter, NULL, InboundFilterIdV6);
+
+		if (!NT_SUCCESS(status))
+		{
+			goto Cleanup;
+		}
 	}
 
 	status = STATUS_SUCCESS;
@@ -499,6 +522,8 @@ AddBlockFiltersCreateEntryTx
 	{
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
+
+	RtlZeroMemory(entry, allocationSize);
 
 	auto status = Blocker
 	(
@@ -552,23 +577,26 @@ RemoveBlockFiltersTx
 	UINT64 InboundFilterIdV6
 )
 {
-	auto status = FwpmFilterDeleteById0(WfpSession, OutboundFilterIdV4);
+	//
+	// Filters were installed in pairs.
+	//
 
-	if (!NT_SUCCESS(status))
+	NT_ASSERT(OutboundFilterIdV4 != 0 || OutboundFilterIdV6 != 0);
+
+	auto status = STATUS_SUCCESS;
+
+	if (OutboundFilterIdV4 != 0)
 	{
-		return status;
-	}
+		status = FwpmFilterDeleteById0(WfpSession, OutboundFilterIdV4);
 
-	status = FwpmFilterDeleteById0(WfpSession, InboundFilterIdV4);
+		if (!NT_SUCCESS(status))
+		{
+			return status;
+		}
 
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
+		NT_ASSERT(InboundFilterIdV4 != 0);
 
-	if (0 != OutboundFilterIdV6)
-	{
-		status = FwpmFilterDeleteById0(WfpSession, OutboundFilterIdV6);
+		status = FwpmFilterDeleteById0(WfpSession, InboundFilterIdV4);
 
 		if (!NT_SUCCESS(status))
 		{
@@ -576,8 +604,17 @@ RemoveBlockFiltersTx
 		}
 	}
 
-	if (0 != InboundFilterIdV6)
+	if (OutboundFilterIdV6 != 0)
 	{
+		status = FwpmFilterDeleteById0(WfpSession, OutboundFilterIdV6);
+
+		if (!NT_SUCCESS(status))
+		{
+			return status;
+		}
+
+		NT_ASSERT(InboundFilterIdV6 != 0);
+
 		status = FwpmFilterDeleteById0(WfpSession, InboundFilterIdV6);
 
 		if (!NT_SUCCESS(status))
@@ -645,30 +682,6 @@ FreeList
 	}
 }
 
-//
-// This is a little crude, but avoids having to maintain state around these filters
-// and managing registration/removal in a double transaction.
-//
-bool
-GenericIpv6BlockFiltersRegistered
-(
-	HANDLE WfpSession
-)
-{
-	FWPM_FILTER0 *filter;
-
-	auto status = FwpmFilterGetByKey0(WfpSession, &ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_IPV6_CONN_KEY, &filter);
-
-	if (!NT_SUCCESS(status))
-	{
-		return false;
-	}
-
-	FwpmFreeMemory0((void**)&filter);
-
-	return true;
-}
-
 } // anonymous namespace
 
 NTSTATUS
@@ -678,21 +691,21 @@ Initialize
 	void **Context
 )
 {
-	auto stateData = (STATE_DATA*)
-		ExAllocatePoolWithTag(PagedPool, sizeof(STATE_DATA), ST_POOL_TAG);
+	auto context = (APP_FILTERS_CONTEXT*)
+		ExAllocatePoolWithTag(PagedPool, sizeof(APP_FILTERS_CONTEXT), ST_POOL_TAG);
 
-	if (stateData == NULL)
+	if (context == NULL)
 	{
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
-	stateData->WfpSession = WfpSession;
+	context->WfpSession = WfpSession;
 
-	InitializeListHead(&stateData->BlockedTunnelConnections);
+	InitializeListHead(&context->BlockedTunnelConnections);
 
-	InitializeListHead(&stateData->TransactionEvents);
+	InitializeListHead(&context->TransactionEvents);
 
-	*Context = stateData;
+	*Context = context;
 
 	return STATUS_SUCCESS;
 }
@@ -703,29 +716,23 @@ TearDown
 	void **Context
 )
 {
-	auto stateData = (STATE_DATA*)*Context;
+	auto context = (APP_FILTERS_CONTEXT*)*Context;
 
 	//
 	// This is a best effort venture so just keep going.
 	//
-	// Undo Ipv6 blocking filters.
-	//
-
-	RemoveFilterBlockSplitAppsIpv6Tx(*Context);
-
-	//
 	// Remove all app specific filters.
 	//
 
-	for (auto rawEntry = stateData->BlockedTunnelConnections.Flink;
-			rawEntry != &stateData->BlockedTunnelConnections;
+	for (auto rawEntry = context->BlockedTunnelConnections.Flink;
+			rawEntry != &context->BlockedTunnelConnections;
 			/* no post-condition */)
 	{
 		auto entry = (BLOCK_CONNECTIONS_ENTRY*)rawEntry;
 
 		RemoveBlockFiltersTx
 		(
-			stateData->WfpSession,
+			context->WfpSession,
 			entry->OutboundFilterIdV4,
 			entry->InboundFilterIdV4,
 			entry->OutboundFilterIdV6,
@@ -739,16 +746,16 @@ TearDown
 		rawEntry = next;
 	}
 
-	InitializeListHead(&stateData->BlockedTunnelConnections);
+	InitializeListHead(&context->BlockedTunnelConnections);
 
 	//
 	// This works because a commit discards all transaction events.
 	// (Also, there shouldn't be any events at this time.)
 	//
 
-	if (!IsListEmpty(&stateData->TransactionEvents))
+	if (!IsListEmpty(&context->TransactionEvents))
 	{
-		DbgPrint("ERROR: Active transaction while tearing down blocking subsystem\n");
+		DbgPrint("ERROR: Active transaction while tearing down appfilters module\n");
 	}
 
 	TransactionCommit(*Context);
@@ -757,71 +764,9 @@ TearDown
 	// Release context.
 	//
 
-	ExFreePoolWithTag(stateData, ST_POOL_TAG);
+	ExFreePoolWithTag(context, ST_POOL_TAG);
 
 	*Context = NULL;
-}
-
-NTSTATUS
-ResetTx2
-(
-	void *Context
-)
-{
-	auto stateData = (STATE_DATA*)Context;
-
-	if (GenericIpv6BlockFiltersRegistered(stateData->WfpSession))
-	{
-		auto status = RemoveFilterBlockSplitAppsIpv6Tx(Context);
-
-		if (!NT_SUCCESS(status))
-		{
-			return status;
-		}
-	}
-
-	if (IsListEmpty(&stateData->BlockedTunnelConnections))
-	{
-		return STATUS_SUCCESS;
-	}
-
-	for (auto rawEntry = stateData->BlockedTunnelConnections.Flink;
-			rawEntry != &stateData->BlockedTunnelConnections;
-			rawEntry = rawEntry->Flink)
-	{
-		auto entry = (BLOCK_CONNECTIONS_ENTRY*)rawEntry;
-
-		auto status = RemoveBlockFiltersTx
-		(
-			stateData->WfpSession,
-			entry->OutboundFilterIdV4,
-			entry->InboundFilterIdV4,
-			entry->OutboundFilterIdV6,
-			entry->InboundFilterIdV6
-		);
-
-		if (!NT_SUCCESS(status))
-		{
-			return status;
-		}
-	}
-
-	//
-	// Create transaction event and pass ownership of list to it.
-	//
-	auto status = TransactionSwappedLists(&stateData->TransactionEvents, &stateData->BlockedTunnelConnections);
-
-	if (!NT_SUCCESS(status))
-	{
-		return STATUS_INSUFFICIENT_RESOURCES;
-	}
-
-	//
-	// Clear list to reflect new state.
-	//
-	InitializeListHead(&stateData->BlockedTunnelConnections);
-
-	return STATUS_SUCCESS;
 }
 
 NTSTATUS
@@ -830,9 +775,9 @@ TransactionBegin
 	void *Context
 )
 {
-	auto stateData = (STATE_DATA*)Context;
+	auto context = (APP_FILTERS_CONTEXT*)Context;
 
-	if (IsListEmpty(&stateData->TransactionEvents))
+	if (IsListEmpty(&context->TransactionEvents))
 	{
 		return STATUS_SUCCESS;
 	}
@@ -853,9 +798,9 @@ TransactionCommit
 	// a target entry which must also be released.
 	//
 
-	auto stateData = (STATE_DATA*)Context;
+	auto context = (APP_FILTERS_CONTEXT*)Context;
 
-	auto list = &stateData->TransactionEvents;
+	auto list = &context->TransactionEvents;
 	LIST_ENTRY *rawEvent;
 
 	while ((rawEvent = RemoveHeadList(list)) != list)
@@ -894,9 +839,9 @@ TransactionAbort
 	// Step back through event records and undo all changes.
 	//
 
-	auto stateData = (STATE_DATA*)Context;
+	auto context = (APP_FILTERS_CONTEXT*)Context;
 
-	auto list = &stateData->TransactionEvents;
+	auto list = &context->TransactionEvents;
 	LIST_ENTRY *rawEvent;
 
 	while ((rawEvent = RemoveHeadList(list)) != list)
@@ -935,7 +880,7 @@ TransactionAbort
 			}
 			case TRANSACTION_EVENT_TYPE::SWAP_LISTS:
 			{
-				auto liveList = &stateData->BlockedTunnelConnections;
+				auto liveList = &context->BlockedTunnelConnections;
 
 				FreeList(liveList);
 
@@ -951,8 +896,19 @@ TransactionAbort
 	}
 }
 
+//
+// RegisterFilterBlockAppTunnelTrafficTx2()
+//
+// Register filters that block tunnel traffic for a specific app.
+//
+// This is primarily done to ensure an application's existing connections are
+// blocked when the app starts being split.
+//
+// When filters are added, a re-auth occurs, and matching existing connections
+// are presented to the linked callout, to approve or block.
+//
 NTSTATUS
-RegisterFilterBlockSplitAppTx2
+RegisterFilterBlockAppTunnelTrafficTx2
 (
 	void *Context,
 	const LOWER_UNICODE_STRING *ImageName,
@@ -960,13 +916,18 @@ RegisterFilterBlockSplitAppTx2
 	const IN6_ADDR *TunnelIpv6
 )
 {
-	auto stateData = (STATE_DATA*)Context;
+	if (TunnelIpv4 == NULL && TunnelIpv6 == NULL)
+	{
+		return STATUS_INVALID_PARAMETER;
+	}
 
-	auto existingEntry = FindBlockConnectionsEntry(&stateData->BlockedTunnelConnections, ImageName);
+	auto context = (APP_FILTERS_CONTEXT*)Context;
+
+	auto existingEntry = FindBlockConnectionsEntry(&context->BlockedTunnelConnections, ImageName);
 
 	if (existingEntry != NULL)
 	{
-		auto status = TransactionIncrementedRefCount(&stateData->TransactionEvents, existingEntry);
+		auto status = TransactionIncrementedRefCount(&context->TransactionEvents, existingEntry);
 
 		if (!NT_SUCCESS(status))
 		{
@@ -984,7 +945,7 @@ RegisterFilterBlockSplitAppTx2
 
 	auto status = AddBlockFiltersCreateEntryTx
 	(
-		stateData->WfpSession,
+		context->WfpSession,
 		ImageName,
 		TunnelIpv4,
 		TunnelIpv6,
@@ -997,7 +958,7 @@ RegisterFilterBlockSplitAppTx2
 		return status;
 	}
 
-	status = TransactionAddedEntry(&stateData->TransactionEvents, entry);
+	status = TransactionAddedEntry(&context->TransactionEvents, entry);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -1008,7 +969,7 @@ RegisterFilterBlockSplitAppTx2
 		return status;
 	}
 
-	InsertTailList(&stateData->BlockedTunnelConnections, &entry->ListEntry);
+	InsertTailList(&context->BlockedTunnelConnections, &entry->ListEntry);
 
 	DbgPrint("Added tunnel block filters for %wZ\n", ImageName);
 
@@ -1016,15 +977,15 @@ RegisterFilterBlockSplitAppTx2
 }
 
 NTSTATUS
-RemoveFilterBlockSplitAppTx2
+RemoveFilterBlockAppTunnelTrafficTx2
 (
 	void *Context,
 	const LOWER_UNICODE_STRING *ImageName
 )
 {
-	auto stateData = (STATE_DATA*)Context;
+	auto context = (APP_FILTERS_CONTEXT*)Context;
 
-	auto entry = FindBlockConnectionsEntry(&stateData->BlockedTunnelConnections, ImageName);
+	auto entry = FindBlockConnectionsEntry(&context->BlockedTunnelConnections, ImageName);
 
 	if (entry == NULL)
 	{
@@ -1033,7 +994,7 @@ RemoveFilterBlockSplitAppTx2
 
 	if (entry->RefCount > 1)
 	{
-		auto status = TransactionDecrementedRefCount(&stateData->TransactionEvents, entry);
+		auto status = TransactionDecrementedRefCount(&context->TransactionEvents, entry);
 
 		if (!NT_SUCCESS(status))
 		{
@@ -1068,8 +1029,8 @@ RemoveFilterBlockSplitAppTx2
 
 	auto status = RemoveBlockFiltersAndEntryTx
 	(
-		stateData->WfpSession,
-		&stateData->TransactionEvents,
+		context->WfpSession,
+		&context->TransactionEvents,
 		entry
 	);
 
@@ -1082,83 +1043,68 @@ RemoveFilterBlockSplitAppTx2
 }
 
 NTSTATUS
-RegisterFilterBlockSplitAppsIpv6Tx
+ResetTx2
 (
 	void *Context
 )
 {
-	auto stateData = (STATE_DATA*)Context;
+	auto context = (APP_FILTERS_CONTEXT*)Context;
+
+	if (IsListEmpty(&context->BlockedTunnelConnections))
+	{
+		return STATUS_SUCCESS;
+	}
+
+	for (auto rawEntry = context->BlockedTunnelConnections.Flink;
+			rawEntry != &context->BlockedTunnelConnections;
+			rawEntry = rawEntry->Flink)
+	{
+		auto entry = (BLOCK_CONNECTIONS_ENTRY*)rawEntry;
+
+		auto status = RemoveBlockFiltersTx
+		(
+			context->WfpSession,
+			entry->OutboundFilterIdV4,
+			entry->InboundFilterIdV4,
+			entry->OutboundFilterIdV6,
+			entry->InboundFilterIdV6
+		);
+
+		if (!NT_SUCCESS(status))
+		{
+			return status;
+		}
+	}
 
 	//
-	// Create filters that match all traffic.
-	// The linked callout will then block all attempted connections
-	// that can be associated with apps that are being split.
+	// Create transaction event and pass ownership of list to it.
 	//
-
-	FWPM_FILTER0 filter = { 0 };
-
-	const auto filterNameOutbound = L"Mullvad Split Tunnel IPv6 Blocking Filter (Outbound)";
-	const auto filterDescription = L"Blocks IPv6 traffic for connections being split";
-
-	filter.filterKey = ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_IPV6_CONN_KEY;
-	filter.displayData.name = const_cast<wchar_t*>(filterNameOutbound);
-	filter.displayData.description = const_cast<wchar_t*>(filterDescription);
-	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
-	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
-	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
-	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
-	filter.weight.type = FWP_UINT64;
-	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
-	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
-	filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_CONN_KEY;
-	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
-
-	auto status = FwpmFilterAdd0(stateData->WfpSession, &filter, NULL, NULL);
+	auto status = TransactionSwappedLists(&context->TransactionEvents, &context->BlockedTunnelConnections);
 
 	if (!NT_SUCCESS(status))
 	{
-		return status;
+		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
-	const auto filterNameInbound = L"Mullvad Split Tunnel IPv6 Blocking Filter (Inbound)";
+	//
+	// Clear list to reflect new state.
+	//
+	InitializeListHead(&context->BlockedTunnelConnections);
 
-	filter.filterKey = ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_IPV6_RECV_KEY;
-	filter.displayData.name = const_cast<wchar_t*>(filterNameInbound);
-	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6;
-	filter.action.calloutKey = ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_RECV_KEY;
-
-	return FwpmFilterAdd0(stateData->WfpSession, &filter, NULL, NULL);
+	return STATUS_SUCCESS;
 }
 
 NTSTATUS
-RemoveFilterBlockSplitAppsIpv6Tx
-(
-	void *Context
-)
-{
-	auto stateData = (STATE_DATA*)Context;
-
-	auto status = FwpmFilterDeleteByKey0(stateData->WfpSession, &ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_IPV6_CONN_KEY);
-
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
-
-	return FwpmFilterDeleteByKey0(stateData->WfpSession, &ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_IPV6_RECV_KEY);
-}
-
-NTSTATUS
-UpdateBlockingFiltersTx2
+UpdateFiltersTx2
 (
 	void *Context,
 	const IN_ADDR *TunnelIpv4,
 	const IN6_ADDR *TunnelIpv6
 )
 {
-	auto stateData = (STATE_DATA*)Context;
+	auto context = (APP_FILTERS_CONTEXT*)Context;
 
-	if (IsListEmpty(&stateData->BlockedTunnelConnections))
+	if (IsListEmpty(&context->BlockedTunnelConnections))
 	{
 		return STATUS_SUCCESS;
 	}
@@ -1167,15 +1113,15 @@ UpdateBlockingFiltersTx2
 
 	InitializeListHead(&newList);
 
-	for (auto rawEntry = stateData->BlockedTunnelConnections.Flink;
-			rawEntry != &stateData->BlockedTunnelConnections;
+	for (auto rawEntry = context->BlockedTunnelConnections.Flink;
+			rawEntry != &context->BlockedTunnelConnections;
 			rawEntry = rawEntry->Flink)
 	{
 		auto entry = (BLOCK_CONNECTIONS_ENTRY*)rawEntry;
 
 		auto status = RemoveBlockFiltersTx
 		(
-			stateData->WfpSession,
+			context->WfpSession,
 			entry->OutboundFilterIdV4,
 			entry->InboundFilterIdV4,
 			entry->OutboundFilterIdV6,
@@ -1193,7 +1139,7 @@ UpdateBlockingFiltersTx2
 
 		status = AddBlockFiltersCreateEntryTx
 		(
-			stateData->WfpSession,
+			context->WfpSession,
 			&entry->ImageName,
 			TunnelIpv4,
 			TunnelIpv6,
@@ -1214,29 +1160,29 @@ UpdateBlockingFiltersTx2
 	}
 
 	//
-	// stateData->BlockedTunnelConnections is now completely obsolete.
+	// context->BlockedTunnelConnections is now completely obsolete.
 	// newList has all the updated entries.
 	//
 
-	auto status = TransactionSwappedLists(&stateData->TransactionEvents, &stateData->BlockedTunnelConnections);
+	auto status = TransactionSwappedLists(&context->TransactionEvents, &context->BlockedTunnelConnections);
 
 	if (!NT_SUCCESS(status))
 	{
 		FreeList(&newList);
 
-		return STATUS_INSUFFICIENT_RESOURCES;
+		return status;
 	}
 
 	//
-	// Ownership of the list formerly rooted at stateData->BlockedTunnelConnections
+	// Ownership of the list formerly rooted at context->BlockedTunnelConnections
 	// has been moved to the recently queued transaction event.
 	//
 	// Perform actual state update.
 	//
 
-	util::ReparentList(&stateData->BlockedTunnelConnections, &newList);
+	util::ReparentList(&context->BlockedTunnelConnections, &newList);
 
 	return STATUS_SUCCESS;
 }
 
-} // namespace firewall::blocking
+} // namespace firewall::appfilters

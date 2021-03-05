@@ -10,7 +10,8 @@ Main features:
 - Propagation of exclusion flag to child processes.
 - Dynamic reconfiguration.
 - Blocking of pre-existing unwanted connections.
-- Blocking of IPv6 traffic in cases where it would otherwise leak inside the tunnel.
+- Blocking of traffic in cases where it would otherwise leak inside the tunnel.
+- Full IPv6 support.
 
 # Development environment
 
@@ -81,6 +82,31 @@ The driver uses a fixed sequence of initial state transitions:
 1. `ST_DRIVER_STATE_ENGAGED`. The driver is actively excluding traffic, as applicable.
 
 Having reached the *engaged* state, it's possible to return the driver to the *ready* state. You can do this by either clearing the configuration (`IOCTL_ST_CLEAR_CONFIGURATION`) or by registering all-zeros IPs on interfaces that are or should be seen as unavailable.
+
+# Operation
+
+The following matrix describes the actions taken by the driver on excluded apps. The actions taken depend on which network interfaces are available.
+
+|\#|Internet IPv4|Tunnel IPv4|Internet IPv6|Tunnel IPv6|Actions|
+|:---:|:---:|:---:|:---:|:---:|:---|
+|1|x|x|x|x|Exclude IPv4/IPv6|
+|2|x|x|||Exclude IPv4|
+|3|x|x|x||Exclude IPv4, Permit non-tunnel IPv6|
+|4|x|x||x|Exclude IPv4, Block tunnel IPv6|
+|5|||x|x|Exclude IPv6|
+|6|x||x|x|Exclude IPv6, Permit non-tunnel IPv4|
+|7||x|x|x|Exclude IPv6, Block tunnel IPv4|
+|8||x|x||Block tunnel IPv4, Permit non-tunnel IPv6|
+|9|x|||x|Block tunnel IPv6, Permit non-tunnel IPv4|
+
+**Exclude** means:
+- Redirect socket binds away from the tunnel interface.
+- Permit non-tunnel traffic.
+- Block existing connections in the tunnel.
+
+The explicit block-action is used to prevent traffic from leaking inside the tunnel, in cases where exclusions cannot be applied.
+
+The explicit permit-action is used to override restrictive firewall filters installed by the Mullvad VPN app.
 
 # Limitations
 

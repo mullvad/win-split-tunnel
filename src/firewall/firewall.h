@@ -103,14 +103,14 @@ TransactionAbort
 );
 
 NTSTATUS
-RegisterAppBecomingSplitTx2
+RegisterAppBecomingSplitTx
 (
 	CONTEXT *Context,
 	const LOWER_UNICODE_STRING *ImageName
 );
 
 NTSTATUS
-RegisterAppBecomingUnsplitTx2
+RegisterAppBecomingUnsplitTx
 (
 	CONTEXT *Context,
 	const LOWER_UNICODE_STRING *ImageName
