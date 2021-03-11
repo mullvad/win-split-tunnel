@@ -431,7 +431,8 @@ ClearRealizeAnnounceSettingsChange
 NTSTATUS
 SyncProcessRegistry
 (
-    ST_DEVICE_CONTEXT *Context
+    ST_DEVICE_CONTEXT *Context,
+    bool ForceAleReauthorization = false
 )
 {
     //
@@ -467,7 +468,7 @@ SyncProcessRegistry
         goto Abort;
     }
 
-    status = firewall::TransactionCommit(Context->Firewall);
+    status = firewall::TransactionCommit(Context->Firewall, ForceAleReauthorization);
 
     if (!NT_SUCCESS(status))
     {
@@ -724,7 +725,7 @@ RegisterConfigurationAtEngaged
     // Update process registry to reflect new configuration.
     //
 
-    auto status = SyncProcessRegistry(Context);
+    auto status = SyncProcessRegistry(Context, true);
 
     if (!NT_SUCCESS(status))
     {
