@@ -24,7 +24,7 @@ Configure signing in Microsoft partner portal:
 
 1. Ensure changelog is updated and includes all relevant changes.
 1. Make appropriate changes to version number components in `src/version.h`. Push changes.
-1. Create and push a signed Git tag which is named after the current updated version, e.g. `1.2.3.4`.
+1. Create and push a signed Git tag which is named after the current updated version, e.g. `v1.2.3.4`.
 
 ## Building
 
