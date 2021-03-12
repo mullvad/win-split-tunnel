@@ -21,6 +21,7 @@ Line wrap the file at 100 chars.                                              Th
 
 ## [Unreleased]
 
+## [1.0.1.0] - 2021-03-12
 ### Fixed
 Force reauthorization in WFP if state has changed but WFP was not updated in the process.
 
