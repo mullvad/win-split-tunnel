@@ -696,6 +696,156 @@ SelectTunnelAddresses
 	return STATUS_UNSUCCESSFUL;
 }
 
+struct ALE_REAUTHORIZATION_FILTER_IDS
+{
+	UINT64 OutboundFilterIdV4;
+	UINT64 InboundFilterIdV4;
+	UINT64 OutboundFilterIdV6;
+	UINT64 InboundFilterIdV6;
+};
+
+//
+// AddAleReauthorizationFiltersTx()
+//
+// Add dummy filters to trigger an ALE reauthorization in the following layers:
+//
+// FWPM_LAYER_ALE_AUTH_CONNECT_V4
+// FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4
+// FWPM_LAYER_ALE_AUTH_CONNECT_V6
+// FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6
+//
+NTSTATUS
+AddAleReauthorizationFiltersTx
+(
+	HANDLE WfpSession,
+	ALE_REAUTHORIZATION_FILTER_IDS *ReauthFilters
+)
+{
+	RtlZeroMemory(ReauthFilters, sizeof(*ReauthFilters));
+
+	//
+	// Add IPv4 outbound filter.
+	//
+	// The single condition for IPv4 layers is:
+	//
+	// REMOTE_ADDRESS == 1.3.3.7
+	//
+
+	FWPM_FILTER0 filter = { 0 };
+
+	const auto FilterName = L"Mullvad Split Tunnel ALE reauthorization filter";
+	const auto FilterDescription = L"Forces an ALE reauthorization to occur";
+
+	filter.displayData.name = const_cast<wchar_t*>(FilterName);
+	filter.displayData.description = const_cast<wchar_t*>(FilterDescription);
+	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
+	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.weight.type = FWP_UINT64;
+	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
+	filter.action.type = FWP_ACTION_BLOCK;
+
+	FWPM_FILTER_CONDITION0 cond;
+
+	cond.fieldKey = FWPM_CONDITION_IP_REMOTE_ADDRESS;
+	cond.matchType = FWP_MATCH_EQUAL;
+	cond.conditionValue.type = FWP_UINT32;
+	cond.conditionValue.uint32 = 0x01030307;
+
+	filter.filterCondition = &cond;
+	filter.numFilterConditions = 1;
+
+	auto status = FwpmFilterAdd0(WfpSession, &filter, NULL, &ReauthFilters->OutboundFilterIdV4);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	//
+	// Add IPv4 inbound filter.
+	//
+
+	RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
+
+	status = FwpmFilterAdd0(WfpSession, &filter, NULL, &ReauthFilters->InboundFilterIdV4);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	//
+	// Add IPv6 outbound filter.
+	//
+	// The single condition for IPv6 layers is the same as for IPv4 layers,
+	// but the address is encoded as an IPv6 address.
+	//
+
+	RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
+
+	const FWP_BYTE_ARRAY16 ipv6RemoteAddress = { .byteArray16 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 1, 3, 3, 7 } };
+
+	cond.conditionValue.type = FWP_BYTE_ARRAY16_TYPE;
+	cond.conditionValue.byteArray16 = const_cast<FWP_BYTE_ARRAY16*>(&ipv6RemoteAddress);
+
+	status = FwpmFilterAdd0(WfpSession, &filter, NULL, &ReauthFilters->OutboundFilterIdV6);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	//
+	// Add IPv6 inbound filter.
+	//
+
+	RtlZeroMemory(&filter.filterKey, sizeof(filter.filterKey));
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6;
+
+	return FwpmFilterAdd0(WfpSession, &filter, NULL, &ReauthFilters->InboundFilterIdV6);
+}
+
+NTSTATUS
+RemoveAleReauthorizationFilters
+(
+	CONTEXT *Context,
+	ALE_REAUTHORIZATION_FILTER_IDS *ReauthFilters
+)
+{
+	auto status = WfpTransactionBegin(Context);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	if (!NT_SUCCESS(status = FwpmFilterDeleteById0(Context->WfpSession, ReauthFilters->OutboundFilterIdV4))
+		|| !NT_SUCCESS(status = FwpmFilterDeleteById0(Context->WfpSession, ReauthFilters->InboundFilterIdV4))
+		|| !NT_SUCCESS(status = FwpmFilterDeleteById0(Context->WfpSession, ReauthFilters->OutboundFilterIdV6))
+		|| !NT_SUCCESS(status = FwpmFilterDeleteById0(Context->WfpSession, ReauthFilters->InboundFilterIdV6)))
+	{
+		goto Abort;
+	}
+
+	status = WfpTransactionCommit(Context);
+
+	if (!NT_SUCCESS(status))
+	{
+		goto Abort;
+	}
+
+	return STATUS_SUCCESS;
+
+Abort:
+
+	WfpTransactionAbort(Context);
+
+	return status;
+}
+
 } // anonymous namespace
 
 //
@@ -1236,7 +1386,8 @@ Abort:
 NTSTATUS
 TransactionCommit
 (
-	CONTEXT *Context
+	CONTEXT *Context,
+	bool ForceAleReauthorization
 )
 {
 	NT_ASSERT(Context->SplittingEnabled);
@@ -1256,6 +1407,20 @@ TransactionCommit
 		return STATUS_UNSUCCESSFUL;
 	}
 
+	ALE_REAUTHORIZATION_FILTER_IDS reauthFilters;
+
+	if (ForceAleReauthorization)
+	{
+		auto status = AddAleReauthorizationFiltersTx(Context->WfpSession, &reauthFilters);
+
+		if (!NT_SUCCESS(status))
+		{
+			DbgPrint("Could not add ALE reauthorization filters\n");
+
+			return status;
+		}
+	}
+
 	auto status = WfpTransactionCommit(Context);
 
 	if (!NT_SUCCESS(status))
@@ -1267,6 +1432,32 @@ TransactionCommit
 
 	Context->Transaction.OwnerId = NULL;
 	Context->Transaction.Active = false;
+
+	if (ForceAleReauthorization)
+	{
+		status = RemoveAleReauthorizationFilters(Context, &reauthFilters);
+
+		if (!NT_SUCCESS(status))
+		{
+			//
+			// This is bad to the extent that we were unable to remove filters which no longer
+			// serve a purpose.
+			//
+			// However, the filters aren't using unique GUIDs as identifiers, and they're using
+			// dummy conditions that won't match any traffic.
+			//
+			// So filters will merely be wasting a tiny amount of system resources.
+			//
+
+			DbgPrint("Could not remove ALE reauthorization filters: 0x%X\n", status);
+
+			DECLARE_CONST_UNICODE_STRING(errorMessage, L"Could not remove ALE reauthorization filters");
+
+			auto evt = eventing::BuildErrorMessageEvent(status, &errorMessage);
+
+			eventing::Emit(Context->Eventing, &evt);
+		}
+	}
 
 	WdfWaitLockRelease(Context->Transaction.Lock);
 

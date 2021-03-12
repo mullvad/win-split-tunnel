@@ -93,7 +93,8 @@ TransactionBegin
 NTSTATUS
 TransactionCommit
 (
-	CONTEXT *Context
+	CONTEXT *Context,
+	bool ForceAleReauthorization = false
 );
 
 NTSTATUS
