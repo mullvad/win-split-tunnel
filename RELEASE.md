@@ -35,6 +35,7 @@ Configure signing in Microsoft partner portal:
 1. Artifacts are prepared under `bin/dist/`:
     1. `bin/dist/legacy/` contains the final artifacts for Windows 7/8/8.1.
     1. `bin/dist/win10/` contains an intermediate driver package for Windows 10.
+    1. `bin/dist/meta/` currently, only holds the shared PDB file.
 1. Upload Windows 10 intermediate driver package (`mullvad-split-tunnel-amd64.cab`) to Microsoft for attestation signing.
 1. Download attestation signed driver for Windows 10.
 
@@ -42,8 +43,8 @@ Configure signing in Microsoft partner portal:
 
 1. In the `mullvadvpn-app-binaries` repository:
     1. Update legacy driver package in `x86_64-pc-windows-msvc/split-tunnel/legacy/`.
-    1. Move `x86_64-pc-windows-msvc/split-tunnel/legacy/mullvad-split-tunnel.pdb` one step out, into `x86_64-pc-windows-msvc/split-tunnel/`. The PDB is shared between the legacy driver and the Windows 10 driver, because they're actually the same binary. Only the appended signature is different.
     1. Extract attestation signed driver and related files into `x86_64-pc-windows-msvc/split-tunnel/win10/`.
+    1. Update driver PDB file in `x86_64-pc-windows-msvc/split-tunnel/meta/`.
     1. Merge file updates into `master`.
 1. In the `mullvadvpn-app` repository:
     1. Update the `mullvadvpn-app-binaries` submodule reference.
