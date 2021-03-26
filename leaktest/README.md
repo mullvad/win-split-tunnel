@@ -54,15 +54,15 @@ When redirecting binds, one has to be mindful about attempted binds towards loca
 
 ### `st2`
 
-Evaluate whether existing connections are blocked when an app becomes split.
+Evaluate whether existing connections are blocked when an app becomes excluded.
 
-It's desirable that an app exists exclusively on one side of the tunnel, and never on both sides at the same time. For an app that has active connections in the tunnel, and then becomes split, we verify that the existing connections are blocked.
+It's desirable that an app exists exclusively on one side of the tunnel, and never on both sides at the same time. For an app that has active connections in the tunnel, and then becomes excluded, we verify that the existing connections are blocked.
 
 `leaktest st2 [tcp/udp]`
 
 ### `st3`
 
-Evaluate whether split connections are blocked when an app stops being split.
+Evaluate whether excluded connections are blocked when an app stops being excluded.
 
 This is similar to `st2`, in that it's testing for the same properties, but the inverse scenario.
 
@@ -72,7 +72,7 @@ This is similar to `st2`, in that it's testing for the same properties, but the 
 
 Evaluate whether DNS requests can be moved outside tunnel.
 
-Due to how DNS requests and caching of responses is architectured in Windows, it's rare that a split tunneling solution will be able to move requests outside the tunnel. In this test, we're issuing DNS requests from an app being split, using the Windows infrastructure, and monitoring for DNS traffic outside the tunnel.
+Due to how DNS requests and caching of responses is architectured in Windows, it's rare that a split tunneling solution will be able to move requests outside the tunnel. In this test, we're issuing DNS requests from an app being excluded, using the Windows infrastructure, and monitoring for DNS traffic outside the tunnel.
 
 `leaktest st4`
 
@@ -80,7 +80,7 @@ Due to how DNS requests and caching of responses is architectured in Windows, it
 
 Evaluate whether child processes are automatically and atomically handled.
 
-For an app being split, it's desirable that any child processes are treated as belonging to one and the same context as the parent. It's plausible to believe that an app would share data with its child processes, and therefore, they should all operate on the same side of the tunnel.
+For an app being excluded, it's desirable that any child processes are treated as belonging to one and the same context as the parent. It's plausible to believe that an app would share data with its child processes, and therefore, they should all operate on the same side of the tunnel.
 
 The test is interesting because some VPN client software has failed to account for this. Yet other VPN software do account for it, but have massive races.
 

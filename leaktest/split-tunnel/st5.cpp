@@ -224,7 +224,7 @@ bool TestCaseSt5Child(const std::vector<std::wstring> &arguments)
 
 	//
 	// Connecting will select the tunnel interface because of best metric,
-	// but splitting should redirect the bind.
+	// but exclusion logic should redirect the bind.
 	//
 
 	ConnectSocket

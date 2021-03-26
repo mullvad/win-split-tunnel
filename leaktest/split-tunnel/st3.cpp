@@ -9,7 +9,7 @@
 bool TestCaseSt3(const std::vector<std::wstring> &arguments)
 {
 	std::wcout << L"Launching split tunnel test case 3" << std::endl;
-	std::wcout << L"Evaluate whether split connections are blocked when an app stops being split" << std::endl;
+	std::wcout << L"Evaluate whether excluded connections are blocked when an app stops being excluded" << std::endl;
 	std::wcout << L"===" << std::endl;
 
 	ArgumentContext argsContext(arguments);
@@ -35,7 +35,7 @@ bool TestCaseSt3(const std::vector<std::wstring> &arguments)
 
 	//
 	// Connecting will select the tunnel interface because of best metric,
-	// but splitting should redirect the bind.
+	// but exclusion logic should redirect the bind.
 	//
 
 	ConnectSocket

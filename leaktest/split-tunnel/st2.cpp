@@ -9,7 +9,7 @@
 bool TestCaseSt2(const std::vector<std::wstring> &arguments)
 {
 	std::wcout << L"Launching split tunnel test case 2" << std::endl;
-	std::wcout << L"Evaluate whether existing connections are blocked when an app becomes split" << std::endl;
+	std::wcout << L"Evaluate whether existing connections are blocked when an app becomes excluded" << std::endl;
 	std::wcout << L"===" << std::endl;
 
 	ArgumentContext argsContext(arguments);
