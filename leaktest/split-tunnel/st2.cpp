@@ -18,7 +18,7 @@ bool TestCaseSt2(const std::vector<std::wstring> &arguments)
 
 	argsContext.assertExhausted();
 
-	PromptEnableVpn();
+	PromptActivateVpn();
 
 	std::wcout << "Creating socket and binding to tunnel IP" << std::endl;
 
@@ -48,7 +48,7 @@ bool TestCaseSt2(const std::vector<std::wstring> &arguments)
 
 	ValidateBind(tunnelSocket, RuntimeSettings::Instance().tunnelIp());
 
-	PromptEnableSplitTunnel();
+	PromptActivateSplitTunnel();
 
 	std::wcout << L"Testing comms on LAN interface" << std::endl;
 

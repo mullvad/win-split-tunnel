@@ -18,7 +18,7 @@ bool TestCaseSt3(const std::vector<std::wstring> &arguments)
 
 	argsContext.assertExhausted();
 
-	PromptEnableVpnSplitTunnel();
+	PromptActivateVpnSplitTunnel();
 
 	std::wcout << "Creating socket and leaving it unbound" << std::endl;
 

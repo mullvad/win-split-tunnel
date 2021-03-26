@@ -98,7 +98,7 @@ bool TestCaseSt5(const std::vector<std::wstring> &arguments)
 
 	argsContext.ensureExactArgumentCount(0);
 
-	PromptEnableVpnSplitTunnel();
+	PromptActivateVpnSplitTunnel();
 
 	const size_t NUM_PROCESSES = 20;
 

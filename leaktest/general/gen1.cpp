@@ -136,7 +136,7 @@ bool TestCaseGen1(const std::vector<std::wstring> &arguments)
 
 	auto lanSocket = CreateConnectSocket(tcp, true);
 
-	PromptEnableVpn();
+	PromptActivateVpn();
 
 	std::wcout << L"You should interact with the VPN app to cause state changes" << std::endl;
 	std::wcout << L"'s' is successfully sent data" << std::endl;

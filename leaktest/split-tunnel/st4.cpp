@@ -117,7 +117,7 @@ bool TestCaseSt4Inner(const std::vector<std::wstring> &arguments)
 
 	argsContext.ensureExactArgumentCount(0);
 
-	PromptEnableVpn();
+	PromptActivateVpn();
 
 	std::wcout << L"Getting pktmon ready" << std::endl;
 
@@ -152,7 +152,7 @@ bool TestCaseSt4Inner(const std::vector<std::wstring> &arguments)
 	PktmonAddFilter(ss.str());
 	PktmonStart();
 
-	PromptEnableSplitTunnel();
+	PromptActivateSplitTunnel();
 
 	SendDnsRequest();
 

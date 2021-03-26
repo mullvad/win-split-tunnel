@@ -185,25 +185,25 @@ HANDLE LaunchProcess
 
 } // anonymous namespace
 
-void PromptEnableVpnSplitTunnel()
+void PromptActivateVpnSplitTunnel()
 {
-	std::wcout << L"Enable VPN && enable split tunnel for testing application" << std::endl;
+	std::wcout << L"Activate VPN && activate split tunnel for testing application" << std::endl;
 	std::wcout << L"Then press a key to continue" << std::endl;
 
 	_getwch();
 }
 
-void PromptEnableVpn()
+void PromptActivateVpn()
 {
-	std::wcout << L"Enable VPN" << std::endl;
+	std::wcout << L"Activate VPN" << std::endl;
 	std::wcout << L"Then press a key to continue" << std::endl;
 
 	_getwch();
 }
 
-void PromptEnableSplitTunnel()
+void PromptActivateSplitTunnel()
 {
-	std::wcout << L"Enable split tunnel for testing application" << std::endl;
+	std::wcout << L"Activate split tunnel for testing application" << std::endl;
 	std::wcout << L"Then press a key to continue" << std::endl;
 
 	_getwch();

@@ -20,7 +20,7 @@ bool TestCaseSt1(const std::vector<std::wstring> &arguments)
 
 	argsContext.ensureExactArgumentCount(0);
 
-	PromptEnableVpnSplitTunnel();
+	PromptActivateVpnSplitTunnel();
 
 	const auto serverAddr = std::wstring(L"127.0.0.1");
 	const auto serverPort = std::wstring(L"5050");

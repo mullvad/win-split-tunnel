@@ -72,11 +72,11 @@ private:
 	size_t m_remaining;
 };
 
-void PromptEnableVpnSplitTunnel();
+void PromptActivateVpnSplitTunnel();
 
-void PromptEnableVpn();
+void PromptActivateVpn();
 
-void PromptEnableSplitTunnel();
+void PromptActivateSplitTunnel();
 
 void PromptDisableSplitTunnel();
 
