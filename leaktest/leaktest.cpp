@@ -116,7 +116,7 @@ int wmain(int argc, wchar_t *argv[])
 
 	if (0 != WSAStartup(MAKEWORD(2, 2), &winSockData))
 	{
-		std::cout << "Failed to initialize winsock: " << FormatWsaError(WSAGetLastError()) << std::endl;
+		std::cerr << "Failed to initialize winsock: " << FormatWsaError(WSAGetLastError()) << std::endl;
 
 		return 1;
 	}
@@ -125,7 +125,7 @@ int wmain(int argc, wchar_t *argv[])
 	{
 		WSACleanup();
 
-		std::cout << "Could not find/load winsock 2.2 implementation" << std::endl;
+		std::cerr << "Could not find/load winsock 2.2 implementation" << std::endl;
 
 		return 1;
 	}
@@ -138,11 +138,11 @@ int wmain(int argc, wchar_t *argv[])
 	}
 	catch (const std::exception &err)
 	{
-		std::cout << "EXCEPTION: " << err.what() << std::endl;
+		std::cerr << "EXCEPTION: " << err.what() << std::endl;
 	}
 	catch (...)
 	{
-		std::cout << "EXCEPTION: Unknown error" << std::endl;
+		std::cerr << "EXCEPTION: Unknown error" << std::endl;
 	}
 
 	if (successful)
