@@ -24,6 +24,7 @@
     <ClCompile Include="runtimesettings.cpp" />
     <ClCompile Include="settings.cpp" />
     <ClCompile Include="sockutil.cpp" />
+    <ClCompile Include="split-tunnel\st1.cpp" />
     <ClCompile Include="split-tunnel\st2.cpp" />
     <ClCompile Include="split-tunnel\st3.cpp" />
     <ClCompile Include="split-tunnel\st4.cpp" />
@@ -37,6 +38,7 @@
     <ClInclude Include="leaktest.h" />
     <ClInclude Include="settings.h" />
     <ClInclude Include="sockutil.h" />
+    <ClInclude Include="split-tunnel\st1.h" />
     <ClInclude Include="split-tunnel\st2.h" />
     <ClInclude Include="split-tunnel\st3.h" />
     <ClInclude Include="split-tunnel\st4.h" />

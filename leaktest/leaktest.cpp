@@ -1,5 +1,6 @@
 #include <ws2tcpip.h>	// include before windows.h
 #include "general/gen1.h"
+#include "split-tunnel/st1.h"
 #include "split-tunnel/st2.h"
 #include "split-tunnel/st3.h"
 #include "split-tunnel/st4.h"
@@ -75,6 +76,7 @@ bool innerMain(int argc, wchar_t *argv[])
 	std::vector<TestCase> tests =
 	{
 		{ L"gen1", TestCaseGen1},
+		{ L"st1", TestCaseSt1 },
 		{ L"st2", TestCaseSt2 },
 		{ L"st3", TestCaseSt3 },
 		{ L"st4", TestCaseSt4 },

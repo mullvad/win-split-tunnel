@@ -24,6 +24,9 @@
     <ClCompile Include="split-tunnel\st6.cpp">
       <Filter>split tunnel tests</Filter>
     </ClCompile>
+    <ClCompile Include="split-tunnel\st1.cpp">
+      <Filter>split tunnel tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="util.h" />
@@ -47,6 +50,9 @@
       <Filter>general tests</Filter>
     </ClInclude>
     <ClInclude Include="split-tunnel\st6.h">
+      <Filter>split tunnel tests</Filter>
+    </ClInclude>
+    <ClInclude Include="split-tunnel\st1.h">
       <Filter>split tunnel tests</Filter>
     </ClInclude>
   </ItemGroup>
