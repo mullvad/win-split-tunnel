@@ -46,11 +46,13 @@ The test aggressively tries to send and receive data to see if any one of the re
 
 ### `st1`
 
-Evaluate whether binds to localhost are correctly **NOT** being redirected.
+Evaluate whether different kinds of binds are correctly handled.
 
-When redirecting binds, one has to be mindful about attempted binds towards localhost. These binds must not be redirected because it would expose local services on the LAN.
+1. Bind to tunnel interface and validate that bind is redirected to lan interface.
+1. Bind to lan interface and validate that bind is successful.
+1. Do not bind before connecting. Validate that bind is directed to lan interface.
 
-`leaktest st1`
+`leaktest st1 [tcp/udp]`
 
 ### `st2`
 
@@ -86,3 +88,10 @@ The test is interesting because some VPN client software has failed to account f
 
 `leaktest st5`
 
+### `st6`
+
+Evaluate whether binds to localhost are correctly **NOT** being redirected.
+
+When redirecting binds, one has to be mindful about attempted binds towards localhost. These binds must not be redirected because it would expose local services on the LAN.
+
+`leaktest st6`
