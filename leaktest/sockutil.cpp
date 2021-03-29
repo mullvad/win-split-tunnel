@@ -17,21 +17,7 @@ std::string FormatWsaError(int errorCode)
 
 SOCKET CreateBindSocket(const IN_ADDR &ip, uint16_t port, bool tcp)
 {
-	int type = SOCK_STREAM;
-	int protocol = IPPROTO_TCP;
-
-	if (!tcp)
-	{
-		type = SOCK_DGRAM;
-		protocol = IPPROTO_UDP;
-	}
-
-	auto s = socket(AF_INET, type, protocol);
-
-	if (INVALID_SOCKET == s)
-	{
-		THROW_ERROR("Failed to create socket");
-	}
+	auto s = CreateSocket(tcp);
 
 	sockaddr_in endpoint = { 0 };
 
@@ -63,14 +49,9 @@ SOCKET CreateBindSocket(const std::wstring &ip, uint16_t port, bool tcp)
 
 SOCKET CreateSocket(bool tcp)
 {
-	int type = SOCK_STREAM;
-	int protocol = IPPROTO_TCP;
-
-	if (!tcp)
-	{
-		type = SOCK_DGRAM;
-		protocol = IPPROTO_UDP;
-	}
+	const auto [type, protocol] = tcp
+		? std::make_pair<>(SOCK_STREAM, IPPROTO_TCP)
+		: std::make_pair<>(SOCK_DGRAM, IPPROTO_UDP);
 
 	auto s = socket(AF_INET, type, protocol);
 
@@ -204,43 +185,11 @@ void ValidateBind(SOCKET s, const IN_ADDR &ip)
 
 SOCKET CreateBindOverlappedSocket(const IN_ADDR &ip, uint16_t port, bool tcp)
 {
-	int type = SOCK_STREAM;
-	int protocol = IPPROTO_TCP;
+	//
+	// Turns out all sockets on Windows support overlapped operations.
+	//
 
-	if (!tcp)
-	{
-		type = SOCK_DGRAM;
-		protocol = IPPROTO_UDP;
-	}
-
-	auto s = WSASocketW(AF_INET, type, protocol, nullptr, 0, WSA_FLAG_OVERLAPPED);
-
-	if (INVALID_SOCKET == s)
-	{
-		THROW_ERROR("Failed to create socket");
-	}
-
-	sockaddr_in endpoint = { 0 };
-
-	endpoint.sin_family = AF_INET;
-	endpoint.sin_port = htons(port);
-	endpoint.sin_addr = ip;
-
-	auto status = bind(s, (sockaddr*)&endpoint, sizeof(endpoint));
-
-	if (SOCKET_ERROR == status)
-	{
-		const auto errorCode = WSAGetLastError();
-
-		closesocket(s);
-
-		const auto err = std::string("Failed to bind socket: ")
-			.append(FormatWsaError(errorCode));
-
-		THROW_ERROR(err.c_str());
-	}
-
-	return s;
+	return CreateBindSocket(ip, port, tcp);
 }
 
 SOCKET CreateBindOverlappedSocket(const std::wstring &ip, uint16_t port, bool tcp)
