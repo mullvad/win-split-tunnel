@@ -177,7 +177,7 @@ void ValidateBind(SOCKET s, const IN_ADDR &ip)
 		std::wstringstream ss;
 
 		ss << L"Unexpected socket bind. Expected address " << IpToString(ip)
-			<< ", Actual address " << IpToString(actualBind.sin_addr);
+			<< L", Actual address " << IpToString(actualBind.sin_addr);
 
 		THROW_ERROR(common::string::ToAnsi(ss.str()).c_str());
 	}
