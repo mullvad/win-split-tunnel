@@ -65,12 +65,12 @@ SOCKET CreateSocket(bool tcp)
 
 void ShutdownSocket(SOCKET &s)
 {
-	if (NULL != s)
+	if (s != INVALID_SOCKET)
 	{
 		shutdown(s, SD_BOTH);
 		closesocket(s);
 
-		s = NULL;
+		s = INVALID_SOCKET;
 	}
 }
 
