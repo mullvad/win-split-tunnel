@@ -1,10 +1,10 @@
 #include <ws2tcpip.h>	// include before windows.h
 #include "general/gen1.h"
-#include "split-tunnel/st1.h"
 #include "split-tunnel/st2.h"
 #include "split-tunnel/st3.h"
 #include "split-tunnel/st4.h"
 #include "split-tunnel/st5.h"
+#include "split-tunnel/st6.h"
 #include "util.h"
 #include "sockutil.h"
 #include <libcommon/error.h>
@@ -75,14 +75,14 @@ bool innerMain(int argc, wchar_t *argv[])
 	std::vector<TestCase> tests =
 	{
 		{ L"gen1", TestCaseGen1},
-		{ L"st1", TestCaseSt1 },
-		{ L"st1-server", TestCaseSt1Server },
-		{ L"st1-client", TestCaseSt1Client },
 		{ L"st2", TestCaseSt2 },
 		{ L"st3", TestCaseSt3 },
 		{ L"st4", TestCaseSt4 },
 		{ L"st5", TestCaseSt5 },
 		{ L"st5-child", TestCaseSt5Child },
+		{ L"st6", TestCaseSt6 },
+		{ L"st6-server", TestCaseSt6Server },
+		{ L"st6-client", TestCaseSt6Client },
 	};
 
 	//

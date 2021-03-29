@@ -1,6 +1,6 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS 1
 
-#include "st1.h"
+#include "st6.h"
 #include <iostream>
 #include <ws2tcpip.h>	// include before windows.h
 #include <libcommon/security.h>
@@ -10,9 +10,9 @@
 #include "../sockutil.h"
 #include "../leaktest.h"
 
-bool TestCaseSt1(const std::vector<std::wstring> &arguments)
+bool TestCaseSt6(const std::vector<std::wstring> &arguments)
 {
-	std::wcout << L"Launching split tunnel test case 1" << std::endl;
+	std::wcout << L"Launching split tunnel test case 6" << std::endl;
 	std::wcout << L"Evaluate whether binds to localhost are correctly NOT being redirected" << std::endl;
 	std::wcout << L"===" << std::endl;
 
@@ -27,7 +27,7 @@ bool TestCaseSt1(const std::vector<std::wstring> &arguments)
 
 	std::wcout << L"Launching server process" << std::endl;
 
-	auto serverProcess = Fork(std::vector<std::wstring> {L"st1-server", serverAddr, serverPort});
+	auto serverProcess = Fork(std::vector<std::wstring> {L"st6-server", serverAddr, serverPort});
 
 	std::wcout << L"Waiting for VPN software to catch up" << std::endl;
 
@@ -35,7 +35,7 @@ bool TestCaseSt1(const std::vector<std::wstring> &arguments)
 
 	std::wcout << L"Launching unrelated client process" << std::endl;
 
-	auto clientProcess = ForkUnrelatedCopy(std::vector<std::wstring> {L"st1-client", serverAddr, serverPort});
+	auto clientProcess = ForkUnrelatedCopy(std::vector<std::wstring> {L"st6-client", serverAddr, serverPort});
 
 	//
 	// Wait for both processes to complete
@@ -74,9 +74,9 @@ bool TestCaseSt1(const std::vector<std::wstring> &arguments)
 		&& clientProcessExitCode == 0;
 }
 
-bool TestCaseSt1Server(const std::vector<std::wstring> &arguments)
+bool TestCaseSt6Server(const std::vector<std::wstring> &arguments)
 {
-	std::wcout << L"Split tunnel test case 1 - Server" << std::endl;
+	std::wcout << L"Split tunnel test case 6 - Server" << std::endl;
 	std::wcout << L"I have PID: " << GetCurrentProcessId() << std::endl;
 
 	SetPauseBeforeExit(true);
@@ -210,9 +210,9 @@ bool TestCaseSt1Server(const std::vector<std::wstring> &arguments)
 	return receivedSomething;
 }
 
-bool TestCaseSt1Client(const std::vector<std::wstring> &arguments)
+bool TestCaseSt6Client(const std::vector<std::wstring> &arguments)
 {
-	std::wcout << L"Split tunnel test case 1 - Client" << std::endl;
+	std::wcout << L"Split tunnel test case 6 - Client" << std::endl;
 	std::wcout << L"I have PID: " << GetCurrentProcessId() << std::endl;
 
 	SetPauseBeforeExit(true);

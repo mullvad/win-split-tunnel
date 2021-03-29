@@ -6,9 +6,6 @@
     <ClCompile Include="sockutil.cpp" />
     <ClCompile Include="settings.cpp" />
     <ClCompile Include="runtimesettings.cpp" />
-    <ClCompile Include="split-tunnel\st1.cpp">
-      <Filter>split tunnel tests</Filter>
-    </ClCompile>
     <ClCompile Include="split-tunnel\st2.cpp">
       <Filter>split tunnel tests</Filter>
     </ClCompile>
@@ -24,6 +21,9 @@
     <ClCompile Include="general\gen1.cpp">
       <Filter>general tests</Filter>
     </ClCompile>
+    <ClCompile Include="split-tunnel\st6.cpp">
+      <Filter>split tunnel tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="util.h" />
@@ -31,9 +31,6 @@
     <ClInclude Include="leaktest.h" />
     <ClInclude Include="settings.h" />
     <ClInclude Include="runtimesettings.h" />
-    <ClInclude Include="split-tunnel\st1.h">
-      <Filter>split tunnel tests</Filter>
-    </ClInclude>
     <ClInclude Include="split-tunnel\st2.h">
       <Filter>split tunnel tests</Filter>
     </ClInclude>
@@ -48,6 +45,9 @@
     </ClInclude>
     <ClInclude Include="general\gen1.h">
       <Filter>general tests</Filter>
+    </ClInclude>
+    <ClInclude Include="split-tunnel\st6.h">
+      <Filter>split tunnel tests</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
