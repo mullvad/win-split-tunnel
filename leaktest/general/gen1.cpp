@@ -16,34 +16,36 @@ std::vector<uint8_t> GenerateEchoBuffer()
 
 void LoopSendReceive(SOCKET lanSocket, size_t delay)
 {
-	auto sendContext = AllocateWinsockOverlapped();
-	auto recvContext = AllocateWinsockOverlapped();
+	WinsockOverlapped *sendContext;
+	WinsockOverlapped *recvContext;
 
 	common::memory::ScopeDestructor sd;
 
-	sd += [sendContext, recvContext]
+	sd += [&lanSocket, &sendContext, &recvContext]
 	{
-		DeleteWinsockOverlapped(sendContext);
-		DeleteWinsockOverlapped(recvContext);
+		//
+		// This has to happen first so pending operations are cancelled.
+		//
+		ShutdownSocket(lanSocket);
+
+		DeleteWinsockOverlapped(&sendContext);
+		DeleteWinsockOverlapped(&recvContext);
 	};
 
-	bool pendingSend = false;
-	bool pendingRecv = false;
+	sendContext = AllocateWinsockOverlapped();
+	recvContext = AllocateWinsockOverlapped();
 
 	for (;;)
 	{
-		if (!pendingSend)
+		if (!sendContext->pendingOperation)
 		{
 			AssignOverlappedBuffer(*sendContext, GenerateEchoBuffer());
-
 			SendOverlappedSocket(lanSocket, *sendContext);
-			pendingSend = true;
 		}
 
-		if (!pendingRecv)
+		if (!recvContext->pendingOperation)
 		{
 			RecvOverlappedSocket(lanSocket, *recvContext, 1024);
-			pendingRecv = true;
 		}
 
 		Sleep(static_cast<DWORD>(delay));
@@ -57,12 +59,8 @@ void LoopSendReceive(SOCKET lanSocket, size_t delay)
 
 		if (sendCompleted)
 		{
-			pendingSend = false;
-
 			if (recvCompleted)
 			{
-				pendingRecv = false;
-
 				std::wcout << L'+';
 			}
 			else
@@ -72,8 +70,6 @@ void LoopSendReceive(SOCKET lanSocket, size_t delay)
 		}
 		else if (recvCompleted)
 		{
-			pendingRecv = false;
-
 			std::wcout << L'r';
 		}
 	}
@@ -110,6 +106,14 @@ SOCKET CreateConnectSocket(bool tcp, bool verbose)
 	}
 
 	return lanSocket;
+}
+
+template<typename T>
+T take(T &lhs, T rhs)
+{
+	T temp = lhs;
+	lhs = rhs;
+	return temp;
 }
 
 } // anonymous namespace
@@ -159,7 +163,12 @@ bool TestCaseGen1(const std::vector<std::wstring> &arguments)
 				brokenSocket = false;
 			}
 
-			LoopSendReceive(lanSocket, delay);
+			//
+			// NOTE: Ownership of `lanSocket` is passed to LoopSendReceive().
+			// The socket will already be closed if the function ever returns.
+			//
+
+			LoopSendReceive(take<>(lanSocket, SOCKET(INVALID_SOCKET)), delay);
 		}
 		catch (const common::error::WindowsException &err)
 		{
@@ -176,8 +185,6 @@ bool TestCaseGen1(const std::vector<std::wstring> &arguments)
 				std::wcout << L'.';
 
 				brokenSocket = true;
-
-				ShutdownSocket(lanSocket);
 
 				continue;
 			}
