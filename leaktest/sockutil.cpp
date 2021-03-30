@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <iomanip>
+#include <cassert>
 
 std::string FormatWsaError(int errorCode)
 {
@@ -201,24 +202,35 @@ WinsockOverlapped *AllocateWinsockOverlapped()
 {
 	auto ctx = new WinsockOverlapped;
 
-	RtlZeroMemory(&ctx->overlapped, sizeof(ctx->overlapped));
+	ZeroMemory(&ctx->overlapped, sizeof(ctx->overlapped));
 
 	ctx->overlapped.hEvent =  WSACreateEvent();
 
-	RtlZeroMemory(&ctx->winsockBuffer, sizeof(ctx->winsockBuffer));
+	ZeroMemory(&ctx->winsockBuffer, sizeof(ctx->winsockBuffer));
+
+	ctx->pendingOperation = false;
 
 	return ctx;
 }
 
-void DeleteWinsockOverlapped(WinsockOverlapped *ctx)
+void DeleteWinsockOverlapped(WinsockOverlapped **ctx)
 {
-	WSACloseEvent(ctx->overlapped.hEvent);
+	if ((*ctx)->pendingOperation)
+	{
+		WaitForSingleObject((*ctx)->overlapped.hEvent, INFINITE);
+	}
 
-	delete ctx;
+	WSACloseEvent((*ctx)->overlapped.hEvent);
+
+	delete *ctx;
+
+	*ctx = nullptr;
 }
 
 void AssignOverlappedBuffer(WinsockOverlapped &ctx, std::vector<uint8_t> &&buffer)
 {
+	assert(!ctx.pendingOperation);
+
 	ctx.buffer.swap(buffer);
 
 	ctx.winsockBuffer.buf = reinterpret_cast<CHAR*>(&ctx.buffer[0]);
@@ -227,12 +239,16 @@ void AssignOverlappedBuffer(WinsockOverlapped &ctx, std::vector<uint8_t> &&buffe
 
 void SendOverlappedSocket(SOCKET s, WinsockOverlapped &ctx)
 {
+	assert(!ctx.pendingOperation);
+
 	WSAResetEvent(ctx.overlapped.hEvent);
 
 	const auto status = WSASend(s, &ctx.winsockBuffer, 1, nullptr, 0, &ctx.overlapped, nullptr);
 
 	if (0 == status || (SOCKET_ERROR == status && WSA_IO_PENDING == WSAGetLastError()))
 	{
+		ctx.pendingOperation = true;
+
 		return;
 	}
 
@@ -241,6 +257,10 @@ void SendOverlappedSocket(SOCKET s, WinsockOverlapped &ctx)
 
 void RecvOverlappedSocket(SOCKET s, WinsockOverlapped &ctx, size_t bytes)
 {
+	assert(!ctx.pendingOperation);
+
+	WSAResetEvent(ctx.overlapped.hEvent);
+
 	if (ctx.winsockBuffer.len != bytes)
 	{
 		ctx.winsockBuffer.len = static_cast<ULONG>(bytes);
@@ -254,12 +274,12 @@ void RecvOverlappedSocket(SOCKET s, WinsockOverlapped &ctx, size_t bytes)
 
 	DWORD flags = 0;
 
-	WSAResetEvent(ctx.overlapped.hEvent);
-
 	const auto status = WSARecv(s, &ctx.winsockBuffer, 1, nullptr, &flags, &ctx.overlapped, nullptr);
 
 	if (0 == status || (SOCKET_ERROR == status && WSA_IO_PENDING == WSAGetLastError()))
 	{
+		ctx.pendingOperation = true;
+
 		return;
 	}
 
@@ -268,6 +288,8 @@ void RecvOverlappedSocket(SOCKET s, WinsockOverlapped &ctx, size_t bytes)
 
 bool PollOverlappedSend(SOCKET s, WinsockOverlapped &ctx)
 {
+	assert(ctx.pendingOperation);
+
 	DWORD bytesTransferred;
 	DWORD flags;
 
@@ -283,6 +305,8 @@ bool PollOverlappedSend(SOCKET s, WinsockOverlapped &ctx)
 		THROW_WINDOWS_ERROR(WSAGetLastError(), "Overlapped send");
 	}
 
+	ctx.pendingOperation = false;
+
 	if (bytesTransferred != ctx.winsockBuffer.len)
 	{
 		THROW_ERROR("Overlapped send completed but did not transfer all bytes");
@@ -293,6 +317,8 @@ bool PollOverlappedSend(SOCKET s, WinsockOverlapped &ctx)
 
 bool PollOverlappedRecv(SOCKET s, WinsockOverlapped &ctx)
 {
+	assert(ctx.pendingOperation);
+
 	DWORD bytesTransferred;
 	DWORD flags;
 
@@ -307,6 +333,8 @@ bool PollOverlappedRecv(SOCKET s, WinsockOverlapped &ctx)
 
 		THROW_WINDOWS_ERROR(WSAGetLastError(), "Overlapped receive");
 	}
+
+	ctx.pendingOperation = false;
 
 	ctx.winsockBuffer.len = bytesTransferred;
 

@@ -47,11 +47,16 @@ struct WinsockOverlapped
 	// Buffer descriptor.
 	//
 	WSABUF winsockBuffer;
+
+	//
+	// Whether there is an active send or receive.
+	//
+	bool pendingOperation;
 };
 
 WinsockOverlapped *AllocateWinsockOverlapped();
 
-void DeleteWinsockOverlapped(WinsockOverlapped *ctx);
+void DeleteWinsockOverlapped(WinsockOverlapped **ctx);
 
 void AssignOverlappedBuffer(WinsockOverlapped &ctx, std::vector<uint8_t> &&buffer);
 
