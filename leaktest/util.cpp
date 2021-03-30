@@ -322,10 +322,10 @@ void GetAdapterAddresses(const std::wstring &adapterName, IN_ADDR *ipv4, IN6_ADD
 {
 	const DWORD flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER;
 
-	common::network::Adapters adapters(AF_INET, flags);
-
 	if (ipv4 != NULL)
 	{
+		common::network::Adapters adapters(AF_INET, flags);
+
 		bool ipv4Done = false;
 
 		for (auto adapter = adapters.next(); adapter != NULL; adapter = adapters.next())
