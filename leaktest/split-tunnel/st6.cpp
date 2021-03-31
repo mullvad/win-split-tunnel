@@ -207,9 +207,9 @@ bool TestCaseSt6Server(const std::vector<std::wstring> &arguments)
 			index = 0;
 		}
 
-		auto status = recv(echoSocket, (char*)&buffer[index], 1, 0);
+		const auto bytesReceived = recv(echoSocket, (char*)&buffer[index], 1, 0);
 
-		if (1 != status)
+		if (bytesReceived != 1)
 		{
 			break;
 		}
@@ -226,7 +226,12 @@ bool TestCaseSt6Server(const std::vector<std::wstring> &arguments)
 
 		std::cout << (char*)&buffer[0];
 
-		send(echoSocket, (char*)&buffer[0], (int)index, 0);
+		const auto bytesSent = send(echoSocket, (char*)&buffer[0], (int)index, 0);
+
+		if (bytesSent != index)
+		{
+			THROW_ERROR("Failed to send echo response");
+		}
 
 		index = 0;
 
