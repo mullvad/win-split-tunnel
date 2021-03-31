@@ -181,10 +181,10 @@ bool TestCaseSt6Server(const std::vector<std::wstring> &arguments)
 
 	auto local = QueryBind(serverSocket);
 
-	std::cout << "Server endpoint: " << inet_ntoa(local.sin_addr) << ":" << ntohs(local.sin_port) << std::endl;
-	std::cout << "Peer: " << inet_ntoa(peer.sin_addr) << ":" << ntohs(peer.sin_port) << std::endl;
+	std::wcout << L"Server endpoint: " << IpToString(local.sin_addr) << L":" << ntohs(local.sin_port) << std::endl;
+	std::wcout << L"Peer: " << IpToString(peer.sin_addr) << L":" << ntohs(peer.sin_port) << std::endl;
 
-	if (0 != serverAddr.compare(common::string::ToWide(inet_ntoa(local.sin_addr))))
+	if (local.sin_addr != ParseIpv4(serverAddr))
 	{
 		THROW_ERROR("Unexpected server bind");
 	}
@@ -290,14 +290,17 @@ bool TestCaseSt6Client(const std::vector<std::wstring> &arguments)
 	//
 	// Query bind after connecting.
 	//
+	// This is a little backwards, the comparison only works because we know the server
+	// is running on localhost.
+	//
 
 	std::wcout << L"Retrieving bind details for socket" << std::endl;
 
 	auto bindInfo = QueryBind(echoSocket);
 
-	std::cout << "Bind details: " << inet_ntoa(bindInfo.sin_addr) << ":" << ntohs(bindInfo.sin_port) << std::endl;
+	std::wcout << L"Bind details: " << IpToString(bindInfo.sin_addr) << L":" << ntohs(bindInfo.sin_port) << std::endl;
 
-	if (0 != serverAddr.compare(common::string::ToWide(inet_ntoa(bindInfo.sin_addr))))
+	if (bindInfo.sin_addr != ParseIpv4(serverAddr))
 	{
 		THROW_ERROR("Unexpected socket bind");
 	}
@@ -328,9 +331,9 @@ bool TestCaseSt6Client(const std::vector<std::wstring> &arguments)
 
 	bindInfo = QueryBind(echoSocket);
 
-	std::cout << "Bind details: " << inet_ntoa(bindInfo.sin_addr) << ":" << ntohs(bindInfo.sin_port) << std::endl;
+	std::wcout << L"Bind details: " << IpToString(bindInfo.sin_addr) << L":" << ntohs(bindInfo.sin_port) << std::endl;
 
-	if (0 != serverAddr.compare(common::string::ToWide(inet_ntoa(bindInfo.sin_addr))))
+	if (bindInfo.sin_addr != ParseIpv4(serverAddr))
 	{
 		THROW_ERROR("Unexpected socket bind");
 	}
