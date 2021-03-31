@@ -3,6 +3,8 @@
 #include <vector>
 #include <string>
 #include <stdexcept>
+#include <filesystem>
+#include <optional>
 #include <ws2tcpip.h>
 #include <ws2ipdef.h>
 #include <windows.h>
@@ -81,20 +83,35 @@ void PromptActivateSplitTunnel();
 void PromptDisableSplitTunnel();
 
 //
-// ForkUnrelatedCopy()
 //
-// Make a copy of own binary,
-// then launch it as a child of `explorer.exe`
+// ProcessBinaryCreateRandomCopy()
 //
-HANDLE ForkUnrelatedCopy(const std::vector<std::wstring> &args);
+// Copy process binary to temporary directory, using random file name.
+//
+std::filesystem::path
+ProcessBinaryCreateRandomCopy();
+
+HANDLE
+LaunchProcess
+(
+	const std::filesystem::path &path,
+	const std::vector<std::wstring> &args,
+	DWORD creationFlags = 0,
+	std::optional<LPPROC_THREAD_ATTRIBUTE_LIST> attributes = std::nullopt
+);
 
 //
-// ForkCopy()
+// LaunchUnrelatedProcess()
 //
-// Make a copy of own binary,
-// then launch it as a regular child.
+// Launch new process as child of `explorer.exe`
 //
-HANDLE ForkCopy(const std::vector<std::wstring> &args);
+HANDLE
+LaunchUnrelatedProcess
+(
+	const std::filesystem::path &path,
+	const std::vector<std::wstring> &args,
+	DWORD creationFlags = 0
+);
 
 HANDLE Fork(const std::vector<std::wstring> &args);
 

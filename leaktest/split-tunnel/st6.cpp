@@ -25,9 +25,27 @@ bool TestCaseSt6(const std::vector<std::wstring> &arguments)
 	const auto serverAddr = std::wstring(L"127.0.0.1");
 	const auto serverPort = std::wstring(L"5050");
 
+	HANDLE serverProcess = NULL;
+	HANDLE clientProcess = NULL;
+
+	common::memory::ScopeDestructor sd;
+
+   	sd += [&serverProcess, &clientProcess]()
+	{
+		if (serverProcess != NULL)
+		{
+			CloseHandle(serverProcess);
+		}
+
+		if (clientProcess != NULL)
+		{
+			CloseHandle(clientProcess);
+		}
+	};
+
 	std::wcout << L"Launching server process" << std::endl;
 
-	auto serverProcess = Fork(std::vector<std::wstring> {L"st6-server", serverAddr, serverPort});
+	serverProcess = Fork(std::vector<std::wstring> {L"st6-server", serverAddr, serverPort});
 
 	std::wcout << L"Waiting for VPN software to catch up" << std::endl;
 
@@ -35,7 +53,19 @@ bool TestCaseSt6(const std::vector<std::wstring> &arguments)
 
 	std::wcout << L"Launching unrelated client process" << std::endl;
 
-	auto clientProcess = ForkUnrelatedCopy(std::vector<std::wstring> {L"st6-client", serverAddr, serverPort});
+	const auto childPath = ProcessBinaryCreateRandomCopy();
+
+	sd += [&childPath]
+	{
+		DeleteFileW(childPath.c_str());
+	};
+
+	clientProcess = LaunchUnrelatedProcess
+	(
+		childPath,
+		std::vector<std::wstring> {L"st6-client", serverAddr, serverPort},
+		CREATE_NEW_CONSOLE
+	);
 
 	//
 	// Wait for both processes to complete
@@ -49,7 +79,7 @@ bool TestCaseSt6(const std::vector<std::wstring> &arguments)
 
 	const auto numWaitHandles = _countof(waitHandles);
 
-	auto waitStatus = WaitForMultipleObjects(numWaitHandles, waitHandles, TRUE, 1000 * 60);
+	const auto waitStatus = WaitForMultipleObjects(numWaitHandles, waitHandles, TRUE, 1000 * 60);
 
 	if (waitStatus < WAIT_OBJECT_0
 		|| waitStatus > (WAIT_OBJECT_0 + numWaitHandles - 1))

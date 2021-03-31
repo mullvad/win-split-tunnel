@@ -53,136 +53,6 @@ void PrintWithColor(const std::wstring &str, WORD colorAttributes)
 	SetConsoleTextAttribute(consoleHandle, info.wAttributes);
 }
 
-//
-//
-// ProcessBinaryCreateRandomCopy()
-//
-// Copy process binary to temporary directory, using random file name.
-//
-std::wstring ProcessBinaryCreateRandomCopy()
-{
-	constexpr size_t bufferSize = 1024;
-
-	std::vector<wchar_t> tempDir(bufferSize), tempFilename(bufferSize);
-
-	if (0 == GetTempPathW(bufferSize, &tempDir[0]))
-	{
-		THROW_ERROR("Failed to retrieve temp path");
-	}
-
-	if (0 == GetTempFileNameW(&tempDir[0], L"tst", 0, &tempFilename[0]))
-	{
-		THROW_ERROR("Failed to generate temp file name");
-	}
-
-	const std::wstring sourceFile(_wpgmptr);
-	const auto destFile = std::wstring(&tempFilename[0]);
-
-	if (FALSE == CopyFileW(sourceFile.c_str(), destFile.c_str(), FALSE))
-	{
-		THROW_ERROR("Failed to copy binary");
-	}
-
-	return destFile;
-}
-
-HANDLE LaunchProcessWithAttributes
-(
-	const std::wstring &path,
-	const std::vector<std::wstring> &args,
-	LPPROC_THREAD_ATTRIBUTE_LIST attributes
-)
-{
-	const auto fspath = std::filesystem::path(path);
-
-	if (false == fspath.is_absolute()
-		|| false == fspath.has_filename())
-	{
-		THROW_ERROR("Invalid path specification for subprocess");
-	}
-
-	const auto implodedArgs = ImplodeArgs(args);
-
-	const auto workingDir = fspath.parent_path();
-	const auto quotedPath = std::wstring(L"\"").append(path).append(L"\"");
-
-	const auto commandLine = implodedArgs.empty()
-		? quotedPath
-		: std::wstring(quotedPath).append(L" ").append(implodedArgs);
-
-	STARTUPINFOEXW si = { 0 };
-
-	si.StartupInfo.cb = sizeof(STARTUPINFOEXW);
-	si.lpAttributeList = attributes;
-
-	PROCESS_INFORMATION pi = { 0 };
-
-	const auto status = CreateProcessW
-	(
-		nullptr,
-		const_cast<wchar_t *>(commandLine.c_str()),
-		nullptr,
-		nullptr,
-		FALSE,
-		EXTENDED_STARTUPINFO_PRESENT | CREATE_NEW_CONSOLE,
-		nullptr,
-		workingDir.c_str(),
-		(STARTUPINFOW*)&si,
-		&pi
-	);
-
-	if (FALSE == status)
-	{
-		THROW_WINDOWS_ERROR(GetLastError(), "Launch subprocess");
-	}
-
-	CloseHandle(pi.hThread);
-
-	return pi.hProcess;
-}
-
-HANDLE LaunchProcess
-(
-	const std::filesystem::path &file,
-	const std::vector<std::wstring> &args
-)
-{
-	const auto implodedArgs = ImplodeArgs(args);
-
-	const auto workingDir = file.parent_path();
-	const auto quotedPath = std::wstring(L"\"").append(_wpgmptr).append(L"\"");
-
-	const auto commandLine = implodedArgs.empty()
-		? quotedPath
-		: std::wstring(quotedPath).append(L" ").append(implodedArgs);
-
-	STARTUPINFOW si = { .cb = sizeof(STARTUPINFOW) };
-	PROCESS_INFORMATION pi = { 0 };
-
-	const auto status = CreateProcessW
-	(
-		nullptr,
-		const_cast<wchar_t *>(commandLine.c_str()),
-		nullptr,
-		nullptr,
-		FALSE,
-		CREATE_NEW_CONSOLE,
-		nullptr,
-		workingDir.c_str(),
-		&si,
-		&pi
-	);
-
-	if (FALSE == status)
-	{
-		THROW_WINDOWS_ERROR(GetLastError(), "Launch subprocess");
-	}
-
-	CloseHandle(pi.hThread);
-
-	return pi.hProcess;
-}
-
 } // anonymous namespace
 
 void PromptActivateVpnSplitTunnel()
@@ -217,10 +87,118 @@ void PromptDisableSplitTunnel()
 	_getwch();
 }
 
-HANDLE ForkUnrelatedCopy(const std::vector<std::wstring> &args)
+std::filesystem::path ProcessBinaryCreateRandomCopy()
 {
-	const auto fileCopy = ProcessBinaryCreateRandomCopy();
+	constexpr size_t bufferSize = 1024;
 
+	std::vector<wchar_t> tempDir(bufferSize), tempFilename(bufferSize);
+
+	if (0 == GetTempPathW(bufferSize, &tempDir[0]))
+	{
+		THROW_WINDOWS_ERROR(GetLastError(), "GetTempPathW");
+	}
+
+	if (0 == GetTempFileNameW(&tempDir[0], L"tst", 0, &tempFilename[0]))
+	{
+		THROW_WINDOWS_ERROR(GetLastError(), "GetTempFileNameW");
+	}
+
+	const std::wstring sourceFile(_wpgmptr);
+	const auto destFile = std::wstring(&tempFilename[0]);
+
+	if (FALSE == CopyFileW(sourceFile.c_str(), destFile.c_str(), FALSE))
+	{
+		THROW_WINDOWS_ERROR(GetLastError(), "CopyFileW");
+	}
+
+	return destFile;
+}
+
+HANDLE LaunchProcess
+(
+	const std::filesystem::path &path,
+	const std::vector<std::wstring> &args,
+	DWORD creationFlags,
+	std::optional<LPPROC_THREAD_ATTRIBUTE_LIST> attributes
+)
+{
+	if (false == path.is_absolute()
+		|| false == path.has_filename())
+	{
+		THROW_ERROR("Invalid path specification for subprocess");
+	}
+
+	const auto implodedArgs = ImplodeArgs(args);
+
+	const auto workingDir = path.parent_path();
+	const auto quotedPath = std::wstring(L"\"").append(path).append(L"\"");
+
+	const auto commandLine = implodedArgs.empty()
+		? quotedPath
+		: std::wstring(quotedPath).append(L" ").append(implodedArgs);
+
+	DWORD additionalCreationFlags = 0;
+
+	STARTUPINFOEXW siStorage = { 0 };
+	STARTUPINFOW *siPointer = nullptr;
+
+	if (attributes.has_value())
+	{
+		//
+		// Use extended startup structure.
+		//
+
+		additionalCreationFlags |= EXTENDED_STARTUPINFO_PRESENT;
+
+		siStorage.StartupInfo.cb = sizeof(STARTUPINFOEXW);
+		siStorage.lpAttributeList = attributes.value();
+
+		siPointer = reinterpret_cast<STARTUPINFOW*>(&siStorage);
+	}
+	else
+	{
+		//
+		// Use plain startup structure.
+		// We can use the same storage for this.
+		//
+
+		siStorage.StartupInfo.cb = sizeof(STARTUPINFOW);
+		siPointer = &siStorage.StartupInfo;
+	}
+
+	PROCESS_INFORMATION pi = { 0 };
+
+	const auto status = CreateProcessW
+	(
+		nullptr,
+		const_cast<wchar_t *>(commandLine.c_str()),
+		nullptr,
+		nullptr,
+		FALSE,
+		creationFlags | additionalCreationFlags,
+		nullptr,
+		workingDir.c_str(),
+		siPointer,
+		&pi
+	);
+
+	if (FALSE == status)
+	{
+		THROW_WINDOWS_ERROR(GetLastError(), "Launch subprocess");
+	}
+
+	CloseHandle(pi.hThread);
+
+	return pi.hProcess;
+}
+
+HANDLE LaunchUnrelatedProcess
+(
+	const std::filesystem::path &path,
+	const std::vector<std::wstring> &args,
+	DWORD creationFlags
+)
+{
 	//
 	// Find explorer.exe
 	//
@@ -244,6 +222,13 @@ HANDLE ForkUnrelatedCopy(const std::vector<std::wstring> &args)
 		THROW_ERROR("Could not acquire handle to explorer");
 	}
 
+	common::memory::ScopeDestructor sd;
+
+	sd += [explorerHandle]
+	{
+		CloseHandle(explorerHandle);
+	};
+
 	//
 	// Prepare data struct that will be used to launch
 	// subprocess as child of explorer.exe
@@ -253,20 +238,26 @@ HANDLE ForkUnrelatedCopy(const std::vector<std::wstring> &args)
 
 	InitializeProcThreadAttributeList(nullptr, 1, 0, &requiredBufferSize);
 
-	std::vector<uint8_t> attributeList(requiredBufferSize);
+	std::vector<uint8_t> attributeListBuffer(requiredBufferSize);
 
+	auto attributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)&attributeListBuffer[0];
 	auto instanceSize = requiredBufferSize;
 
-	auto status = InitializeProcThreadAttributeList((LPPROC_THREAD_ATTRIBUTE_LIST)&attributeList[0], 1, 0, &instanceSize);
+	auto status = InitializeProcThreadAttributeList(attributeList, 1, 0, &instanceSize);
 
 	if (FALSE == status)
 	{
 		THROW_WINDOWS_ERROR(GetLastError(), "Initialize attribute list for subprocess");
 	}
 
+	//
+	// We can't use the ScopeDestructor to delete `attributeList`
+	// because the buffer backing it may already be gone.
+	//
+
 	status = UpdateProcThreadAttribute
 	(
-		(LPPROC_THREAD_ATTRIBUTE_LIST)&attributeList[0],
+		attributeList,
 		0,
 		PROC_THREAD_ATTRIBUTE_PARENT_PROCESS,
 		&explorerHandle,
@@ -277,31 +268,36 @@ HANDLE ForkUnrelatedCopy(const std::vector<std::wstring> &args)
 
 	if (FALSE == status)
 	{
+		DeleteProcThreadAttributeList(attributeList);
+
 		THROW_WINDOWS_ERROR(GetLastError(), "Update parent process attribute for subprocess");
 	}
-
-	common::memory::ScopeDestructor sd;
-
-	sd += [&attributeList]()
-	{
-		DeleteProcThreadAttributeList((LPPROC_THREAD_ATTRIBUTE_LIST)&attributeList[0]);
-	};
 
 	//
 	// Launch unrelated app.
 	//
 
-	return LaunchProcessWithAttributes(fileCopy, args, (LPPROC_THREAD_ATTRIBUTE_LIST)&attributeList[0]);
-}
+	HANDLE processHandle = INVALID_HANDLE_VALUE;
 
-HANDLE ForkCopy(const std::vector<std::wstring> &args)
-{
-	return LaunchProcess(ProcessBinaryCreateRandomCopy(), args);
+	try
+	{
+		processHandle = LaunchProcess(path, args, creationFlags, attributeList);
+	}
+	catch (...)
+	{
+		DeleteProcThreadAttributeList(attributeList);
+
+		throw;
+	}
+
+	DeleteProcThreadAttributeList(attributeList);
+
+	return processHandle;
 }
 
 HANDLE Fork(const std::vector<std::wstring> &args)
 {
-	return LaunchProcess(_wpgmptr, args);
+	return LaunchProcess(_wpgmptr, args, CREATE_NEW_CONSOLE);
 }
 
 void PrintGreen(const std::wstring &str)

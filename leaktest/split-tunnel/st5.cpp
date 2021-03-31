@@ -42,9 +42,14 @@ private:
 	const time_point startTime = std::chrono::steady_clock::now();
 };
 
-HANDLE LaunchChild(const std::wstring &tunnelIp, const std::wstring &lanIp)
+HANDLE LaunchChild(const std::filesystem::path &path, const std::wstring &tunnelIp, const std::wstring &lanIp)
 {
-	return ForkCopy(std::vector<std::wstring> {L"st5-child", tunnelIp, lanIp});
+	return LaunchProcess
+	(
+		path,
+		std::vector<std::wstring> {L"st5-child", tunnelIp, lanIp},
+		CREATE_NO_WINDOW
+	);
 }
 
 enum class ChildExitCode
@@ -117,19 +122,51 @@ bool TestCaseSt5(const std::vector<std::wstring> &arguments)
 	const auto lanIp = IpToString(RuntimeSettings::Instance().lanIp());
 
 	//
+	// Create unique binaries, one for each child.
+	// This way the VPN can't use the path to determine association.
+	//
+
+	std::vector<std::filesystem::path> childPaths;
+
+	common::memory::ScopeDestructor sd;
+
+	sd += [&childPaths]
+	{
+		for(const auto &path : childPaths)
+		{
+			DeleteFileW(path.c_str());
+		}
+	};
+
+	childPaths.reserve(NUM_PROCESSES);
+
+	for (auto i = 0; i < NUM_PROCESSES; ++i)
+	{
+		childPaths.emplace_back(ProcessBinaryCreateRandomCopy());
+	}
+
+	//
 	// Launch all processes in quick succession, without waiting for each one to complete its work.
 	// This should hopefully create some CPU load and work for the scheduler.
 	//
 
-	std::vector<HANDLE> processes;
+	std::vector<HANDLE> childProcesses;
 
-	processes.reserve(NUM_PROCESSES);
+	sd += [&childProcesses]()
+	{
+		for (auto process : childProcesses)
+		{
+			CloseHandle(process);
+		}
+	};
+
+	childProcesses.reserve(NUM_PROCESSES);
 
 	for (auto i = 0; i < NUM_PROCESSES; ++i)
 	{
 		try
 		{
-			processes.emplace_back(LaunchChild(tunnelIp, lanIp));
+			childProcesses.emplace_back(LaunchChild(childPaths[i], tunnelIp, lanIp));
 		}
 		catch (...)
 		{
@@ -142,7 +179,7 @@ bool TestCaseSt5(const std::vector<std::wstring> &arguments)
 
 	WaitAssistant waitAssistant(MAX_WAIT_TIME_MS);
 
-	for (auto process : processes)
+	for (auto process : childProcesses)
 	{
 		auto status = WaitForSingleObject(process, waitAssistant.getWaitTime());
 
@@ -181,11 +218,6 @@ bool TestCaseSt5(const std::vector<std::wstring> &arguments)
 				++scoreCard.miscFailure;
 			}
 		}
-	}
-
-	for (auto process : processes)
-	{
-		CloseHandle(process);
 	}
 
 	std::cout << "-----" << std::endl;
