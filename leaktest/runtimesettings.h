@@ -8,6 +8,7 @@
 #include <string>
 #include <cstdint>
 #include <optional>
+#include <filesystem>
 
 class RuntimeSettings
 {
@@ -15,6 +16,10 @@ class RuntimeSettings
 	RuntimeSettings(Settings settings);
 
 public:
+
+	static std::filesystem::path GetSettingsFilePath();
+
+	static void OverrideSettingsFilePath(const std::filesystem::path &path);
 
 	static RuntimeSettings &Instance();
 

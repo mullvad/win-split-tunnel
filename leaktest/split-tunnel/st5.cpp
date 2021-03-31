@@ -42,12 +42,21 @@ private:
 	const time_point startTime = std::chrono::steady_clock::now();
 };
 
-HANDLE LaunchChild(const std::filesystem::path &path, const std::wstring &tunnelIp, const std::wstring &lanIp)
+HANDLE
+LaunchChild
+(
+	const std::filesystem::path &path,
+	const std::filesystem::path &settingsFilePath,
+	const std::wstring &tunnelIp,
+	const std::wstring &lanIp
+)
 {
+	const auto quotedSettingsFile = std::wstring(L"\"").append(settingsFilePath).append(L"\"");
+
 	return LaunchProcess
 	(
 		path,
-		std::vector<std::wstring> {L"st5-child", tunnelIp, lanIp},
+		std::vector<std::wstring> {L"st5-child", quotedSettingsFile, tunnelIp, lanIp},
 		CREATE_NO_WINDOW
 	);
 }
@@ -118,6 +127,7 @@ bool TestCaseSt5(const std::vector<std::wstring> &arguments)
 	}
 	scoreCard = {0,0,0};
 
+	const auto settingsFilePath = RuntimeSettings::GetSettingsFilePath();
 	const auto tunnelIp = IpToString(RuntimeSettings::Instance().tunnelIp());
 	const auto lanIp = IpToString(RuntimeSettings::Instance().lanIp());
 
@@ -166,7 +176,7 @@ bool TestCaseSt5(const std::vector<std::wstring> &arguments)
 	{
 		try
 		{
-			childProcesses.emplace_back(LaunchChild(childPaths[i], tunnelIp, lanIp));
+			childProcesses.emplace_back(LaunchChild(childPaths[i], settingsFilePath, tunnelIp, lanIp));
 		}
 		catch (...)
 		{
@@ -215,16 +225,18 @@ bool TestCaseSt5(const std::vector<std::wstring> &arguments)
 			}
 			default:
 			{
+				std::wcout << L"Unexpected child exit code" << std::endl;
+
 				++scoreCard.miscFailure;
 			}
 		}
 	}
 
-	std::cout << "-----" << std::endl;
-	std::cout << "Failed to start or report status: " << scoreCard.miscFailure << std::endl;
-	std::cout << "Had their bind redirected: " << scoreCard.lanBind << std::endl;
-	std::cout << "Bypassed the split tunnel functionality: " << scoreCard.tunnelBind << std::endl;
-	std::cout << "-----" << std::endl;
+	std::wcout << L"-----" << std::endl;
+	std::wcout << L"Failed to start or report status: " << scoreCard.miscFailure << std::endl;
+	std::wcout << L"Had their bind redirected: " << scoreCard.lanBind << std::endl;
+	std::wcout << L"Bypassed the split tunnel functionality: " << scoreCard.tunnelBind << std::endl;
+	std::wcout << L"-----" << std::endl;
 
 	return NUM_PROCESSES == scoreCard.lanBind;
 }
@@ -236,10 +248,13 @@ bool TestCaseSt5Child(const std::vector<std::wstring> &arguments)
 
 	ArgumentContext argsContext(arguments);
 
-	argsContext.ensureExactArgumentCount(2);
+	argsContext.ensureExactArgumentCount(3);
 
+	const auto settingsFilePath = std::filesystem::path(argsContext.next());
 	const auto tunnelIp = ParseIpv4(argsContext.next());
 	const auto lanIp = ParseIpv4(argsContext.next());
+
+	RuntimeSettings::OverrideSettingsFilePath(settingsFilePath);
 
 	std::wcout << "Creating socket and leaving it unbound" << std::endl;
 
@@ -278,12 +293,16 @@ bool TestCaseSt5Child(const std::vector<std::wstring> &arguments)
 
 	if (actualBind.sin_addr == tunnelIp)
 	{
+		std::wcout << L"Bound to tunnel interface" << std::endl;
+
 		SetProcessExitCode(static_cast<int>(ChildExitCode::BoundTunnel));
 
 		return true;
 	}
 	else if (actualBind.sin_addr == lanIp)
 	{
+		std::wcout << L"Bound to LAN interface" << std::endl;
+
 		SetProcessExitCode(static_cast<int>(ChildExitCode::BoundLan));
 
 		return true;

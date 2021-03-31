@@ -7,8 +7,23 @@
 namespace
 {
 
-std::filesystem::path GetSettingFilePath()
+std::filesystem::path g_SettingsFilePathOverride;
+
+} // anonymous namespace
+
+RuntimeSettings::RuntimeSettings(Settings settings)
+	: m_settings(std::move(settings))
 {
+}
+
+//static
+std::filesystem::path RuntimeSettings::GetSettingsFilePath()
+{
+	if (!g_SettingsFilePathOverride.empty())
+	{
+		return g_SettingsFilePathOverride;
+	}
+
 	wchar_t *rawPath;
 
 	if (0 != _get_wpgmptr(&rawPath))
@@ -28,11 +43,10 @@ std::filesystem::path GetSettingFilePath()
 	return path;
 }
 
-} // anonymous namespace
-
-RuntimeSettings::RuntimeSettings(Settings settings)
-	: m_settings(std::move(settings))
+//static
+void RuntimeSettings::OverrideSettingsFilePath(const std::filesystem::path &path)
 {
+	g_SettingsFilePathOverride = path;
 }
 
 //static
@@ -49,7 +63,7 @@ RuntimeSettings &RuntimeSettings::Instance()
 
 	if (Instance == nullptr)
 	{
-		Instance = new RuntimeSettings(Settings::FromFile(GetSettingFilePath()));
+		Instance = new RuntimeSettings(Settings::FromFile(GetSettingsFilePath()));
 	}
 
 	return *Instance;
