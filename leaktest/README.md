@@ -95,3 +95,11 @@ Evaluate whether binds to localhost are correctly **NOT** being redirected.
 When redirecting binds, one has to be mindful about attempted binds towards localhost. These binds must not be redirected because it would expose local services on the LAN.
 
 `leaktest st6`
+
+### `st7`
+
+Evaluate whether existing child processes become excluded with their parent.
+
+Again, because processes are likely to share data with their children, it makes sense that any existing child processes become excluded with their parent.
+
+`leaktest st7`

@@ -30,6 +30,7 @@
     <ClCompile Include="split-tunnel\st4.cpp" />
     <ClCompile Include="split-tunnel\st5.cpp" />
     <ClCompile Include="split-tunnel\st6.cpp" />
+    <ClCompile Include="split-tunnel\st7.cpp" />
     <ClCompile Include="util.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -44,6 +45,7 @@
     <ClInclude Include="split-tunnel\st4.h" />
     <ClInclude Include="split-tunnel\st5.h" />
     <ClInclude Include="split-tunnel\st6.h" />
+    <ClInclude Include="split-tunnel\st7.h" />
     <ClInclude Include="util.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

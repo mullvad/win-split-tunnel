@@ -6,6 +6,7 @@
 #include "split-tunnel/st4.h"
 #include "split-tunnel/st5.h"
 #include "split-tunnel/st6.h"
+#include "split-tunnel/st7.h"
 #include "util.h"
 #include "sockutil.h"
 #include <libcommon/error.h>
@@ -85,6 +86,8 @@ bool innerMain(int argc, wchar_t *argv[])
 		{ L"st6", TestCaseSt6 },
 		{ L"st6-server", TestCaseSt6Server },
 		{ L"st6-client", TestCaseSt6Client },
+		{ L"st7", TestCaseSt7 },
+		{ L"st7-child", TestCaseSt7Child },
 	};
 
 	//
