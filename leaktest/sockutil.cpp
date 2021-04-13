@@ -184,6 +184,23 @@ void ValidateBind(SOCKET s, const IN_ADDR &ip)
 	}
 }
 
+void SetSocketRecvTimeout(SOCKET s, std::chrono::milliseconds timeout)
+{
+	DWORD rawTimeout = static_cast<DWORD>(timeout.count());
+
+	const auto status = setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<char*>(&rawTimeout), sizeof(rawTimeout));
+
+	if (SOCKET_ERROR == status)
+	{
+		const auto errorCode = WSAGetLastError();
+
+		const auto err = std::string("Failed to set socket recv timeout: ")
+			.append(FormatWsaError(errorCode));
+
+		THROW_ERROR(err.c_str());
+	}
+}
+
 SOCKET CreateBindOverlappedSocket(const IN_ADDR &ip, uint16_t port, bool tcp)
 {
 	//

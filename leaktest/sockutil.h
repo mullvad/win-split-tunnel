@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <chrono>
 #include <ws2tcpip.h>
 
 std::string FormatWsaError(int errorCode);
@@ -26,6 +27,8 @@ void SendRecvValidateEcho(SOCKET s, const std::vector<uint8_t> &sendBuffer);
 sockaddr_in QueryBind(SOCKET s);
 
 void ValidateBind(SOCKET s, const IN_ADDR &ip);
+
+void SetSocketRecvTimeout(SOCKET s, std::chrono::milliseconds timeout);
 
 SOCKET CreateBindOverlappedSocket(const IN_ADDR &ip, uint16_t port = 0, bool tcp = true);
 

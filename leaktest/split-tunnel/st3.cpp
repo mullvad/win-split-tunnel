@@ -6,6 +6,8 @@
 #include "../sockutil.h"
 #include <libcommon/memory.h>
 
+constexpr auto SocketRecvTimeoutValue = std::chrono::milliseconds(2000);
+
 bool TestCaseSt3(const std::vector<std::wstring> &arguments)
 {
 	std::wcout << L"Launching split tunnel test case 3" << std::endl;
@@ -30,6 +32,11 @@ bool TestCaseSt3(const std::vector<std::wstring> &arguments)
 	{
 		ShutdownSocket(lanSocket);
 	};
+
+	if (!tcp)
+	{
+		SetSocketRecvTimeout(lanSocket, SocketRecvTimeoutValue);
+	}
 
 	std::wcout << L"Connecting to tcpbin server" << std::endl;
 
