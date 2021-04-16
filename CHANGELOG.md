@@ -20,6 +20,9 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+### Changed
+Use less strict security descriptor on device object. The previous SD was interfering with the
+uninstallation which, naturally, was not running as SYSTEM.
 
 ## [1.0.1.0] - 2021-03-12
 ### Fixed
