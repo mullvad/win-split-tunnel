@@ -17,10 +17,8 @@ Main features:
 
 The code and project file is known to work with the following combination of software:
 
-- Visual Studio 2019 (MSVC toolset v14.26)
+- Visual Studio 2019 (MSVC toolset >= v14.26)
 - WDK v10.0.18362.1
-
-Specifically, the code can't be compiled using MSVC toolset v14.28 because of limitations in this version.
 
 # Architecture
 
