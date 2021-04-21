@@ -411,7 +411,7 @@ HandleProcessDeparting
 
     WdfSpinLockAcquire(processRegistry->Lock);
 
-    procregistry::DeleteEntry(processRegistry->Instance, registryEntry);
+    NT_ASSERT(procregistry::DeleteEntry(processRegistry->Instance, registryEntry));
 
     WdfSpinLockRelease(processRegistry->Lock);
 }
