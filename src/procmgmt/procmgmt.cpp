@@ -134,8 +134,8 @@ Duplicate_imagename:
 
     auto status = util::DuplicateString
     (
-        &RegistryEntry->ImageName,
         &ArrivalEvent->Imagename,
+        &RegistryEntry->ImageName,
         ST_PAGEABLE::NO
     );
 

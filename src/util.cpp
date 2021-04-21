@@ -216,8 +216,8 @@ IsEmptyRange
 NTSTATUS
 AllocateCopyDowncaseString
 (
-	const UNICODE_STRING * const Src,
 	LOWER_UNICODE_STRING *Dest,
+	const UNICODE_STRING * const Src,
 	ST_PAGEABLE Pageable
 )
 {
@@ -286,8 +286,8 @@ FreeStringBuffer
 NTSTATUS
 DuplicateString
 (
-	const UNICODE_STRING *Src,
 	UNICODE_STRING *Dest,
+	const UNICODE_STRING *Src,
 	ST_PAGEABLE Pageable
 )
 {
@@ -312,12 +312,12 @@ DuplicateString
 NTSTATUS
 DuplicateString
 (
-	const LOWER_UNICODE_STRING *Src,
 	LOWER_UNICODE_STRING *Dest,
+	const LOWER_UNICODE_STRING *Src,
 	ST_PAGEABLE Pageable
 )
 {
-	return DuplicateString((const UNICODE_STRING*)Src, (UNICODE_STRING*)Dest, Pageable);
+	return DuplicateString((UNICODE_STRING*)Dest, (const UNICODE_STRING*)Src, Pageable);
 }
 
 void

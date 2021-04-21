@@ -221,7 +221,7 @@ InitializeEntry
 	{
 		LOWER_UNICODE_STRING lowerImageName;
 
-		auto status = util::AllocateCopyDowncaseString(ImageName, &lowerImageName, Context->Pageable);
+		auto status = util::AllocateCopyDowncaseString(&lowerImageName, ImageName, Context->Pageable);
 
 		if (!NT_SUCCESS(status))
 		{
