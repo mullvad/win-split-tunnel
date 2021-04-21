@@ -125,4 +125,11 @@ Equal
 	const LOWER_UNICODE_STRING *b
 );
 
+void
+Swap
+(
+	LOWER_UNICODE_STRING *lhs,
+	LOWER_UNICODE_STRING *rhs
+);
+
 } // namespace util

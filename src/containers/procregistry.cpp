@@ -104,19 +104,32 @@ ClearDepartingParentLink
 	return true;
 }
 
-void
+bool
 InnerDeleteEntry
 (
 	CONTEXT *Context,
 	PROCESS_REGISTRY_ENTRY *Entry
 )
 {
-	if (Entry->ImageName.Buffer != NULL)
+	LOWER_UNICODE_STRING imageName = { 0 };
+
+	util::Swap(&Entry->ImageName, &imageName);
+
+	const auto status = RtlDeleteElementGenericTableAvl(&Context->Tree, Entry);
+
+	if (FALSE == status)
 	{
-		util::FreeStringBuffer(&Entry->ImageName);
+		util::Swap(&Entry->ImageName, &imageName);
+
+		return false;
 	}
 
-	RtlDeleteElementGenericTableAvl(&Context->Tree, Entry);
+	if (imageName.Buffer != NULL)
+	{
+		util::FreeStringBuffer(&imageName);
+	}
+
+	return true;
 }
 
 } // anonymous namespace

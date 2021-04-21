@@ -358,4 +358,18 @@ Equal
 	return equalBytes == b->Length;
 }
 
+void
+Swap
+(
+	LOWER_UNICODE_STRING *lhs,
+	LOWER_UNICODE_STRING *rhs
+)
+{
+	const LOWER_UNICODE_STRING temp = *lhs;
+
+	*lhs = *rhs;
+
+	*rhs = temp;
+}
+
 } // namespace util
