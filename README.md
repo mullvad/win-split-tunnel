@@ -131,8 +131,9 @@ Because explicitly bound client sockets are rare, it can be expected that most e
 
 Copyright (C) 2021  Mullvad VPN AB
 
-This program is free software: you can redistribute it and/or modify it under the terms of the
-GNU General Public License as published by the Free Software Foundation, either version 3 of
-the License, or (at your option) any later version.
+Licensed under either of
 
-For the full license agreement, see the LICENSE.md file
+- GNU General Public License, version 3 or later ([LICENSE-GPL](LICENSE-GPL.md))
+- Mozilla Public License, version 2.0 ([LICENSE-MPL](LICENSE-MPL.txt))
+
+at your option.
