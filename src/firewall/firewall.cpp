@@ -124,20 +124,30 @@ UnregisterCallouts
 (
 )
 {
-#define RETURN_IF_FAILED(status) \
-	if (!NT_SUCCESS(status)) \
-	{ \
-		DbgPrint("Could not unregister callout\n"); \
-		return status; \
-	}
-
 	auto s1 = UnregisterCalloutBlockSplitApps();
 	auto s2 = UnregisterCalloutPermitSplitApps();
 	auto s3 = UnregisterCalloutClassifyBind();
 
-	RETURN_IF_FAILED(s1);
-	RETURN_IF_FAILED(s2);
-	RETURN_IF_FAILED(s3);
+	if (!NT_SUCCESS(s1))
+	{
+		DbgPrint("Could not unregister block-split-apps callout\n");
+
+		return s1;
+	}
+
+	if (!NT_SUCCESS(s2))
+	{
+		DbgPrint("Could not unregister permit-split-apps callout\n");
+
+		return s2;
+	}
+
+	if (!NT_SUCCESS(s3))
+	{
+		DbgPrint("Could not unregister bind-redirect callout\n");
+
+		return s3;
+	}
 
 	return STATUS_SUCCESS;
 }
@@ -161,7 +171,7 @@ RegisterCallouts
 
 	if (!NT_SUCCESS(status))
 	{
-		DbgPrint("Could not register callout\n");
+		DbgPrint("Could not register bind-redirect callout\n");
 
 		return status;
 	}
@@ -170,25 +180,32 @@ RegisterCallouts
 
 	if (!NT_SUCCESS(status))
 	{
-		DbgPrint("Could not register callout\n");
+		DbgPrint("Could not register permit-split-apps callout\n");
 
-		UnregisterCallouts();
-
-		return status;
+		goto Unregister_callouts;
 	}
 
 	status = RegisterCalloutBlockSplitAppsTx(DeviceObject, WfpSession);
 
 	if (!NT_SUCCESS(status))
 	{
-		DbgPrint("Could not register callout\n");
+		DbgPrint("Could not register block-split-apps callout\n");
 
-		UnregisterCallouts();
-
-		return status;
+		goto Unregister_callouts;
 	}
 
 	return STATUS_SUCCESS;
+
+Unregister_callouts:
+
+	const auto s2 = UnregisterCallouts();
+
+	if (!NT_SUCCESS(s2))
+	{
+		DbgPrint("One or more callouts could not be unregistered: 0x%X\n", s2);
+	}
+
+	return status;
 }
 
 PROCESS_SPLIT_VERDICT
@@ -961,7 +978,14 @@ Abort_teardown_appfilters:
 
 Abort_unregister_callouts:
 
-	UnregisterCallouts();
+	{
+		const auto s2 = UnregisterCallouts();
+
+		if (!NT_SUCCESS(s2))
+		{
+			DbgPrint("One or more callouts could not be unregistered: 0x%X\n", s2);
+		}
+	}
 
 Abort_destroy_session:
 
