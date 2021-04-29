@@ -87,26 +87,26 @@
   <PropertyGroup />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>$(SolutionDir)..\bin\$(Platform)-$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(SolutionDir)\..\bin\$(Platform)-$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>$(SolutionDir)..\bin\$(Platform)-$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(SolutionDir)\..\bin\$(Platform)-$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>$(SolutionDir)..\bin\$(Platform)-$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(SolutionDir)\..\bin\$(Platform)-$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>$(SolutionDir)..\bin\$(Platform)-$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(SolutionDir)\..\bin\$(Platform)-$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -123,7 +123,7 @@
       <TimeStamp>0.0.0.1</TimeStamp>
     </Inf>
     <PostBuildEvent>
-      <Command>copy /y $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
+      <Command>copy /y $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
@@ -139,7 +139,7 @@
       <AdditionalOptions>/INTEGRITYCHECK %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PostBuildEvent>
-      <Command>copy /y $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
+      <Command>copy /y $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
@@ -157,7 +157,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <PostBuildEvent>
-      <Command>copy /y $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
+      <Command>copy /y $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
@@ -180,7 +180,7 @@
       <TimeStamp>0.0.0.1</TimeStamp>
     </Inf>
     <PostBuildEvent>
-      <Command>copy /y $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
+      <Command>copy /y $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
