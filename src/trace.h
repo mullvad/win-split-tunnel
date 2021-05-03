@@ -29,7 +29,10 @@
 // This comment block is scanned by the trace preprocessor to define the
 // TraceEvents function.
 //
+// This also overrides DbgPrint and sends messages to WPP
+//
 // begin_wpp config
 // FUNC TraceEvents(LEVEL, FLAGS, MSG, ...);
+// FUNC DbgPrint{LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_GENERAL}(MSG, ...);
 // end_wpp
 //

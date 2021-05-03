@@ -363,7 +363,7 @@ DbgPrintConfiguration
 {
     UNREFERENCED_PARAMETER(Context);
 
-    DbgPrint("%wZ\n", Entry);
+    DbgPrint("%wZ\n", (const UNICODE_STRING*)Entry);
 
     return true;
 }
