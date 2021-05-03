@@ -263,7 +263,7 @@ bool
 NTAPI
 GetConfigurationComputeLength
 (
-    LOWER_UNICODE_STRING *Entry,
+    const LOWER_UNICODE_STRING *Entry,
     void *Context
 )
 {
@@ -292,7 +292,7 @@ bool
 NTAPI
 GetConfigurationSerialize
 (
-    LOWER_UNICODE_STRING *Entry,
+    const LOWER_UNICODE_STRING *Entry,
     void *Context
 )
 {
@@ -357,7 +357,7 @@ bool
 NTAPI
 DbgPrintConfiguration
 (
-    LOWER_UNICODE_STRING *Entry,
+    const LOWER_UNICODE_STRING *Entry,
     void *Context
 )
 {
