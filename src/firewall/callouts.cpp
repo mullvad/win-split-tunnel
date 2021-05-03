@@ -340,6 +340,17 @@ ClassifyUnknownBind
 //
 // CalloutClassifyBind()
 //
+// ===
+//
+// NOTE: This function is always called at PASSIVE_LEVEL.
+// 
+// Callouts are generally activated at <= DISPATCH_LEVEL, but the bind redirect
+// layers are special-cased and guarantee PASSIVE_LEVEL.
+//
+// https://community.osr.com/discussion/292855/irql-for-wfp-callouts-at-fwpm-layer-ale-bind-redirect-vxxx
+// 
+// ===
+// 
 // Entry point for splitting traffic.
 // Check whether the binding process is marked for having its traffic split.
 //
