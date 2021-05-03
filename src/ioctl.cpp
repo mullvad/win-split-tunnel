@@ -10,6 +10,9 @@
 #include "eventing/eventing.h"
 #include "eventing/builder.h"
 
+#include "trace.h"
+#include "ioctl.tmh"
+
 namespace ioctl
 {
 

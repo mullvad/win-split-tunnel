@@ -10,6 +10,9 @@
 #include "../eventing/builder.h"
 #include "firewall.h"
 
+#include "../trace.h"
+#include "firewall.tmh"
+
 namespace firewall
 {
 

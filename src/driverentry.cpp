@@ -12,6 +12,9 @@
 #include "defs/ioctl.h"
 #include "eventing/eventing.h"
 
+#include "trace.h"
+#include "driverentry.tmh"
+
 extern "C"
 DRIVER_INITIALIZE DriverEntry;
 
@@ -50,6 +53,8 @@ DriverEntry
     _In_ PUNICODE_STRING RegistryPath
 )
 {
+    WPP_INIT_TRACING(DriverObject, RegistryPath);
+
     DbgPrint("Loading Mullvad split tunnel driver\n");
 
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
@@ -80,6 +85,14 @@ DriverEntry
     if (!NT_SUCCESS(status))
     {
         DbgPrint("WdfDriverCreate() failed 0x%X\n", status);
+
+        //
+        // StEvtDriverUnload() won't be called so we have to
+        // clean up WPP here instead.
+        //
+
+        WPP_CLEANUP(DriverObject);
+
         return status;
     }
 
@@ -551,4 +564,6 @@ StEvtDriverUnload
     UNREFERENCED_PARAMETER(WdfDriver);
 
     DbgPrint("Unloading Mullvad split tunnel driver\n");
+
+    WPP_CLEANUP(WdfDriverWdmGetDriverObject(WdfDriver));
 }

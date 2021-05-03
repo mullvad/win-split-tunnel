@@ -4,6 +4,9 @@
 #include "../defs/events.h"
 #include "../eventing/builder.h"
 
+#include "../trace.h"
+#include "procmgmt.tmh"
+
 namespace procmgmt
 {
 

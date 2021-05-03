@@ -6,6 +6,9 @@
 #include "callouts.h"
 #include "../util.h"
 
+#include "../trace.h"
+#include "callouts.tmh"
+
 #define RETURN_IF_UNSUCCESSFUL(status) \
 	if (!NT_SUCCESS(status)) \
 	{ \

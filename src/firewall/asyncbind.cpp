@@ -1,6 +1,9 @@
 #include "asyncbind.h"
 #include "../util.h"
 
+#include "../trace.h"
+#include "asyncbind.tmh"
+
 namespace firewall
 {
 

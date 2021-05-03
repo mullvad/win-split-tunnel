@@ -146,6 +146,7 @@
     <ClInclude Include="firewall\appfilters.h">
       <Filter>firewall</Filter>
     </ClInclude>
+    <ClInclude Include="trace.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="firewall">

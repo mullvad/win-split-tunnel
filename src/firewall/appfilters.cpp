@@ -5,6 +5,9 @@
 #include "../util.h"
 #include "appfilters.h"
 
+#include "../trace.h"
+#include "appfilters.tmh"
+
 namespace firewall::appfilters
 {
 

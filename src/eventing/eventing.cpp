@@ -3,6 +3,9 @@
 #include "builder.h"
 #include "../defs/types.h"
 
+#include "../trace.h"
+#include "eventing.tmh"
+
 namespace eventing
 {
 

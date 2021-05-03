@@ -4,6 +4,9 @@
 #include "../util.h"
 #include "../defs/types.h"
 
+#include "../trace.h"
+#include "procmon.tmh"
+
 namespace procmon
 {
 
