@@ -20,9 +20,16 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+
+
+## [1.0.2.0] - 2021-05-04
 ### Changed
 Use less strict security descriptor on device object. The previous SD could e.g. prevent
 uninstallation of the driver, since uninstallers typically are not ran as SYSTEM.
+
+### Fixed
+Various minor code changes to improve both source code and runtime consistency.
+
 
 ## [1.0.1.0] - 2021-03-12
 ### Fixed
