@@ -47,7 +47,7 @@ mkdir %ROOT%bin\dist\legacy
 copy /b %ROOT%bin\x64-Release\mullvad-split-tunnel\* %ROOT%bin\dist\legacy\
 
 mkdir %ROOT%bin\dist\meta
-move %ROOT%bin\dist\legacy\mullvad-split-tunnel\mullvad-split-tunnel.pdb %ROOT%bin\dist\meta\
+move %ROOT%bin\dist\legacy\mullvad-split-tunnel.pdb %ROOT%bin\dist\meta\
 
 ::
 :: Build a CAB file for submission to the MS Hardware Dev Center
