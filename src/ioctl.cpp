@@ -10,6 +10,9 @@
 #include "eventing/eventing.h"
 #include "eventing/builder.h"
 
+#include "trace.h"
+#include "ioctl.tmh"
+
 namespace ioctl
 {
 
@@ -260,7 +263,7 @@ bool
 NTAPI
 GetConfigurationComputeLength
 (
-    LOWER_UNICODE_STRING *Entry,
+    const LOWER_UNICODE_STRING *Entry,
     void *Context
 )
 {
@@ -289,7 +292,7 @@ bool
 NTAPI
 GetConfigurationSerialize
 (
-    LOWER_UNICODE_STRING *Entry,
+    const LOWER_UNICODE_STRING *Entry,
     void *Context
 )
 {
@@ -354,13 +357,13 @@ bool
 NTAPI
 DbgPrintConfiguration
 (
-    LOWER_UNICODE_STRING *Entry,
+    const LOWER_UNICODE_STRING *Entry,
     void *Context
 )
 {
     UNREFERENCED_PARAMETER(Context);
 
-    DbgPrint("%wZ\n", Entry);
+    DbgPrint("%wZ\n", (const UNICODE_STRING*)Entry);
 
     return true;
 }

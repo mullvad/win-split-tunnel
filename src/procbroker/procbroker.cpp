@@ -2,6 +2,9 @@
 #include "context.h"
 #include "../defs/types.h"
 
+#include "../trace.h"
+#include "procbroker.tmh"
+
 namespace procbroker
 {
 

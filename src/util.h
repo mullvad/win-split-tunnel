@@ -9,7 +9,8 @@
 #define htons(s) bswapw(s)
 
 template<typename T>
-bool bool_cast(T t)
+bool
+bool_cast(T t)
 {
 	return t != 0;
 }
@@ -20,13 +21,24 @@ namespace util
 //
 // N.B. m has to be a power of two.
 //
-inline SIZE_T RoundToMultiple(SIZE_T v, SIZE_T m)
+inline
+constexpr
+SIZE_T
+RoundToMultiple
+(
+	SIZE_T v,
+	SIZE_T m
+)
 {
 	return ((v + m - 1) & ~(m - 1));
 }
 
 void
-ReparentList(LIST_ENTRY *dest, LIST_ENTRY *src);
+ReparentList
+(
+	LIST_ENTRY *Dest,
+	LIST_ENTRY *Src
+);
 
 //
 // GetDevicePathImageName()
@@ -52,8 +64,8 @@ GetDevicePathImageName
 bool
 ValidateBufferRange
 (
-	void *Buffer,
-	void *BufferEnd,
+	const void *Buffer,
+	const void *BufferEnd,
 	SIZE_T RangeOffset,
 	SIZE_T RangeLength
 );
@@ -69,13 +81,13 @@ IsEmptyRange
 // AllocateCopyDowncaseString()
 //
 // Make a lower case copy of the string.
-// `Out->Buffer` is allocated and assigned.
+// `Dest->Buffer` is allocated and assigned.
 //
 NTSTATUS
 AllocateCopyDowncaseString
 (
-	const UNICODE_STRING * const In,
-	LOWER_UNICODE_STRING *Out,
+	LOWER_UNICODE_STRING *Dest,
+	const UNICODE_STRING * const Src,
 	ST_PAGEABLE Pageable
 );
 
@@ -94,16 +106,16 @@ FreeStringBuffer
 NTSTATUS
 DuplicateString
 (
-	const UNICODE_STRING *Src,
 	UNICODE_STRING *Dest,
+	const UNICODE_STRING *Src,
 	ST_PAGEABLE Pageable
 );
 
 NTSTATUS
 DuplicateString
 (
-	const LOWER_UNICODE_STRING *Src,
 	LOWER_UNICODE_STRING *Dest,
+	const LOWER_UNICODE_STRING *Src,
 	ST_PAGEABLE Pageable
 );
 
@@ -121,8 +133,15 @@ SplittingEnabled
 bool
 Equal
 (
-	const LOWER_UNICODE_STRING *a,
-	const LOWER_UNICODE_STRING *b
+	const LOWER_UNICODE_STRING *lhs,
+	const LOWER_UNICODE_STRING *rhs
+);
+
+void
+Swap
+(
+	LOWER_UNICODE_STRING *lhs,
+	LOWER_UNICODE_STRING *rhs
 );
 
 } // namespace util

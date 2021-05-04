@@ -6,6 +6,15 @@
 #include "callouts.h"
 #include "../util.h"
 
+#include "../trace.h"
+#include "callouts.tmh"
+
+#define RETURN_IF_UNSUCCESSFUL(status) \
+	if (!NT_SUCCESS(status)) \
+	{ \
+		return status; \
+	}
+
 namespace firewall
 {
 
@@ -80,6 +89,45 @@ RegisterCalloutTx
     aCallout.flowDeleteFn = NULL;
 
     return FwpsCalloutRegister1(DeviceObject, &aCallout, NULL);
+}
+
+//
+// UnregisterCallout()
+// 
+// This is a thin wrapper around FwpsCalloutUnregisterByKey0().
+// The reason is to clarify and simplify usage.
+//
+NTSTATUS
+UnregisterCallout
+(
+	const GUID *CalloutKey
+)
+{
+	const auto status = FwpsCalloutUnregisterByKey0(CalloutKey);
+
+	if (NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	if (status == STATUS_FWP_CALLOUT_NOT_FOUND)
+	{
+		return STATUS_SUCCESS;
+	}
+
+	//
+	// The current implementation doesn't process flows or use flow contexts.
+	// So this status code won't be returned.
+	//
+	NT_ASSERT(status != STATUS_DEVICE_BUSY);
+
+	//
+	// The current implementation manages registration and unregistration
+	// on the primary thread. So this status code won't be returned.
+	//
+	NT_ASSERT(status != STATUS_FWP_IN_USE);
+
+	return status;
 }
 
 //
@@ -292,6 +340,17 @@ ClassifyUnknownBind
 //
 // CalloutClassifyBind()
 //
+// ===
+//
+// NOTE: This function is always called at PASSIVE_LEVEL.
+// 
+// Callouts are generally activated at <= DISPATCH_LEVEL, but the bind redirect
+// layers are special-cased and guarantee PASSIVE_LEVEL.
+//
+// https://community.osr.com/discussion/292855/irql-for-wfp-callouts-at-fwpm-layer-ale-bind-redirect-vxxx
+// 
+// ===
+// 
 // Entry point for splitting traffic.
 // Check whether the binding process is marked for having its traffic split.
 //
@@ -664,17 +723,11 @@ UnregisterCalloutClassifyBind
 (
 )
 {
-#define RETURN_IF_FAILED(status) \
-	if (!NT_SUCCESS(status) && status != STATUS_FWP_CALLOUT_NOT_FOUND) \
-	{ \
-		return status; \
-	}
+    auto s1 = UnregisterCallout(&ST_FW_CALLOUT_CLASSIFY_BIND_IPV4_KEY);
+	auto s2 = UnregisterCallout(&ST_FW_CALLOUT_CLASSIFY_BIND_IPV6_KEY);
 
-    auto s1 = FwpsCalloutUnregisterByKey0(&ST_FW_CALLOUT_CLASSIFY_BIND_IPV4_KEY);
-	auto s2 = FwpsCalloutUnregisterByKey0(&ST_FW_CALLOUT_CLASSIFY_BIND_IPV6_KEY);
-
-	RETURN_IF_FAILED(s1)
-	RETURN_IF_FAILED(s2)
+	RETURN_IF_UNSUCCESSFUL(s1);
+	RETURN_IF_UNSUCCESSFUL(s2);
 
 	return STATUS_SUCCESS;
 }
@@ -771,21 +824,15 @@ UnregisterCalloutPermitSplitApps
 (
 )
 {
-#define RETURN_IF_FAILED(status) \
-	if (!NT_SUCCESS(status) && status != STATUS_FWP_CALLOUT_NOT_FOUND) \
-	{ \
-		return status; \
-	}
+    auto s1 = UnregisterCallout(&ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV4_CONN_KEY);
+	auto s2 = UnregisterCallout(&ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV4_RECV_KEY);
+    auto s3 = UnregisterCallout(&ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV6_CONN_KEY);
+	auto s4 = UnregisterCallout(&ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV6_RECV_KEY);
 
-    auto s1 = FwpsCalloutUnregisterByKey0(&ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV4_CONN_KEY);
-	auto s2 = FwpsCalloutUnregisterByKey0(&ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV4_RECV_KEY);
-    auto s3 = FwpsCalloutUnregisterByKey0(&ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV6_CONN_KEY);
-	auto s4 = FwpsCalloutUnregisterByKey0(&ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV6_RECV_KEY);
-
-	RETURN_IF_FAILED(s1);
-	RETURN_IF_FAILED(s2);
-	RETURN_IF_FAILED(s3);
-	RETURN_IF_FAILED(s4);
+	RETURN_IF_UNSUCCESSFUL(s1);
+	RETURN_IF_UNSUCCESSFUL(s2);
+	RETURN_IF_UNSUCCESSFUL(s3);
+	RETURN_IF_UNSUCCESSFUL(s4);
 
 	return STATUS_SUCCESS;
 }
@@ -882,21 +929,15 @@ UnregisterCalloutBlockSplitApps
 (
 )
 {
-#define RETURN_IF_FAILED(status) \
-	if (!NT_SUCCESS(status) && status != STATUS_FWP_CALLOUT_NOT_FOUND) \
-	{ \
-		return status; \
-	}
+    auto s1 = UnregisterCallout(&ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV4_CONN_KEY);
+	auto s2 = UnregisterCallout(&ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV4_RECV_KEY);
+    auto s3 = UnregisterCallout(&ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_CONN_KEY);
+	auto s4 = UnregisterCallout(&ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_RECV_KEY);
 
-    auto s1 = FwpsCalloutUnregisterByKey0(&ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV4_CONN_KEY);
-	auto s2 = FwpsCalloutUnregisterByKey0(&ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV4_RECV_KEY);
-    auto s3 = FwpsCalloutUnregisterByKey0(&ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_CONN_KEY);
-	auto s4 = FwpsCalloutUnregisterByKey0(&ST_FW_CALLOUT_BLOCK_SPLIT_APPS_IPV6_RECV_KEY);
-
-	RETURN_IF_FAILED(s1);
-	RETURN_IF_FAILED(s2);
-	RETURN_IF_FAILED(s3);
-	RETURN_IF_FAILED(s4);
+	RETURN_IF_UNSUCCESSFUL(s1);
+	RETURN_IF_UNSUCCESSFUL(s2);
+	RETURN_IF_UNSUCCESSFUL(s3);
+	RETURN_IF_UNSUCCESSFUL(s4);
 
 	return STATUS_SUCCESS;
 }

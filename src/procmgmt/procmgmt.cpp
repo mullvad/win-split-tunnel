@@ -4,6 +4,9 @@
 #include "../defs/events.h"
 #include "../eventing/builder.h"
 
+#include "../trace.h"
+#include "procmgmt.tmh"
+
 namespace procmgmt
 {
 
@@ -134,8 +137,8 @@ Duplicate_imagename:
 
     auto status = util::DuplicateString
     (
-        &RegistryEntry->ImageName,
         &ArrivalEvent->Imagename,
+        &RegistryEntry->ImageName,
         ST_PAGEABLE::NO
     );
 
@@ -411,7 +414,7 @@ HandleProcessDeparting
 
     WdfSpinLockAcquire(processRegistry->Lock);
 
-    procregistry::DeleteEntry(processRegistry->Instance, registryEntry);
+    NT_ASSERT(procregistry::DeleteEntry(processRegistry->Instance, registryEntry));
 
     WdfSpinLockRelease(processRegistry->Lock);
 }

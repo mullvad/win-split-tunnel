@@ -87,26 +87,26 @@
   <PropertyGroup />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>$(SolutionDir)..\bin\$(Platform)-$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(SolutionDir)\..\bin\$(Platform)-$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>$(SolutionDir)..\bin\$(Platform)-$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(SolutionDir)\..\bin\$(Platform)-$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>$(SolutionDir)..\bin\$(Platform)-$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(SolutionDir)\..\bin\$(Platform)-$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>$(SolutionDir)..\bin\$(Platform)-$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(SolutionDir)\..\bin\$(Platform)-$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\..\bin\temp\$(Platform)-$(Configuration)\$(ProjectName)\</IntDir>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -114,6 +114,8 @@
       <PreprocessorDefinitions>POOL_NX_OPTIN=1;_WIN64;_AMD64_;AMD64;DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <AdditionalOptions>/permissive %(AdditionalOptions)</AdditionalOptions>
+      <WppEnabled>true</WppEnabled>
+      <WppScanConfigurationData>trace.h</WppScanConfigurationData>
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(KMDF_LIB_PATH)$(KMDF_VER_PATH)\WdfLdr.lib;$(KMDF_LIB_PATH)$(KMDF_VER_PATH)\WdfDriverEntry.lib;$(DDK_LIB_PATH)\wdmsec.lib;Fwpkclnt.lib</AdditionalDependencies>
@@ -123,7 +125,7 @@
       <TimeStamp>0.0.0.1</TimeStamp>
     </Inf>
     <PostBuildEvent>
-      <Command>copy /y $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
+      <Command>copy /y $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
@@ -133,13 +135,15 @@
     <ClCompile>
       <PreprocessorDefinitions>_ARM64_;ARM64;_USE_DECLSPECS_FOR_SAL=1;STD_CALL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <WppEnabled>true</WppEnabled>
+      <WppScanConfigurationData>trace.h</WppScanConfigurationData>
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(KMDF_LIB_PATH)$(KMDF_VER_PATH)\WdfLdr.lib;$(KMDF_LIB_PATH)$(KMDF_VER_PATH)\WdfDriverEntry.lib;$(DDK_LIB_PATH)\wdmsec.lib;Fwpkclnt.lib</AdditionalDependencies>
       <AdditionalOptions>/INTEGRITYCHECK %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PostBuildEvent>
-      <Command>copy /y $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
+      <Command>copy /y $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
@@ -155,9 +159,11 @@
     </Link>
     <ClCompile>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <WppEnabled>true</WppEnabled>
+      <WppScanConfigurationData>trace.h</WppScanConfigurationData>
     </ClCompile>
     <PostBuildEvent>
-      <Command>copy /y $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
+      <Command>copy /y $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
@@ -175,12 +181,14 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PreprocessorDefinitions>POOL_NX_OPTIN=1;_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>/permissive %(AdditionalOptions)</AdditionalOptions>
+      <WppEnabled>true</WppEnabled>
+      <WppScanConfigurationData>trace.h</WppScanConfigurationData>
     </ClCompile>
     <Inf>
       <TimeStamp>0.0.0.1</TimeStamp>
     </Inf>
     <PostBuildEvent>
-      <Command>copy /y $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
+      <Command>copy /y $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
@@ -247,6 +255,7 @@
     <ClInclude Include="procmon\context.h" />
     <ClInclude Include="procmon\procmon.h" />
     <ClInclude Include="public.h" />
+    <ClInclude Include="trace.h" />
     <ClInclude Include="util.h" />
     <ClInclude Include="validation.h" />
     <ClInclude Include="version.h" />

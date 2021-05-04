@@ -5,6 +5,9 @@
 #include "../util.h"
 #include "appfilters.h"
 
+#include "../trace.h"
+#include "appfilters.tmh"
+
 namespace firewall::appfilters
 {
 
@@ -971,7 +974,7 @@ RegisterFilterBlockAppTunnelTrafficTx2
 
 	InsertTailList(&context->BlockedTunnelConnections, &entry->ListEntry);
 
-	DbgPrint("Added tunnel block filters for %wZ\n", ImageName);
+	DbgPrint("Added tunnel block filters for %wZ\n", (const UNICODE_STRING*)ImageName);
 
 	return STATUS_SUCCESS;
 }
@@ -1036,7 +1039,7 @@ RemoveFilterBlockAppTunnelTrafficTx2
 
 	if (NT_SUCCESS(status))
 	{
-		DbgPrint("Removed tunnel block filters for %wZ\n", ImageName);
+		DbgPrint("Removed tunnel block filters for %wZ\n", (const UNICODE_STRING*)ImageName);
 	}
 
 	return status;

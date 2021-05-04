@@ -5,15 +5,19 @@ namespace util
 {
 
 void
-ReparentList(LIST_ENTRY *dest, LIST_ENTRY *src)
+ReparentList
+(
+	LIST_ENTRY *Dest,
+	LIST_ENTRY *Src
+)
 {
 	//
 	// If it's an empty list there is nothing to reparent.
 	//
 
-	if (src->Flink == src)
+	if (Src->Flink == Src)
 	{
-		InitializeListHead(dest);
+		InitializeListHead(Dest);
 		return;
 	}
 
@@ -21,20 +25,20 @@ ReparentList(LIST_ENTRY *dest, LIST_ENTRY *src)
 	// Replace root node.
 	//
 
-	*dest = *src;
+	*Dest = *Src;
 
 	//
 	// Update links on first and last entry.
 	//
 
-	dest->Flink->Blink = dest;
-	dest->Blink->Flink = dest;
+	Dest->Flink->Blink = Dest;
+	Dest->Blink->Flink = Dest;
 
 	//
 	// Reinitialize original root node.
 	//
 
-	InitializeListHead(src);
+	InitializeListHead(Src);
 }
 
 typedef NTSTATUS (*QUERY_INFO_PROCESS) (
@@ -159,8 +163,8 @@ Cleanup:
 bool
 ValidateBufferRange
 (
-	void *Buffer,
-	void *BufferEnd,
+	const void *Buffer,
+	const void *BufferEnd,
 	SIZE_T RangeOffset,
 	SIZE_T RangeLength
 )
@@ -170,11 +174,11 @@ ValidateBufferRange
 		return true;
 	}
 
-    auto range = (UCHAR*)Buffer + RangeOffset;
+    auto range = (const UCHAR*)Buffer + RangeOffset;
     auto rangeEnd = range + RangeLength;
 
-    if (range < (UCHAR*)Buffer
-        || range >= (UCHAR*)BufferEnd
+    if (range < (const UCHAR*)Buffer
+        || range >= (const UCHAR*)BufferEnd
         || rangeEnd < range
         || rangeEnd > BufferEnd)
     {
@@ -212,8 +216,8 @@ IsEmptyRange
 NTSTATUS
 AllocateCopyDowncaseString
 (
-	const UNICODE_STRING * const In,
-	LOWER_UNICODE_STRING *Out,
+	LOWER_UNICODE_STRING *Dest,
+	const UNICODE_STRING * const Src,
 	ST_PAGEABLE Pageable
 )
 {
@@ -228,7 +232,7 @@ AllocateCopyDowncaseString
 
 	UNICODE_STRING lower;
 
-	auto status = RtlDowncaseUnicodeString(&lower, In, TRUE);
+	auto status = RtlDowncaseUnicodeString(&lower, Src, TRUE);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -248,9 +252,9 @@ AllocateCopyDowncaseString
 
 	RtlCopyMemory(finalBuffer, lower.Buffer, lower.Length);
 
-	Out->Length = lower.Length;
-	Out->MaximumLength = lower.Length;
-	Out->Buffer = finalBuffer;
+	Dest->Length = lower.Length;
+	Dest->MaximumLength = lower.Length;
+	Dest->Buffer = finalBuffer;
 
 	RtlFreeUnicodeString(&lower);
 
@@ -282,8 +286,8 @@ FreeStringBuffer
 NTSTATUS
 DuplicateString
 (
-	const UNICODE_STRING *Src,
 	UNICODE_STRING *Dest,
+	const UNICODE_STRING *Src,
 	ST_PAGEABLE Pageable
 )
 {
@@ -308,12 +312,12 @@ DuplicateString
 NTSTATUS
 DuplicateString
 (
-	const LOWER_UNICODE_STRING *Src,
 	LOWER_UNICODE_STRING *Dest,
+	const LOWER_UNICODE_STRING *Src,
 	ST_PAGEABLE Pageable
 )
 {
-	return DuplicateString((const UNICODE_STRING*)Src, (UNICODE_STRING*)Dest, Pageable);
+	return DuplicateString((UNICODE_STRING*)Dest, (const UNICODE_STRING*)Src, Pageable);
 }
 
 void
@@ -339,23 +343,37 @@ SplittingEnabled
 bool
 Equal
 (
-	const LOWER_UNICODE_STRING *a,
-	const LOWER_UNICODE_STRING *b
+	const LOWER_UNICODE_STRING *lhs,
+	const LOWER_UNICODE_STRING *rhs
 )
 {
-	if (a->Length != b->Length)
+	if (lhs->Length != rhs->Length)
 	{
 		return false;
 	}
 
 	const auto equalBytes = RtlCompareMemory
 	(
-		a->Buffer,
-		b->Buffer,
-		b->Length
+		lhs->Buffer,
+		rhs->Buffer,
+		lhs->Length
 	);
 
-	return equalBytes == b->Length;
+	return equalBytes == lhs->Length;
+}
+
+void
+Swap
+(
+	LOWER_UNICODE_STRING *lhs,
+	LOWER_UNICODE_STRING *rhs
+)
+{
+	const LOWER_UNICODE_STRING temp = *lhs;
+
+	*lhs = *rhs;
+
+	*rhs = temp;
 }
 
 } // namespace util

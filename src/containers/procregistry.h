@@ -122,14 +122,14 @@ FindEntry
 	HANDLE ProcessId
 );
 
-void
+bool
 DeleteEntry
 (
 	CONTEXT *Context,
 	PROCESS_REGISTRY_ENTRY *Entry
 );
 
-void
+bool
 DeleteEntryById
 (
 	CONTEXT *Context,

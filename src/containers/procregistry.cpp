@@ -104,19 +104,32 @@ ClearDepartingParentLink
 	return true;
 }
 
-void
+bool
 InnerDeleteEntry
 (
 	CONTEXT *Context,
 	PROCESS_REGISTRY_ENTRY *Entry
 )
 {
-	if (Entry->ImageName.Buffer != NULL)
+	LOWER_UNICODE_STRING imageName = { 0 };
+
+	util::Swap(&Entry->ImageName, &imageName);
+
+	const auto status = RtlDeleteElementGenericTableAvl(&Context->Tree, Entry);
+
+	if (FALSE == status)
 	{
-		util::FreeStringBuffer(&Entry->ImageName);
+		util::Swap(&Entry->ImageName, &imageName);
+
+		return false;
 	}
 
-	RtlDeleteElementGenericTableAvl(&Context->Tree, Entry);
+	if (imageName.Buffer != NULL)
+	{
+		util::FreeStringBuffer(&imageName);
+	}
+
+	return true;
 }
 
 } // anonymous namespace
@@ -177,6 +190,15 @@ Reset
 			break;
 		}
 
+		//
+		// It's believed that `InnerDeleteEntry` will never fail as long as
+		// the following conditions are met:
+		//
+		// - The tree's CompareRoutine and FreeRoutine are correctly implemented.
+		// - Nodes in the tree are regarded as internally consistent by tree CompareRoutine.
+		// - `entry` argument is valid.
+		//
+
 		InnerDeleteEntry(Context, entry);
 	}
 }
@@ -199,7 +221,7 @@ InitializeEntry
 	{
 		LOWER_UNICODE_STRING lowerImageName;
 
-		auto status = util::AllocateCopyDowncaseString(ImageName, &lowerImageName, Context->Pageable);
+		auto status = util::AllocateCopyDowncaseString(&lowerImageName, ImageName, Context->Pageable);
 
 		if (!NT_SUCCESS(status))
 		{
@@ -288,19 +310,26 @@ FindEntry
 	return (PROCESS_REGISTRY_ENTRY*)RtlLookupElementGenericTableAvl(&Context->Tree, &record);
 }
 
-void
+bool
 DeleteEntry
 (
 	CONTEXT *Context,
 	PROCESS_REGISTRY_ENTRY *Entry
 )
 {
-	ForEach(Context, ClearDepartingParentLink, Entry->ProcessId);
+	const auto processId = Entry->ProcessId;
 
-	InnerDeleteEntry(Context, Entry);
+	const auto status = InnerDeleteEntry(Context, Entry);
+
+	if (status)
+	{
+		ForEach(Context, ClearDepartingParentLink, processId);
+	}
+
+	return status;
 }
 
-void
+bool
 DeleteEntryById
 (
 	CONTEXT *Context,
@@ -309,10 +338,12 @@ DeleteEntryById
 {
 	auto entry = FindEntry(Context, ProcessId);
 
-	if (entry != NULL)
+	if (entry == NULL)
 	{
-		DeleteEntry(Context, entry);
+		return false;
 	}
+
+	return DeleteEntry(Context, entry);
 }
 
 bool

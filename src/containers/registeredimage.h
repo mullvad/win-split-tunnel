@@ -108,7 +108,7 @@ RemoveEntryExact
 	LOWER_UNICODE_STRING *ImageName
 );
 
-typedef bool (NTAPI *ST_RI_FOREACH)(LOWER_UNICODE_STRING *ImageName, void *Context);
+typedef bool (NTAPI *ST_RI_FOREACH)(const LOWER_UNICODE_STRING *ImageName, void *Context);
 
 bool
 ForEach
