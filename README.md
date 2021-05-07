@@ -127,6 +127,14 @@ This means that, for excluded apps, if a socket isn't explicitly bound to `127.0
 
 Because explicitly bound client sockets are rare, it can be expected that most excluded apps are affected. No generally applicable mitigations are available.
 
+## Multicast reception
+
+When configuring a network socket for multicast packet reception, it's common to both bind `inaddr_any` and join a multicast group on that same address. This is problematic on multi-homed machines such as a machine with an active VPN connection, because the "wrong" interface may be selected behind the scenes.
+
+If we add split tunneling into the mix things become even more complicated. With split tunneling engaged, the socket bind will be redirected to the LAN interface but the group join will still be on `inaddr_any`. This will typically not result in any API errors but the net effect is that incoming traffic can't be properly matched, and will instead be discarded.
+
+No generally applicable mitigations are available.
+
 # License
 
 Copyright (C) 2021  Mullvad VPN AB
