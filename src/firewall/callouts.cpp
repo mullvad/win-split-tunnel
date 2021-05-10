@@ -206,21 +206,7 @@ RewriteBind
 		goto Cleanup_handle;
 	}
 
-	//
-	// According to documentation, FwpsAcquireWritableLayerDataPointer0() will update the
-	// `actionType` and `rights` fields with poorly chosen values:
-	//
-	// ```
-	// classifyOut->actionType = FWP_ACTION_BLOCK
-	// classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE
-	// ```
-	//
-	// However, in practice it seems to not make any changes to those fields.
-	// But if it did we'd want to ensure the fields have sane values.
-	//
-
-	ClassifyOut->actionType = FWP_ACTION_CONTINUE;
-	ClassifyOut->rights |= FWPS_RIGHT_ACTION_WRITE;
+	ResetClassification(ClassifyOut);
 
 	//
 	// There's a list with redirection history.
