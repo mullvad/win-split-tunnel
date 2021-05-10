@@ -18,6 +18,18 @@ UnregisterCalloutClassifyBind
 );
 
 NTSTATUS
+RegisterCalloutClassifyConnectTx
+(
+	PDEVICE_OBJECT DeviceObject,
+	HANDLE WfpSession
+);
+
+NTSTATUS
+UnregisterCalloutClassifyConnect
+(
+);
+
+NTSTATUS
 RegisterCalloutPermitSplitAppsTx
 (
 	PDEVICE_OBJECT DeviceObject,

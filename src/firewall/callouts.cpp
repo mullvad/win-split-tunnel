@@ -21,6 +21,29 @@ namespace firewall
 namespace
 {
 
+void
+ResetClassification
+(
+	FWPS_CLASSIFY_OUT0 *ClassifyOut
+)
+{
+	//
+	// According to documentation, FwpsAcquireWritableLayerDataPointer0() will update the
+	// `actionType` and `rights` fields with poorly chosen values:
+	//
+	// ```
+	// classifyOut->actionType = FWP_ACTION_BLOCK
+	// classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE
+	// ```
+	//
+	// However, in practice it seems to not make any changes to those fields.
+	// But if it did we'd want to ensure the fields have sane values.
+	//
+
+	ClassifyOut->actionType = FWP_ACTION_CONTINUE;
+	ClassifyOut->rights |= FWPS_RIGHT_ACTION_WRITE;
+}
+
 //
 // NotifyFilterAttach()
 //
@@ -442,6 +465,237 @@ CalloutClassifyBind
 	};
 }
 
+//
+// RewriteConnection()
+//
+// See comment on CalloutClassifyConnect().
+//
+void
+RewriteConnection
+(
+	const FWPS_INCOMING_VALUES0 *FixedValues,
+	const FWPS_INCOMING_METADATA_VALUES0 *MetaValues,
+	UINT64 FilterId,
+	const void *ClassifyContext,
+	FWPS_CLASSIFY_OUT0 *ClassifyOut
+)
+{
+	UNREFERENCED_PARAMETER(MetaValues);
+
+	const bool ipv4 = FixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4;
+
+	//
+	// Identify the specific case we're interested in, or abort.
+	//
+
+	if (ipv4)
+	{
+		auto dest = RtlUlongByteSwap(FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_REMOTE_ADDRESS].value.uint32);
+
+		if (!IN4_IS_ADDR_LOOPBACK(reinterpret_cast<IN_ADDR*>(&dest)))
+		{
+			return;
+		}
+
+		auto src = RtlUlongByteSwap(FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_LOCAL_ADDRESS].value.uint32);
+
+		if (IN4_IS_ADDR_LOOPBACK(reinterpret_cast<IN_ADDR*>(&src)))
+		{
+			return;
+		}
+	}
+	else
+	{
+		auto dest = FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_REMOTE_ADDRESS].value.byteArray16;
+
+		if  (!IN6_IS_ADDR_LOOPBACK(reinterpret_cast<IN6_ADDR*>(dest)))
+		{
+			return;
+		}
+
+		auto src = FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_LOCAL_ADDRESS].value.byteArray16;
+
+		if (IN6_IS_ADDR_LOOPBACK(reinterpret_cast<IN6_ADDR*>(src)))
+		{
+			return;
+		}
+	}
+
+	//
+	// Destination address is confirmed to be loopback.
+	// Source address is confirmed to not be loopback.
+	// 
+	// We have to patch the source address.
+	//
+
+	UINT64 classifyHandle = 0;
+
+    auto status = FwpsAcquireClassifyHandle0
+	(
+		const_cast<void*>(ClassifyContext),
+		0,
+		&classifyHandle
+	);
+
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("FwpsAcquireClassifyHandle0() failed 0x%X\n", status);
+
+		return;
+	}
+
+	FWPS_CONNECT_REQUEST0 *connectRequest = NULL;
+
+	status = FwpsAcquireWritableLayerDataPointer0
+	(
+		classifyHandle,
+		FilterId,
+		0,
+		(PVOID*)&connectRequest,
+		ClassifyOut
+	);
+
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("FwpsAcquireWritableLayerDataPointer0() failed 0x%X\n", status);
+
+		goto Cleanup_handle;
+	}
+
+	ResetClassification(ClassifyOut);
+
+	//
+	// There's a list with redirection history.
+	//
+	// This only ever comes into play if several callouts are fighting to redirect the connection.
+	//
+	// To prevent recursion, we need to check if we're on the list, and abort if so.
+	//
+
+    for (auto history = connectRequest->previousVersion;
+         history != NULL;
+         history = history->previousVersion)
+    {
+        if (history->modifierFilterId == FilterId)
+        {
+            DbgPrint("Aborting connection processing because already redirected by us\n");
+
+            goto Cleanup_data;
+        }
+    }
+
+	// 
+	// Rewrite connection source address.
+	// Can't use INXxxADDR_SETLOOPBACK because it resets the structure (port is lost).
+	//
+
+	DbgPrint("Moving localhost client connection back to loopback\n");
+
+	if (ipv4)
+	{
+		auto src = (SOCKADDR_IN*)&connectRequest->localAddressAndPort;
+		src->sin_addr.s_addr = IN4ADDR_LOOPBACK;
+	}
+	else
+	{
+		auto src = (SOCKADDR_IN6*)&connectRequest->localAddressAndPort;
+		IN6_SET_ADDR_LOOPBACK(&src->sin6_addr);
+	}
+
+	ClassifyOut->actionType = FWP_ACTION_PERMIT;
+	ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+
+Cleanup_data:
+
+	FwpsApplyModifiedLayerData0(classifyHandle, (PVOID*)&connectRequest, 0);
+
+Cleanup_handle:
+
+	FwpsReleaseClassifyHandle0(classifyHandle);
+}
+
+//
+// CalloutClassifyConnect()
+//
+// Adjusts properties on new connections.
+//
+// Specifically, we want to find and recover the following case:
+// 
+// src addr = "internet IP" (the LAN IP)
+// dest addr = localhost
+// 
+// This corresponds to a localhost client socket that has been
+// erroneously redirected by the classify bind callout.
+//
+// FWPS_LAYER_ALE_CONNECT_REDIRECT_V4
+// FWPS_LAYER_ALE_CONNECT_REDIRECT_V6
+//
+void
+CalloutClassifyConnect
+(
+	const FWPS_INCOMING_VALUES0 *FixedValues,
+	const FWPS_INCOMING_METADATA_VALUES0 *MetaValues,
+	void *LayerData,
+	const void *ClassifyContext,
+	const FWPS_FILTER1 *Filter,
+	UINT64 FlowContext,
+	FWPS_CLASSIFY_OUT0 *ClassifyOut
+)
+{
+	UNREFERENCED_PARAMETER(LayerData);
+	UNREFERENCED_PARAMETER(FlowContext);
+
+	NT_ASSERT
+	(
+		FixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4
+			|| FixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V6
+	);
+
+	NT_ASSERT
+	(
+		Filter->providerContext != NULL
+		&& Filter->providerContext->type == FWPM_GENERAL_CONTEXT
+		&& Filter->providerContext->dataBuffer->size == sizeof(CONTEXT*)
+	);
+
+	auto context = *(CONTEXT**)Filter->providerContext->dataBuffer->data;
+
+	if (0 == (ClassifyOut->rights & FWPS_RIGHT_ACTION_WRITE))
+	{
+		DbgPrint("Aborting connect processing because hard permit/block already applied\n");
+
+		return;
+	}
+
+	if (ClassifyOut->actionType == FWP_ACTION_NONE)
+	{
+		ClassifyOut->actionType = FWP_ACTION_CONTINUE;
+	}
+
+	if (!FWPS_IS_METADATA_FIELD_PRESENT(MetaValues, FWPS_METADATA_FIELD_PROCESS_ID))
+	{
+		DbgPrint("Failed to classify connection because PID was not provided\n");
+
+		return;
+	}
+
+	const CALLBACKS &callbacks = context->Callbacks;
+
+	const auto verdict = callbacks.QueryProcess(HANDLE(MetaValues->processId), callbacks.Context);
+
+	if (verdict == PROCESS_SPLIT_VERDICT::DO_SPLIT)
+	{
+		RewriteConnection
+		(
+			FixedValues,
+			MetaValues,
+			Filter->filterId,
+			ClassifyContext,
+			ClassifyOut
+		);
+	}
+}
+
 bool IsAleReauthorize
 (
 	const FWPS_INCOMING_VALUES *FixedValues
@@ -725,6 +979,69 @@ UnregisterCalloutClassifyBind
 {
     auto s1 = UnregisterCallout(&ST_FW_CALLOUT_CLASSIFY_BIND_IPV4_KEY);
 	auto s2 = UnregisterCallout(&ST_FW_CALLOUT_CLASSIFY_BIND_IPV6_KEY);
+
+	RETURN_IF_UNSUCCESSFUL(s1);
+	RETURN_IF_UNSUCCESSFUL(s2);
+
+	return STATUS_SUCCESS;
+}
+
+//
+// RegisterCalloutClassifyConnectTx()
+//
+// Register callout with WFP. In all applicable layers.
+//
+// "Tx" (in transaction) suffix means there is no clean-up in failure paths.
+//
+NTSTATUS
+RegisterCalloutClassifyConnectTx
+(
+	PDEVICE_OBJECT DeviceObject,
+	HANDLE WfpSession
+)
+{
+	auto status = RegisterCalloutTx
+	(
+		DeviceObject,
+		WfpSession,
+		CalloutClassifyConnect,
+		&ST_FW_CALLOUT_CLASSIFY_CONNECT_IPV4_KEY,
+		&FWPM_LAYER_ALE_CONNECT_REDIRECT_V4,
+		L"Mullvad Split Tunnel Connect Redirect Callout (IPv4)",
+		L"Adjusts properties on new network connections"
+	);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	status = RegisterCalloutTx
+	(
+		DeviceObject,
+		WfpSession,
+		CalloutClassifyConnect,
+		&ST_FW_CALLOUT_CLASSIFY_CONNECT_IPV6_KEY,
+		&FWPM_LAYER_ALE_CONNECT_REDIRECT_V6,
+		L"Mullvad Split Tunnel Connect Redirect Callout (IPv6)",
+		L"Adjusts properties on new network connections"
+	);
+
+	if (!NT_SUCCESS(status))
+	{
+		UnregisterCalloutClassifyConnect();
+	}
+
+	return status;
+}
+
+NTSTATUS
+UnregisterCalloutClassifyConnect
+(
+)
+{
+    auto s1 = UnregisterCallout(&ST_FW_CALLOUT_CLASSIFY_CONNECT_IPV4_KEY);
+	auto s2 = UnregisterCallout(&ST_FW_CALLOUT_CLASSIFY_CONNECT_IPV6_KEY);
 
 	RETURN_IF_UNSUCCESSFUL(s1);
 	RETURN_IF_UNSUCCESSFUL(s2);
