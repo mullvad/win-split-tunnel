@@ -129,7 +129,8 @@ UnregisterCallouts
 {
 	auto s1 = UnregisterCalloutBlockSplitApps();
 	auto s2 = UnregisterCalloutPermitSplitApps();
-	auto s3 = UnregisterCalloutClassifyBind();
+	auto s3 = UnregisterCalloutClassifyConnect();
+	auto s4 = UnregisterCalloutClassifyBind();
 
 	if (!NT_SUCCESS(s1))
 	{
@@ -147,9 +148,16 @@ UnregisterCallouts
 
 	if (!NT_SUCCESS(s3))
 	{
-		DbgPrint("Could not unregister bind-redirect callout\n");
+		DbgPrint("Could not unregister connect-redirect callout\n");
 
 		return s3;
+	}
+
+	if (!NT_SUCCESS(s4))
+	{
+		DbgPrint("Could not unregister bind-redirect callout\n");
+
+		return s4;
 	}
 
 	return STATUS_SUCCESS;
@@ -177,6 +185,15 @@ RegisterCallouts
 		DbgPrint("Could not register bind-redirect callout\n");
 
 		return status;
+	}
+
+	status = RegisterCalloutClassifyConnectTx(DeviceObject, WfpSession);
+
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("Could not register connect-redirect callout\n");
+
+		goto Unregister_callouts;
 	}
 
 	status = RegisterCalloutPermitSplitAppsTx(DeviceObject, WfpSession);
@@ -320,6 +337,8 @@ ResetStructure
 {
 	ActiveFilters->BindRedirectIpv4 = false;
 	ActiveFilters->BindRedirectIpv6 = false;
+	ActiveFilters->ConnectRedirectIpv4 = false;
+	ActiveFilters->ConnectRedirectIpv6 = false;
 	ActiveFilters->BlockTunnelIpv4 = false;
 	ActiveFilters->BlockTunnelIpv6 = false;
 	ActiveFilters->PermitNonTunnelIpv4 = false;
@@ -359,6 +378,12 @@ RegisterFiltersForModeTx
 
 			RFFM_SUCCEED_OR_RETURN
 			(
+				RegisterFilterConnectRedirectIpv4Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
 				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
 				&ActiveFilters->PermitNonTunnelIpv4
 			);
@@ -373,6 +398,12 @@ RegisterFiltersForModeTx
 			(
 				RegisterFilterBindRedirectIpv6Tx(WfpSession),
 				&ActiveFilters->BindRedirectIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterConnectRedirectIpv6Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
@@ -399,6 +430,12 @@ RegisterFiltersForModeTx
 
 			RFFM_SUCCEED_OR_RETURN
 			(
+				RegisterFilterConnectRedirectIpv4Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
 				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
 				&ActiveFilters->PermitNonTunnelIpv4
 			);
@@ -417,6 +454,12 @@ RegisterFiltersForModeTx
 			(
 				RegisterFilterBindRedirectIpv4Tx(WfpSession),
 				&ActiveFilters->BindRedirectIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterConnectRedirectIpv4Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
@@ -453,6 +496,12 @@ RegisterFiltersForModeTx
 
 			RFFM_SUCCEED_OR_RETURN
 			(
+				RegisterFilterConnectRedirectIpv4Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
 				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
 				&ActiveFilters->PermitNonTunnelIpv4
 			);
@@ -481,6 +530,12 @@ RegisterFiltersForModeTx
 
 			RFFM_SUCCEED_OR_RETURN
 			(
+				RegisterFilterConnectRedirectIpv6Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
 				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
 				&ActiveFilters->PermitNonTunnelIpv6
 			);
@@ -499,6 +554,12 @@ RegisterFiltersForModeTx
 			(
 				RegisterFilterBindRedirectIpv6Tx(WfpSession),
 				&ActiveFilters->BindRedirectIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterConnectRedirectIpv6Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
@@ -532,6 +593,13 @@ RegisterFiltersForModeTx
 				RegisterFilterBindRedirectIpv6Tx(WfpSession),
 				&ActiveFilters->BindRedirectIpv6
 			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterConnectRedirectIpv6Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv6
+			);
+
 
 			RFFM_SUCCEED_OR_RETURN
 			(
@@ -622,6 +690,22 @@ RemoveActiveFiltersTx
 		RAF_SUCCEED_OR_RETURN
 		(
 			RemoveFilterBindRedirectIpv6Tx(WfpSession)
+		);
+	}
+
+	if (ActiveFilters->ConnectRedirectIpv4)
+	{
+		RAF_SUCCEED_OR_RETURN
+		(
+			RemoveFilterConnectRedirectIpv4Tx(WfpSession)
+		);
+	}
+
+	if (ActiveFilters->ConnectRedirectIpv6)
+	{
+		RAF_SUCCEED_OR_RETURN
+		(
+			RemoveFilterConnectRedirectIpv6Tx(WfpSession)
 		);
 	}
 

@@ -61,6 +61,8 @@ struct ACTIVE_FILTERS
 {
 	bool BindRedirectIpv4;
 	bool BindRedirectIpv6;
+	bool ConnectRedirectIpv4;
+	bool ConnectRedirectIpv6;
 	bool PermitNonTunnelIpv4;
 	bool PermitNonTunnelIpv6;
 	bool BlockTunnelIpv4;
