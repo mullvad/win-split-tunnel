@@ -46,6 +46,45 @@ RemoveFilterBindRedirectIpv6Tx
 );
 
 //
+// RegisterFilterConnectRedirectIpv4Tx()
+//
+// Register filter, with linked callout, that will pass all connection requests through
+// the connection callout for validation/redirection.
+//
+// The callout will look for and amend broken localhost client connections.
+//
+// "Tx" (in transaction) suffix means there's no clean-up in failure paths.
+//
+NTSTATUS
+RegisterFilterConnectRedirectIpv4Tx
+(
+	HANDLE WfpSession
+);
+
+NTSTATUS
+RemoveFilterConnectRedirectIpv4Tx
+(
+	HANDLE WfpSession
+);
+
+//
+// RegisterFilterConnectRedirectIpv6Tx()
+//
+// Refer comment on corresponding function for IPv4.
+//
+NTSTATUS
+RegisterFilterConnectRedirectIpv6Tx
+(
+	HANDLE WfpSession
+);
+
+NTSTATUS
+RemoveFilterConnectRedirectIpv6Tx
+(
+	HANDLE WfpSession
+);
+
+//
 // RegisterFilterPermitNonTunnelIpv4Tx()
 //
 // Register filters, with linked callout, that permit non-tunnel IPv4 traffic

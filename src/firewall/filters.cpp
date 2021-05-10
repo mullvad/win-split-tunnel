@@ -89,6 +89,88 @@ RemoveFilterBindRedirectIpv6Tx
 }
 
 NTSTATUS
+RegisterFilterConnectRedirectIpv4Tx
+(
+	HANDLE WfpSession
+)
+{
+	//
+	// Create filter that references callout.
+	// Not specifying any conditions makes it apply to all traffic.
+	//
+
+	FWPM_FILTER0 filter = { 0 };
+
+	const auto filterName = L"Mullvad Split Tunnel Connect Redirect Filter (IPv4)";
+	const auto filterDescription = L"Adjusts properties on new network connections";
+
+	filter.filterKey = ST_FW_FILTER_CLASSIFY_CONNECT_IPV4_KEY;
+	filter.displayData.name = const_cast<wchar_t*>(filterName);
+	filter.displayData.description = const_cast<wchar_t*>(filterDescription);
+	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
+	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
+	filter.layerKey = FWPM_LAYER_ALE_CONNECT_REDIRECT_V4;
+	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.weight.type = FWP_UINT64;
+	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
+	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
+	filter.action.calloutKey = ST_FW_CALLOUT_CLASSIFY_CONNECT_IPV4_KEY;
+	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
+
+	return FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
+}
+
+NTSTATUS
+RemoveFilterConnectRedirectIpv4Tx
+(
+	HANDLE WfpSession
+)
+{
+	return FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_CLASSIFY_CONNECT_IPV4_KEY);
+}
+
+NTSTATUS
+RegisterFilterConnectRedirectIpv6Tx
+(
+	HANDLE WfpSession
+)
+{
+	//
+	// Create filter that references callout.
+	// Not specifying any conditions makes it apply to all traffic.
+	//
+
+	FWPM_FILTER0 filter = { 0 };
+
+	const auto filterName = L"Mullvad Split Tunnel Connect Redirect Filter (IPv6)";
+	const auto filterDescription = L"Adjusts properties on new network connections";
+
+	filter.filterKey = ST_FW_FILTER_CLASSIFY_CONNECT_IPV6_KEY;
+	filter.displayData.name = const_cast<wchar_t*>(filterName);
+	filter.displayData.description = const_cast<wchar_t*>(filterDescription);
+	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
+	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
+	filter.layerKey = FWPM_LAYER_ALE_CONNECT_REDIRECT_V6;
+	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.weight.type = FWP_UINT64;
+	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
+	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
+	filter.action.calloutKey = ST_FW_CALLOUT_CLASSIFY_CONNECT_IPV6_KEY;
+	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
+
+	return FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
+}
+
+NTSTATUS
+RemoveFilterConnectRedirectIpv6Tx
+(
+	HANDLE WfpSession
+)
+{
+	return FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_CLASSIFY_CONNECT_IPV6_KEY);
+}
+
+NTSTATUS
 RegisterFilterPermitNonTunnelIpv4Tx
 (
 	HANDLE WfpSession,
