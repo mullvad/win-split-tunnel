@@ -481,12 +481,19 @@ RewriteConnection
 	const FWPS_INCOMING_METADATA_VALUES0 *MetaValues,
 	UINT64 FilterId,
 	const void *ClassifyContext,
-	FWPS_CLASSIFY_OUT0 *ClassifyOut
+	FWPS_CLASSIFY_OUT0 *ClassifyOut,
+	CONTEXT *Context
 )
 {
 	UNREFERENCED_PARAMETER(MetaValues);
 
 	const bool ipv4 = FixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4;
+
+	WdfSpinLockAcquire(Context->IpAddresses.Lock);
+
+	auto ipAddresses = Context->IpAddresses.Addresses;
+
+	WdfSpinLockRelease(Context->IpAddresses.Lock);
 
 	//
 	// Identify the specific case we're interested in, or abort.
@@ -494,42 +501,25 @@ RewriteConnection
 
 	if (ipv4)
 	{
-		auto dest = RtlUlongByteSwap(FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_REMOTE_ADDRESS].value.uint32);
-
-		if (!IN4_IS_ADDR_LOOPBACK(reinterpret_cast<IN_ADDR*>(&dest)))
-		{
-			return;
-		}
-
 		auto src = RtlUlongByteSwap(FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_LOCAL_ADDRESS].value.uint32);
 
-		if (IN4_IS_ADDR_LOOPBACK(reinterpret_cast<IN_ADDR*>(&src)))
+		if (!IN4_ADDR_EQUAL(reinterpret_cast<IN_ADDR*>(&src), &ipAddresses.TunnelIpv4))
 		{
 			return;
 		}
 	}
 	else
 	{
-		auto dest = FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_REMOTE_ADDRESS].value.byteArray16;
-
-		if  (!IN6_IS_ADDR_LOOPBACK(reinterpret_cast<IN6_ADDR*>(dest)))
-		{
-			return;
-		}
-
 		auto src = FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_LOCAL_ADDRESS].value.byteArray16;
 
-		if (IN6_IS_ADDR_LOOPBACK(reinterpret_cast<IN6_ADDR*>(src)))
+		if (!IN6_ADDR_EQUAL(reinterpret_cast<IN6_ADDR*>(src), &ipAddresses.TunnelIpv6))
 		{
 			return;
 		}
 	}
 
 	//
-	// Destination address is confirmed to be loopback.
-	// Source address is confirmed to not be loopback.
-	// 
-	// We have to patch the source address.
+	// Patch source address to move connection off of tunnel interface.
 	//
 
 	UINT64 classifyHandle = 0;
@@ -590,20 +580,19 @@ RewriteConnection
 
 	// 
 	// Rewrite connection source address.
-	// Can't use INXxxADDR_SETLOOPBACK because it resets the structure (port is lost).
 	//
 
-	DbgPrint("Moving localhost client connection back to loopback\n");
+	DbgPrint("Moving new connection off of tunnel interface\n");
 
 	if (ipv4)
 	{
 		auto src = (SOCKADDR_IN*)&connectRequest->localAddressAndPort;
-		src->sin_addr.s_addr = IN4ADDR_LOOPBACK;
+		src->sin_addr = ipAddresses.InternetIpv4;
 	}
 	else
 	{
 		auto src = (SOCKADDR_IN6*)&connectRequest->localAddressAndPort;
-		IN6_SET_ADDR_LOOPBACK(&src->sin6_addr);
+		src->sin6_addr = ipAddresses.InternetIpv6;
 	}
 
 	ClassificationApplyHardPermit(ClassifyOut);
@@ -622,13 +611,8 @@ Cleanup_handle:
 //
 // Adjusts properties on new connections.
 //
-// Specifically, we want to find and recover the following case:
-// 
-// src addr = "internet IP" (the LAN IP)
-// dest addr = localhost
-// 
-// This corresponds to a localhost client socket that has been
-// erroneously redirected by the classify bind callout.
+// If an app is marked for splitting, and if the connection is on the tunnel interface,
+// then move the connection to the Internet interface (LAN interface usually).
 //
 // FWPS_LAYER_ALE_CONNECT_REDIRECT_V4
 // FWPS_LAYER_ALE_CONNECT_REDIRECT_V6
@@ -694,7 +678,8 @@ CalloutClassifyConnect
 			MetaValues,
 			Filter->filterId,
 			ClassifyContext,
-			ClassifyOut
+			ClassifyOut,
+			context
 		);
 	}
 }
