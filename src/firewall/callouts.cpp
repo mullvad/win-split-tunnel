@@ -22,7 +22,7 @@ namespace
 {
 
 void
-ResetClassification
+ClassificationReset
 (
 	FWPS_CLASSIFY_OUT0 *ClassifyOut
 )
@@ -42,6 +42,26 @@ ResetClassification
 
 	ClassifyOut->actionType = FWP_ACTION_CONTINUE;
 	ClassifyOut->rights |= FWPS_RIGHT_ACTION_WRITE;
+}
+
+void
+ClassificationApplyHardPermit
+(
+	FWPS_CLASSIFY_OUT0 *ClassifyOut
+)
+{
+	ClassifyOut->actionType = FWP_ACTION_PERMIT;
+	ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+}
+
+void
+ClassificationApplyHardBlock
+(
+	FWPS_CLASSIFY_OUT0 *ClassifyOut
+)
+{
+	ClassifyOut->actionType = FWP_ACTION_BLOCK;
+	ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
 }
 
 //
@@ -206,7 +226,7 @@ RewriteBind
 		goto Cleanup_handle;
 	}
 
-	ResetClassification(ClassifyOut);
+	ClassificationReset(ClassifyOut);
 
 	//
 	// There's a list with redirection history.
@@ -255,8 +275,7 @@ RewriteBind
 
 			bindTarget->sin_addr = Context->IpAddresses.Addresses.InternetIpv4;
 
-			ClassifyOut->actionType = FWP_ACTION_PERMIT;
-			ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+			ClassificationApplyHardPermit(ClassifyOut);
 		}
 	}
 	else
@@ -284,8 +303,7 @@ RewriteBind
 
 			bindTarget->sin6_addr = Context->IpAddresses.Addresses.InternetIpv6;
 
-			ClassifyOut->actionType = FWP_ACTION_PERMIT;
-			ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+			ClassificationApplyHardPermit(ClassifyOut);
 		}
 	}
 
@@ -548,7 +566,7 @@ RewriteConnection
 		goto Cleanup_handle;
 	}
 
-	ResetClassification(ClassifyOut);
+	ClassificationReset(ClassifyOut);
 
 	//
 	// There's a list with redirection history.
@@ -588,8 +606,7 @@ RewriteConnection
 		IN6_SET_ADDR_LOOPBACK(&src->sin6_addr);
 	}
 
-	ClassifyOut->actionType = FWP_ACTION_PERMIT;
-	ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+	ClassificationApplyHardPermit(ClassifyOut);
 
 Cleanup_data:
 
@@ -799,8 +816,7 @@ CalloutPermitSplitApps
 	{
 		DbgPrint("APPROVING CONNECTION\n");
 
-		ClassifyOut->actionType = FWP_ACTION_PERMIT;
-		ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+		ClassificationApplyHardPermit(ClassifyOut);
 	}
 	else
 	{
@@ -903,8 +919,7 @@ CalloutBlockSplitApps
 	{
 		DbgPrint("BLOCKING CONNECTION\n");
 
-		ClassifyOut->actionType = FWP_ACTION_BLOCK;
-		ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+		ClassificationApplyHardBlock(ClassifyOut);
 	}
 	else
 	{
