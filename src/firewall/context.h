@@ -13,7 +13,7 @@ namespace firewall
 
 struct IP_ADDRESSES_MGMT
 {
-	WDFWAITLOCK Lock;
+	WDFSPINLOCK Lock;
 	ST_IP_ADDRESSES Addresses;
 	SPLITTING_MODE SplittingMode;
 };

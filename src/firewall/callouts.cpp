@@ -254,7 +254,7 @@ RewriteBind
 
 	const bool ipv4 = FixedValues->layerId == FWPS_LAYER_ALE_BIND_REDIRECT_V4;
 
-	WdfWaitLockAcquire(Context->IpAddresses.Lock, NULL);
+	WdfSpinLockAcquire(Context->IpAddresses.Lock);
 
 	if (ipv4)
 	{
@@ -307,7 +307,7 @@ RewriteBind
 		}
 	}
 
-	WdfWaitLockRelease(Context->IpAddresses.Lock);
+	WdfSpinLockRelease(Context->IpAddresses.Lock);
 
 Cleanup_data:
 

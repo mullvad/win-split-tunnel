@@ -987,11 +987,11 @@ Initialize
 	context->ProcessEventBroker = ProcessEventBroker;
 	context->Eventing = Eventing;
 
-    auto status = WdfWaitLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &context->IpAddresses.Lock);
+    auto status = WdfSpinLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &context->IpAddresses.Lock);
 
     if (!NT_SUCCESS(status))
     {
-        DbgPrint("WdfWaitLockCreate() failed 0x%X\n", status);
+        DbgPrint("WdfSpinLockCreate() failed 0x%X\n", status);
 
 		context->IpAddresses.Lock = NULL;
 
@@ -1429,12 +1429,14 @@ RegisterUpdatedIpAddresses
 		goto Abort;
 	}
 
-	WdfWaitLockAcquire(Context->IpAddresses.Lock, NULL);
+	auto intermediateNonPagedAddresses = *IpAddresses;
 
-	Context->IpAddresses.Addresses = *IpAddresses;
+	WdfSpinLockAcquire(Context->IpAddresses.Lock);
+
+	Context->IpAddresses.Addresses = intermediateNonPagedAddresses;
 	Context->IpAddresses.SplittingMode = newMode;
 
-	WdfWaitLockRelease(Context->IpAddresses.Lock);
+	WdfSpinLockRelease(Context->IpAddresses.Lock);
 
 	Context->ActiveFilters = newActiveFilters;
 
