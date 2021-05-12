@@ -823,6 +823,11 @@ CalloutPermitSplitApps
 // These connections need to be blocked to ensure the process exists on
 // only one side of the tunnel.
 //
+// Additionally, block any processes which have not been evaluated.
+//
+// This normally isn't required because earlier callouts re-auth until the process
+// is categorized, but it makes sense as a safety measure.
+//
 // FWPS_LAYER_ALE_AUTH_CONNECT_V4
 // FWPS_LAYER_ALE_AUTH_CONNECT_V6
 // FWPS_LAYER_ALE_AUTH_RECV_ACCEPT_V4
@@ -888,7 +893,13 @@ CalloutBlockSplitApps
 
 	const auto verdict = callbacks.QueryProcess(HANDLE(MetaValues->processId), callbacks.Context);
 
-	if (verdict == PROCESS_SPLIT_VERDICT::DO_SPLIT)
+	//
+	// Block any processes which have not been evaluated.
+	// This is a safety measure to prevent race conditions.
+	//
+
+	if (verdict == PROCESS_SPLIT_VERDICT::DO_SPLIT
+		|| verdict == PROCESS_SPLIT_VERDICT::UNKNOWN)
 	{
 		DbgPrint("BLOCKING CONNECTION\n");
 
