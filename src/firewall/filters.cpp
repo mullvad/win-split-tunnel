@@ -14,7 +14,9 @@ RegisterFilterBindRedirectIpv4Tx
 {
 	//
 	// Create filter that references callout.
-	// Not specifying any conditions makes it apply to all traffic.
+	//
+	// Use `protocol != TCP` as the sole condition.
+	// This is because TCP traffic is better dealt with in connect-redirect.
 	//
 
 	FWPM_FILTER0 filter = { 0 };
@@ -34,6 +36,16 @@ RegisterFilterBindRedirectIpv4Tx
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 	filter.action.calloutKey = ST_FW_CALLOUT_CLASSIFY_BIND_IPV4_KEY;
 	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
+
+	FWPM_FILTER_CONDITION0 cond;
+
+	cond.fieldKey = FWPM_CONDITION_IP_PROTOCOL;
+	cond.matchType = FWP_MATCH_NOT_EQUAL;
+	cond.conditionValue.type = FWP_UINT8;
+	cond.conditionValue.uint8 = IPPROTO_TCP;
+
+	filter.filterCondition = &cond;
+	filter.numFilterConditions = 1;
 
 	return FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
 }
@@ -55,7 +67,9 @@ RegisterFilterBindRedirectIpv6Tx
 {
 	//
 	// Create filter that references callout.
-	// Not specifying any conditions makes it apply to all traffic.
+	//
+	// Use `protocol != TCP` as the sole condition.
+	// This is because TCP traffic is better dealt with in connect-redirect.
 	//
 
 	FWPM_FILTER0 filter = { 0 };
@@ -75,6 +89,16 @@ RegisterFilterBindRedirectIpv6Tx
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 	filter.action.calloutKey = ST_FW_CALLOUT_CLASSIFY_BIND_IPV6_KEY;
 	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
+
+	FWPM_FILTER_CONDITION0 cond;
+
+	cond.fieldKey = FWPM_CONDITION_IP_PROTOCOL;
+	cond.matchType = FWP_MATCH_NOT_EQUAL;
+	cond.conditionValue.type = FWP_UINT8;
+	cond.conditionValue.uint8 = IPPROTO_TCP;
+
+	filter.filterCondition = &cond;
+	filter.numFilterConditions = 1;
 
 	return FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
 }
@@ -96,7 +120,11 @@ RegisterFilterConnectRedirectIpv4Tx
 {
 	//
 	// Create filter that references callout.
-	// Not specifying any conditions makes it apply to all traffic.
+	//
+	// Use `protocol == TCP` as the sole condition.
+	//
+	// This is because the source address for non-TCP traffic can't be updated in connect-redirect.
+	// So that traffic is instead dealt with in bind-redirect.
 	//
 
 	FWPM_FILTER0 filter = { 0 };
@@ -116,6 +144,16 @@ RegisterFilterConnectRedirectIpv4Tx
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 	filter.action.calloutKey = ST_FW_CALLOUT_CLASSIFY_CONNECT_IPV4_KEY;
 	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
+
+	FWPM_FILTER_CONDITION0 cond;
+
+	cond.fieldKey = FWPM_CONDITION_IP_PROTOCOL;
+	cond.matchType = FWP_MATCH_EQUAL;
+	cond.conditionValue.type = FWP_UINT8;
+	cond.conditionValue.uint8 = IPPROTO_TCP;
+
+	filter.filterCondition = &cond;
+	filter.numFilterConditions = 1;
 
 	return FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
 }
@@ -137,7 +175,11 @@ RegisterFilterConnectRedirectIpv6Tx
 {
 	//
 	// Create filter that references callout.
-	// Not specifying any conditions makes it apply to all traffic.
+	//
+	// Use `protocol == TCP` as the sole condition.
+	//
+	// This is because the source address for non-TCP traffic can't be updated in connect-redirect.
+	// So that traffic is instead dealt with in bind-redirect.
 	//
 
 	FWPM_FILTER0 filter = { 0 };
@@ -157,6 +199,16 @@ RegisterFilterConnectRedirectIpv6Tx
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 	filter.action.calloutKey = ST_FW_CALLOUT_CLASSIFY_CONNECT_IPV6_KEY;
 	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
+
+	FWPM_FILTER_CONDITION0 cond;
+
+	cond.fieldKey = FWPM_CONDITION_IP_PROTOCOL;
+	cond.matchType = FWP_MATCH_EQUAL;
+	cond.conditionValue.type = FWP_UINT8;
+	cond.conditionValue.uint8 = IPPROTO_TCP;
+
+	filter.filterCondition = &cond;
+	filter.numFilterConditions = 1;
 
 	return FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
 }
