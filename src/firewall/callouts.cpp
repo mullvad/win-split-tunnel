@@ -835,13 +835,84 @@ bool IsAleReauthorize
 	return ((flags & FWP_CONDITION_FLAG_IS_REAUTHORIZE) != 0);
 }
 
+struct AuthLayerValueIndices
+{
+	SIZE_T LocalAddress;
+	SIZE_T LocalPort;
+	SIZE_T RemoteAddress;
+	SIZE_T RemotePort;
+};
+
+bool
+GetAuthLayerValueIndices
+(
+	UINT16 LayerId,
+	AuthLayerValueIndices *Indices
+)
+{
+	switch (LayerId)
+	{
+		case FWPS_LAYER_ALE_AUTH_CONNECT_V4:
+		{
+			*Indices =
+			{
+				FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_LOCAL_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_LOCAL_PORT,
+				FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_REMOTE_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_REMOTE_PORT
+			};
+
+			return true;
+		}
+		case FWPS_LAYER_ALE_AUTH_RECV_ACCEPT_V4:
+		{
+			*Indices =
+			{
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_IP_LOCAL_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_IP_LOCAL_PORT,
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_IP_REMOTE_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_IP_REMOTE_PORT
+			};
+
+			return true;
+		}
+		case FWPS_LAYER_ALE_AUTH_CONNECT_V6:
+		{
+			*Indices =
+			{
+				FWPS_FIELD_ALE_AUTH_CONNECT_V6_IP_LOCAL_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_CONNECT_V6_IP_LOCAL_PORT,
+				FWPS_FIELD_ALE_AUTH_CONNECT_V6_IP_REMOTE_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_CONNECT_V6_IP_REMOTE_PORT
+			};
+
+			return true;
+		}
+		case FWPS_LAYER_ALE_AUTH_RECV_ACCEPT_V6:
+		{
+			*Indices =
+			{
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_IP_LOCAL_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_IP_LOCAL_PORT,
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_IP_REMOTE_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_IP_REMOTE_PORT
+			};
+
+			return true;
+		}
+	}
+
+	return false;
+}
+
 //
 // CalloutPermitSplitApps()
 //
-// For processes being split, the bind will have already been moved off the
-// tunnel interface.
-//
+// For processes being split, binds and connections will have already been aptly redirected.
 // So now it's only a matter of approving the connection.
+//
+// The reason we have to explicitly approve these connections is because otherwise
+// the default filters with lower weights would block all non-tunnel connections.
 //
 // FWPS_LAYER_ALE_AUTH_CONNECT_V4
 // FWPS_LAYER_ALE_AUTH_CONNECT_V6
@@ -860,12 +931,8 @@ CalloutPermitSplitApps
 	FWPS_CLASSIFY_OUT0 *ClassifyOut
 )
 {
-#if !DBG
-	UNREFERENCED_PARAMETER(FixedValues);
-#endif
 	UNREFERENCED_PARAMETER(LayerData);
 	UNREFERENCED_PARAMETER(ClassifyContext);
-	UNREFERENCED_PARAMETER(Filter);
 	UNREFERENCED_PARAMETER(FlowContext);
 
 	NT_ASSERT
@@ -887,7 +954,7 @@ CalloutPermitSplitApps
 
 	if (0 == (ClassifyOut->rights & FWPS_RIGHT_ACTION_WRITE))
 	{
-		DbgPrint("Aborting connection processing because hard permit/block already applied\n");
+		DbgPrint("Aborting auth processing because hard permit/block already applied\n");
 
 		return;
 	}
@@ -899,7 +966,7 @@ CalloutPermitSplitApps
 
 	if (!FWPS_IS_METADATA_FIELD_PRESENT(MetaValues, FWPS_METADATA_FIELD_PROCESS_ID))
 	{
-		DbgPrint("Failed to classify connection because PID was not provided\n");
+		DbgPrint("Failed to complete auth processing because PID was not provided\n");
 
 		return;
 	}
@@ -908,22 +975,82 @@ CalloutPermitSplitApps
 
 	const auto verdict = callbacks.QueryProcess(HANDLE(MetaValues->processId), callbacks.Context);
 
-	if (verdict == PROCESS_SPLIT_VERDICT::DO_SPLIT)
-	{
-		DbgPrint("APPROVING CONNECTION\n");
+	//
+	// If the process is not marked for splitting we should just abort
+	// and not attempt to classify the connection.
+	//
 
-		ClassificationApplyHardPermit(ClassifyOut);
+	if (verdict != PROCESS_SPLIT_VERDICT::DO_SPLIT)
+	{
+		return;
+	}
+
+	//
+	// Include extensive logging.
+	//
+
+	AuthLayerValueIndices indices = {0};
+
+	const auto status = GetAuthLayerValueIndices(FixedValues->layerId, &indices);
+
+	NT_ASSERT(status);
+
+	if (!status)
+	{
+		return;
+	}
+
+	const auto localPort = FixedValues->incomingValue[indices.LocalPort].value.uint16;
+	const auto remotePort = FixedValues->incomingValue[indices.RemotePort].value.uint16;
+
+	const bool ipv4 = FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V4
+		|| FixedValues->layerId == FWPS_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
+
+	if (ipv4)
+	{
+		const auto rawLocalAddress = RtlUlongByteSwap(FixedValues->incomingValue[
+			indices.LocalAddress].value.uint32);
+
+		const auto rawRemoteAddress = RtlUlongByteSwap(FixedValues->incomingValue[
+			indices.RemoteAddress].value.uint32);
+
+		auto localAddress = reinterpret_cast<const IN_ADDR*>(&rawLocalAddress);
+		auto remoteAddress = reinterpret_cast<const IN_ADDR*>(&rawRemoteAddress);
+
+		LogPermitConnection
+		(
+			HANDLE(MetaValues->processId),
+			localAddress,
+			localPort,
+			remoteAddress,
+			remotePort,
+			(FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V4)
+		);
 	}
 	else
 	{
-#if DBG
-		if (IsAleReauthorize(FixedValues))
-		{
-			DbgPrint("[CalloutPermitSplitApps] Reauthorized connection (PID: %p) is not explicitly "\
-				"approved by callout\n", HANDLE(MetaValues->processId));
-		}
-#endif
+		auto localAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
+			indices.LocalAddress].value.byteArray16);
+
+		auto remoteAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
+			indices.RemoteAddress].value.byteArray16);
+
+		LogPermitConnection
+		(
+			HANDLE(MetaValues->processId),
+			localAddress,
+			localPort,
+			remoteAddress,
+			remotePort,
+			(FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V6)
+		);
 	}
+
+	//
+	// Apply classification.
+	//
+
+	ClassificationApplyHardPermit(ClassifyOut);
 }
 
 //
@@ -957,12 +1084,8 @@ CalloutBlockSplitApps
 	FWPS_CLASSIFY_OUT0 *ClassifyOut
 )
 {
-#if !DBG
-	UNREFERENCED_PARAMETER(FixedValues);
-#endif
 	UNREFERENCED_PARAMETER(LayerData);
 	UNREFERENCED_PARAMETER(ClassifyContext);
-	UNREFERENCED_PARAMETER(Filter);
 	UNREFERENCED_PARAMETER(FlowContext);
 
 	NT_ASSERT
@@ -984,7 +1107,7 @@ CalloutBlockSplitApps
 
 	if (0 == (ClassifyOut->rights & FWPS_RIGHT_ACTION_WRITE))
 	{
-		DbgPrint("Aborting connection processing because hard permit/block already applied\n");
+		DbgPrint("Aborting auth processing because hard permit/block already applied\n");
 
 		return;
 	}
@@ -996,7 +1119,7 @@ CalloutBlockSplitApps
 
 	if (!FWPS_IS_METADATA_FIELD_PRESENT(MetaValues, FWPS_METADATA_FIELD_PROCESS_ID))
 	{
-		DbgPrint("Failed to classify connection because PID was not provided\n");
+		DbgPrint("Failed to complete auth processing because PID was not provided\n");
 
 		return;
 	}
@@ -1006,27 +1129,84 @@ CalloutBlockSplitApps
 	const auto verdict = callbacks.QueryProcess(HANDLE(MetaValues->processId), callbacks.Context);
 
 	//
-	// Block any processes which have not been evaluated.
+	// Block any processes which have not yet been evaluated.
 	// This is a safety measure to prevent race conditions.
 	//
 
-	if (verdict == PROCESS_SPLIT_VERDICT::DO_SPLIT
-		|| verdict == PROCESS_SPLIT_VERDICT::UNKNOWN)
-	{
-		DbgPrint("BLOCKING CONNECTION\n");
+	const auto shouldBlock = (verdict == PROCESS_SPLIT_VERDICT::DO_SPLIT)
+		|| (verdict == PROCESS_SPLIT_VERDICT::UNKNOWN);
 
-		ClassificationApplyHardBlock(ClassifyOut);
+	if (!shouldBlock)
+	{
+		return;
+	}
+
+	//
+	// Include extensive logging.
+	//
+
+	AuthLayerValueIndices indices = {0};
+
+	const auto status = GetAuthLayerValueIndices(FixedValues->layerId, &indices);
+
+	NT_ASSERT(status);
+
+	if (!status)
+	{
+		return;
+	}
+
+	const auto localPort = FixedValues->incomingValue[indices.LocalPort].value.uint16;
+	const auto remotePort = FixedValues->incomingValue[indices.RemotePort].value.uint16;
+
+	const bool ipv4 = FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V4
+		|| FixedValues->layerId == FWPS_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
+
+	if (ipv4)
+	{
+		const auto rawLocalAddress = RtlUlongByteSwap(FixedValues->incomingValue[
+			indices.LocalAddress].value.uint32);
+
+		const auto rawRemoteAddress = RtlUlongByteSwap(FixedValues->incomingValue[
+			indices.RemoteAddress].value.uint32);
+
+		auto localAddress = reinterpret_cast<const IN_ADDR*>(&rawLocalAddress);
+		auto remoteAddress = reinterpret_cast<const IN_ADDR*>(&rawRemoteAddress);
+
+		LogBlockConnection
+		(
+			HANDLE(MetaValues->processId),
+			localAddress,
+			localPort,
+			remoteAddress,
+			remotePort,
+			(FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V4)
+		);
 	}
 	else
 	{
-#if DBG
-		if (IsAleReauthorize(FixedValues))
-		{
-			DbgPrint("[CalloutBlockSplitApps] Reauthorized connection (PID: %p) is not explicitly "\
-				"blocked by callout\n", HANDLE(MetaValues->processId));
-		}
-#endif
+		auto localAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
+			indices.LocalAddress].value.byteArray16);
+
+		auto remoteAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
+			indices.RemoteAddress].value.byteArray16);
+
+		LogBlockConnection
+		(
+			HANDLE(MetaValues->processId),
+			localAddress,
+			localPort,
+			remoteAddress,
+			remotePort,
+			(FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V6)
+		);
 	}
+
+	//
+	// Apply classification.
+	//
+
+	ClassificationApplyHardBlock(ClassifyOut);
 }
 
 } // anonymous namespace
