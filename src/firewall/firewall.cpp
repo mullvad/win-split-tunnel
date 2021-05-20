@@ -6,6 +6,7 @@
 #include "callouts.h"
 #include "constants.h"
 #include "asyncbind.h"
+#include "logging.h"
 #include "../util.h"
 #include "../eventing/builder.h"
 #include "firewall.h"
@@ -1261,6 +1262,8 @@ EnableSplitting
 	Context->SplittingEnabled = true;
 	Context->ActiveFilters = activeFilters;
 
+	LogActivatedSplittingMode(Context->IpAddresses.SplittingMode);
+
 	return STATUS_SUCCESS;
 
 Abort:
@@ -1439,6 +1442,8 @@ RegisterUpdatedIpAddresses
 	WdfSpinLockRelease(Context->IpAddresses.Lock);
 
 	Context->ActiveFilters = newActiveFilters;
+
+	LogActivatedSplittingMode(newMode);
 
 	return STATUS_SUCCESS;
 
