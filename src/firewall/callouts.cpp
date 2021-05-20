@@ -467,6 +467,44 @@ CalloutClassifyBind
 	};
 }
 
+bool
+LocalAddress(const IN_ADDR *addr)
+{
+	return IN4_IS_ADDR_LOOPBACK(addr) // 127/8
+		|| IN4_IS_ADDR_LINKLOCAL(addr) // 169.254/16
+		|| IN4_IS_ADDR_RFC1918(addr) // 10/8, 172.16/12, 192.168/16
+		|| IN4_IS_ADDR_MC_LINKLOCAL(addr) // 224.0.0/24
+		|| IN4_IS_ADDR_MC_ADMINLOCAL(addr) // 239.255/16
+		|| IN4_IS_ADDR_MC_SITELOCAL(addr) // 239/8
+		|| IN4_IS_ADDR_BROADCAST(addr) // 255.255.255.255
+	;
+}
+
+bool
+IN6_IS_ADDR_ULA(const IN6_ADDR *a)
+{
+    return (a->s6_bytes[0] == 0xfd);
+
+}
+
+bool
+IN6_IS_ADDR_MC_NON_GLOBAL(const IN6_ADDR *a)
+{
+	return IN6_IS_ADDR_MULTICAST(a)
+		&& !IN6_IS_ADDR_MC_GLOBAL(a);
+}
+
+bool
+LocalAddress(const IN6_ADDR *addr)
+{
+	return IN6_IS_ADDR_LOOPBACK(addr) // ::1/128
+		|| IN6_IS_ADDR_LINKLOCAL(addr) // fe80::/10
+		|| IN6_IS_ADDR_SITELOCAL(addr) // fec0::/10
+		|| IN6_IS_ADDR_ULA(addr) // fd00::/8
+		|| IN6_IS_ADDR_MC_NON_GLOBAL(addr) // ff00::/8 && !(ffxe::/16)
+	;
+}
+
 //
 // RewriteConnection()
 //
@@ -485,42 +523,106 @@ RewriteConnection
 {
 	UNREFERENCED_PARAMETER(MetaValues);
 
-	const bool ipv4 = FixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4;
-
 	WdfSpinLockAcquire(Context->IpAddresses.Lock);
 
-	auto ipAddresses = Context->IpAddresses.Addresses;
+	const auto ipAddresses = Context->IpAddresses.Addresses;
 
 	WdfSpinLockRelease(Context->IpAddresses.Lock);
 
 	//
-	// Identify the specific cases we're interested in, or abort.
+	// Identify the specific cases we're interested in or abort.
 	//
 
-	bool shouldRedirect = false;
+	const bool ipv4 = FixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4;
 
 	if (ipv4)
 	{
-		auto src = RtlUlongByteSwap(FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_LOCAL_ADDRESS].value.uint32);
+		const auto rawLocalAddress = RtlUlongByteSwap(FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_LOCAL_ADDRESS].value.uint32);
 
-		shouldRedirect = IN4_ADDR_EQUAL(reinterpret_cast<IN_ADDR*>(&src), &ipAddresses.TunnelIpv4)
-			|| IN4_IS_ADDR_UNSPECIFIED(reinterpret_cast<IN_ADDR*>(&src));
+		const auto rawRemoteAddress = RtlUlongByteSwap(FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_REMOTE_ADDRESS].value.uint32);
+
+		auto localAddress = reinterpret_cast<const IN_ADDR*>(&rawLocalAddress);
+		auto remoteAddress = reinterpret_cast<const IN_ADDR*>(&rawRemoteAddress);
+
+		const auto shouldRedirect = IN4_ADDR_EQUAL(localAddress, &ipAddresses.TunnelIpv4)
+			|| !LocalAddress(remoteAddress);
+
+		const auto localPort = FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_LOCAL_PORT].value.uint16;
+
+		const auto remotePort = FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_REMOTE_PORT].value.uint16;
+
+		if (!shouldRedirect)
+		{
+			LogConnectRedirectPass
+			(
+				HANDLE(MetaValues->processId),
+				localAddress,
+				localPort,
+				remoteAddress,
+				remotePort
+			);
+
+			return;
+		}
+
+		LogConnectRedirect
+		(
+			HANDLE(MetaValues->processId),
+			localAddress,
+			localPort,
+			&ipAddresses.InternetIpv4,
+			remoteAddress,
+			remotePort
+		);
 	}
 	else
 	{
-		auto src = FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_LOCAL_ADDRESS].value.byteArray16;
+		auto localAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_LOCAL_ADDRESS].value.byteArray16);
 
-		shouldRedirect = IN6_ADDR_EQUAL(reinterpret_cast<IN6_ADDR*>(src), &ipAddresses.TunnelIpv6)
-			|| IN6_IS_ADDR_UNSPECIFIED(reinterpret_cast<IN6_ADDR*>(&src));
-	}
+		auto remoteAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_REMOTE_ADDRESS].value.byteArray16);
 
-	if (!shouldRedirect)
-	{
-		return;
+		const auto shouldRedirect = IN6_ADDR_EQUAL(localAddress, &ipAddresses.TunnelIpv6)
+			|| !LocalAddress(remoteAddress);
+
+		const auto localPort = FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_LOCAL_PORT].value.uint16;
+
+		const auto remotePort = FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_REMOTE_PORT].value.uint16;
+
+		if (!shouldRedirect)
+		{
+			LogConnectRedirectPass
+			(
+				HANDLE(MetaValues->processId),
+				localAddress,
+				localPort,
+				remoteAddress,
+				remotePort
+			);
+
+			return;
+		}
+
+		LogConnectRedirect
+		(
+			HANDLE(MetaValues->processId),
+			localAddress,
+			localPort,
+			&ipAddresses.InternetIpv6,
+			remoteAddress,
+			remotePort
+		);
 	}
 
 	//
-	// Patch source address to move connection off of tunnel interface.
+	// Patch local address to force connection off of tunnel interface.
 	//
 
 	UINT64 classifyHandle = 0;
@@ -580,20 +682,18 @@ RewriteConnection
     }
 
 	// 
-	// Rewrite connection source address.
+	// Rewrite connection.
 	//
-
-	DbgPrint("Moving new connection off of tunnel interface\n");
 
 	if (ipv4)
 	{
-		auto src = (SOCKADDR_IN*)&connectRequest->localAddressAndPort;
-		src->sin_addr = ipAddresses.InternetIpv4;
+		auto localDetails = (SOCKADDR_IN*)&connectRequest->localAddressAndPort;
+		localDetails->sin_addr = ipAddresses.InternetIpv4;
 	}
 	else
 	{
-		auto src = (SOCKADDR_IN6*)&connectRequest->localAddressAndPort;
-		src->sin6_addr = ipAddresses.InternetIpv6;
+		auto localDetails = (SOCKADDR_IN6*)&connectRequest->localAddressAndPort;
+		localDetails->sin6_addr = ipAddresses.InternetIpv6;
 	}
 
 	ClassificationApplyHardPermit(ClassifyOut);
@@ -610,10 +710,11 @@ Cleanup_handle:
 //
 // CalloutClassifyConnect()
 //
-// Adjusts properties on new connections.
+// Adjust properties on new TCP connections.
 //
-// If an app is marked for splitting, and if the connection is on the tunnel interface,
-// then move the connection to the Internet interface (LAN interface usually).
+// If an app is marked for splitting, and if a new connection is explicitly made on the
+// tunnel interface, or can be assumed to be routed through the tunnel interface,
+// then move the connection to the Internet connected interface (LAN interface usually).
 //
 // FWPS_LAYER_ALE_CONNECT_REDIRECT_V4
 // FWPS_LAYER_ALE_CONNECT_REDIRECT_V6
@@ -635,8 +736,17 @@ CalloutClassifyConnect
 
 	NT_ASSERT
 	(
-		FixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4
-			|| FixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V6
+		(
+			FixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4
+			&& FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_PROTOCOL] \
+				.value.uint8 == IPPROTO_TCP
+		)
+		||
+		(
+			FixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V6
+			&& FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_PROTOCOL] \
+				.value.uint8 == IPPROTO_TCP
+		)
 	);
 
 	NT_ASSERT
@@ -650,7 +760,7 @@ CalloutClassifyConnect
 
 	if (0 == (ClassifyOut->rights & FWPS_RIGHT_ACTION_WRITE))
 	{
-		DbgPrint("Aborting connect processing because hard permit/block already applied\n");
+		DbgPrint("Aborting connect-redirect processing because hard permit/block already applied\n");
 
 		return;
 	}
@@ -673,8 +783,6 @@ CalloutClassifyConnect
 
 	if (verdict == PROCESS_SPLIT_VERDICT::DO_SPLIT)
 	{
-		DbgPrint("New connection in split app\n");
-
 		RewriteConnection
 		(
 			FixedValues,
