@@ -4,6 +4,7 @@
 #include "identifiers.h"
 #include "asyncbind.h"
 #include "callouts.h"
+#include "logging.h"
 #include "../util.h"
 
 #include "../trace.h"
@@ -176,8 +177,13 @@ UnregisterCallout
 //
 // RewriteBind()
 //
-// This is where the splitting happens.
-// Move socket binds from tunnel interface to the internet connected interface.
+// Implements redirection for non-TCP socket binds.
+// 
+// If a bind is attempted (or implied) with target inaddr_any or the tunnel interface,
+// we rewrite the bind to move it to the internet interface.
+//
+// This has the unfortunate effect that client sockets which are not explicitly bound
+// to localhost are prevented from connecting to localhost.
 //
 void
 RewriteBind
@@ -260,20 +266,14 @@ RewriteBind
 	{
 		auto bindTarget = (SOCKADDR_IN*)&(bindRequest->localAddressAndPort);
 
-		DbgPrint("Bind request eligible for splitting: %d.%d.%d.%d:%d\n",
-			bindTarget->sin_addr.S_un.S_un_b.s_b1,
-			bindTarget->sin_addr.S_un.S_un_b.s_b2,
-			bindTarget->sin_addr.S_un.S_un_b.s_b3,
-			bindTarget->sin_addr.S_un.S_un_b.s_b4,
-			ntohs(bindTarget->sin_port)
-		);
-
 		if (IN4_IS_ADDR_UNSPECIFIED(&(bindTarget->sin_addr))
 			|| IN4_ADDR_EQUAL(&(bindTarget->sin_addr), &(Context->IpAddresses.Addresses.TunnelIpv4)))
 		{
-			DbgPrint("SPLITTING\n");
+			const auto newTarget = &Context->IpAddresses.Addresses.InternetIpv4;
 
-			bindTarget->sin_addr = Context->IpAddresses.Addresses.InternetIpv4;
+			LogBindRedirect(HANDLE(MetaValues->processId), bindTarget, newTarget);
+
+			bindTarget->sin_addr = *newTarget;
 
 			ClassificationApplyHardPermit(ClassifyOut);
 		}
@@ -282,26 +282,16 @@ RewriteBind
 	{
 		auto bindTarget = (SOCKADDR_IN6*)&(bindRequest->localAddressAndPort);
 
-		DbgPrint("Bind request eligible for splitting: [%X:%X:%X:%X:%X:%X:%X:%X]:%d\n",
-			ntohs(bindTarget->sin6_addr.u.Word[0]),
-			ntohs(bindTarget->sin6_addr.u.Word[1]),
-			ntohs(bindTarget->sin6_addr.u.Word[2]),
-			ntohs(bindTarget->sin6_addr.u.Word[3]),
-			ntohs(bindTarget->sin6_addr.u.Word[4]),
-			ntohs(bindTarget->sin6_addr.u.Word[5]),
-			ntohs(bindTarget->sin6_addr.u.Word[6]),
-			ntohs(bindTarget->sin6_addr.u.Word[7]),
-			ntohs(bindTarget->sin6_port)
-		);
-
 		static const IN6_ADDR IN6_ADDR_ANY = { 0 };
 		
 		if (IN6_ADDR_EQUAL(&(bindTarget->sin6_addr), &IN6_ADDR_ANY)
 			|| IN6_ADDR_EQUAL(&(bindTarget->sin6_addr), &(Context->IpAddresses.Addresses.TunnelIpv6)))
 		{
-			DbgPrint("SPLITTING\n");
+			const auto newTarget = &Context->IpAddresses.Addresses.InternetIpv6;
 
-			bindTarget->sin6_addr = Context->IpAddresses.Addresses.InternetIpv6;
+			LogBindRedirect(HANDLE(MetaValues->processId), bindTarget, newTarget);
+
+			bindTarget->sin6_addr = *newTarget;
 
 			ClassificationApplyHardPermit(ClassifyOut);
 		}
@@ -378,8 +368,7 @@ ClassifyUnknownBind
 // 
 // ===
 // 
-// Entry point for splitting traffic.
-// Check whether the binding process is marked for having its traffic split.
+// Entry point for splitting non-TCP socket binds.
 //
 // FWPS_LAYER_ALE_BIND_REDIRECT_V4
 // FWPS_LAYER_ALE_BIND_REDIRECT_V6
@@ -401,8 +390,17 @@ CalloutClassifyBind
 
 	NT_ASSERT
 	(
-		FixedValues->layerId == FWPS_LAYER_ALE_BIND_REDIRECT_V4
-			|| FixedValues->layerId == FWPS_LAYER_ALE_BIND_REDIRECT_V6
+		(
+			FixedValues->layerId == FWPS_LAYER_ALE_BIND_REDIRECT_V4
+			&& FixedValues->incomingValue[FWPS_FIELD_ALE_BIND_REDIRECT_V4_IP_PROTOCOL] \
+				.value.uint8 != IPPROTO_TCP
+		)
+		||
+		(
+			FixedValues->layerId == FWPS_LAYER_ALE_BIND_REDIRECT_V6
+			&& FixedValues->incomingValue[FWPS_FIELD_ALE_BIND_REDIRECT_V6_IP_PROTOCOL] \
+				.value.uint8 != IPPROTO_TCP
+		)
 	);
 
 	NT_ASSERT
