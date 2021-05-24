@@ -205,6 +205,7 @@
     <ClCompile Include="eventing\eventing.cpp" />
     <ClCompile Include="firewall\appfilters.cpp" />
     <ClCompile Include="firewall\callouts.cpp" />
+    <ClCompile Include="firewall\classify.cpp" />
     <ClCompile Include="firewall\filters.cpp" />
     <ClCompile Include="firewall\firewall.cpp" />
     <ClCompile Include="firewall\logging.cpp" />
@@ -237,6 +238,7 @@
     <ClInclude Include="eventing\eventing.h" />
     <ClInclude Include="firewall\appfilters.h" />
     <ClInclude Include="firewall\callouts.h" />
+    <ClInclude Include="firewall\classify.h" />
     <ClInclude Include="firewall\constants.h" />
     <ClInclude Include="firewall\context.h" />
     <ClInclude Include="firewall\filters.h" />

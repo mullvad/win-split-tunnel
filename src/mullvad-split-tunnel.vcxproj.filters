@@ -48,6 +48,9 @@
     <ClCompile Include="firewall\pending.cpp">
       <Filter>firewall</Filter>
     </ClCompile>
+    <ClCompile Include="firewall\classify.cpp">
+      <Filter>firewall</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="mullvad-split-tunnel.inf" />
@@ -151,6 +154,9 @@
       <Filter>firewall</Filter>
     </ClInclude>
     <ClInclude Include="firewall\pending.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="firewall\classify.h">
       <Filter>firewall</Filter>
     </ClInclude>
   </ItemGroup>
