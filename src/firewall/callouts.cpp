@@ -2,7 +2,7 @@
 #include "firewall.h"
 #include "context.h"
 #include "identifiers.h"
-#include "asyncbind.h"
+#include "pending.h"
 #include "callouts.h"
 #include "logging.h"
 #include "../util.h"
@@ -315,26 +315,30 @@ Cleanup_handle:
 	FwpsReleaseClassifyHandle0(classifyHandle);
 }
 
+//
+// PendClassification()
+//
+// This function is used when, for an incoming request, we don't know what the correct action is.
+// I.e. when the process making the request hasn't been categorized yet.
+//
 void
-ClassifyUnknownBind
+PendClassification
 (
-	CONTEXT *Context,
+	pending::CONTEXT *Context,
 	HANDLE ProcessId,
 	UINT64 FilterId,
+	UINT16 LayerId,
 	const void *ClassifyContext,
 	FWPS_CLASSIFY_OUT0 *ClassifyOut
 )
 {
-	//
-	// Pend the bind and wait for process to become known and classified.
-	//
-
-	auto status = PendBindRequest
+	auto status = pending::PendRequest
 	(
 		Context,
 		ProcessId,
 		const_cast<void*>(ClassifyContext),
 		FilterId,
+		LayerId,
 		ClassifyOut
 	);
 
@@ -343,13 +347,12 @@ ClassifyUnknownBind
 		return;
 	}
 
-	DbgPrint("Could not pend bind request from process %p, blocking instead\n", ProcessId);
-
-	FailBindRequest
+	pending::FailRequest
 	(
 		ProcessId,
 		const_cast<void*>(ClassifyContext),
 		FilterId,
+		LayerId,
 		ClassifyOut
 	);
 }
@@ -453,11 +456,12 @@ CalloutClassifyBind
 		}
 		case PROCESS_SPLIT_VERDICT::UNKNOWN:
 		{
-			ClassifyUnknownBind
+			PendClassification
 			(
-				context,
+				context->PendedClassifications,
 				HANDLE(MetaValues->processId),
 				Filter->filterId,
+				FixedValues->layerId,
 				ClassifyContext,
 				ClassifyOut
 			);
@@ -513,12 +517,12 @@ LocalAddress(const IN6_ADDR *addr)
 void
 RewriteConnection
 (
+	CONTEXT *Context,
 	const FWPS_INCOMING_VALUES0 *FixedValues,
 	const FWPS_INCOMING_METADATA_VALUES0 *MetaValues,
 	UINT64 FilterId,
 	const void *ClassifyContext,
-	FWPS_CLASSIFY_OUT0 *ClassifyOut,
-	CONTEXT *Context
+	FWPS_CLASSIFY_OUT0 *ClassifyOut
 )
 {
 	UNREFERENCED_PARAMETER(MetaValues);
@@ -781,18 +785,37 @@ CalloutClassifyConnect
 
 	const auto verdict = callbacks.QueryProcess(HANDLE(MetaValues->processId), callbacks.Context);
 
-	if (verdict == PROCESS_SPLIT_VERDICT::DO_SPLIT)
+	switch (verdict)
 	{
-		RewriteConnection
-		(
-			FixedValues,
-			MetaValues,
-			Filter->filterId,
-			ClassifyContext,
-			ClassifyOut,
-			context
-		);
-	}
+		case PROCESS_SPLIT_VERDICT::DO_SPLIT:
+		{
+			RewriteConnection
+			(
+				context,
+				FixedValues,
+				MetaValues,
+				Filter->filterId,
+				ClassifyContext,
+				ClassifyOut
+			);
+
+			break;
+		}
+		case PROCESS_SPLIT_VERDICT::UNKNOWN:
+		{
+			PendClassification
+			(
+				context->PendedClassifications,
+				HANDLE(MetaValues->processId),
+				Filter->filterId,
+				FixedValues->layerId,
+				ClassifyContext,
+				ClassifyOut
+			);
+
+			break;
+		}
+	};
 }
 
 bool IsAleReauthorize

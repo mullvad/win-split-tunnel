@@ -5,7 +5,7 @@
 #include "filters.h"
 #include "callouts.h"
 #include "constants.h"
-#include "asyncbind.h"
+#include "pending.h"
 #include "logging.h"
 #include "../util.h"
 #include "../eventing/builder.h"
@@ -982,10 +982,7 @@ Initialize
 
 	RtlZeroMemory(context, sizeof(*context));
 
-	InitializeListHead(&context->PendedBinds.Records);
-
 	context->Callbacks = *Callbacks;
-	context->ProcessEventBroker = ProcessEventBroker;
 	context->Eventing = Eventing;
 
     auto status = WdfSpinLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &context->IpAddresses.Lock);
@@ -999,17 +996,6 @@ Initialize
 		goto Abort;
     }
 
-	status = WdfWaitLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &context->PendedBinds.Lock);
-
-    if (!NT_SUCCESS(status))
-    {
-        DbgPrint("WdfWaitLockCreate() failed 0x%X\n", status);
-
-		context->PendedBinds.Lock = NULL;
-
-		goto Abort_delete_ip_lock;
-    }
-
 	status = WdfWaitLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &context->Transaction.Lock);
 
     if (!NT_SUCCESS(status))
@@ -1018,14 +1004,31 @@ Initialize
 
 		context->Transaction.Lock = NULL;
 
-		goto Abort_delete_bind_lock;
+		goto Abort_delete_ip_lock;
     }
+
+	status = pending::Initialize
+	(
+		&context->PendedClassifications,
+		ProcessEventBroker
+	);
+
+	if (!NT_SUCCESS(status))
+	{
+        DbgPrint("pending::Initialize failed 0x%X\n", status);
+
+		context->PendedClassifications = NULL;
+
+		goto Abort_delete_transaction_lock;
+	}
 
 	status = CreateWfpSession(&context->WfpSession);
 
 	if (!NT_SUCCESS(status))
 	{
-		goto Abort_delete_transaction_lock;
+		context->WfpSession = NULL;
+
+		goto Abort_teardown_pending;
 	}
 
 	status = ConfigureWfpTx(context->WfpSession, context);
@@ -1049,20 +1052,9 @@ Initialize
 		goto Abort_unregister_callouts;
 	}
 
-	status = procbroker::Subscribe(ProcessEventBroker, HandleProcessEvent, context);
-
-	if (!NT_SUCCESS(status))
-	{
-		goto Abort_teardown_appfilters;
-	}
-
 	*Context = context;
 
 	return STATUS_SUCCESS;
-
-Abort_teardown_appfilters:
-
-	appfilters::TearDown(&context->AppFiltersContext);
 
 Abort_unregister_callouts:
 
@@ -1079,13 +1071,13 @@ Abort_destroy_session:
 
 	DestroyWfpSession(context->WfpSession);
 
+Abort_teardown_pending:
+
+	pending::TearDown(&context->PendedClassifications);
+
 Abort_delete_transaction_lock:
 
 	WdfObjectDelete(context->Transaction.Lock);
-
-Abort_delete_bind_lock:
-
-	WdfObjectDelete(context->PendedBinds.Lock);
 
 Abort_delete_ip_lock:
 
@@ -1127,11 +1119,7 @@ TearDown
 	// Clean up adjacent systems.
 	//
 
-	procbroker::CancelSubscription(context->ProcessEventBroker, HandleProcessEvent);
-
-	FailPendedBinds(context);
-
-	WdfObjectDelete(context->PendedBinds.Lock);
+	pending::TearDown(&context->PendedClassifications);
 
 	appfilters::TearDown(&context->AppFiltersContext);
 
