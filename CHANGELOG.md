@@ -20,7 +20,10 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
-
+### Changed
+Use improved model to determine when to split traffic. This has the following effects:
+  - TCP client sockets connecting to localhost can now be used successfully.
+  - Routing now works as expected, e.g. when being connected to multiple LANs.
 
 ## [1.0.2.0] - 2021-05-04
 ### Changed
