@@ -1111,6 +1111,20 @@ TearDown
 	CONTEXT **Context
 )
 {
+	const bool preConditions =
+	(
+		(Context != NULL)
+		&& (*Context != NULL)
+		&& ((*Context)->SplittingEnabled == false)
+	);
+
+	NT_ASSERT(preConditions);
+
+	if (!preConditions)
+	{
+		return STATUS_INVALID_DISPOSITION;
+	}
+
 	auto context = *Context;
 
 	*Context = NULL;
