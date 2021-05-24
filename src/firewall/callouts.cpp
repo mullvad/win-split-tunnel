@@ -266,7 +266,7 @@ Cleanup_data:
 	// This is the correct logic according to documentation.
 	//
 
-	FwpsApplyModifiedLayerData0(classifyHandle, (PVOID*)&bindRequest, 0);
+	FwpsApplyModifiedLayerData0(classifyHandle, bindRequest, 0);
 
 Cleanup_handle:
 
@@ -662,7 +662,7 @@ RewriteConnection
 
 Cleanup_data:
 
-	FwpsApplyModifiedLayerData0(classifyHandle, (PVOID*)&connectRequest, 0);
+	FwpsApplyModifiedLayerData0(classifyHandle, connectRequest, 0);
 
 Cleanup_handle:
 
