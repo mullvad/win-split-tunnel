@@ -1,4 +1,5 @@
 #include "pending.h"
+#include "classify.h"
 #include "../util.h"
 
 #include "../trace.h"
@@ -166,10 +167,7 @@ FailRequest
         }
     };
 
-    // TODO: replace with call to reusable function.
-    ClassifyOut->actionType = FWP_ACTION_PERMIT;
-    ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
-
+    ClassificationApplyHardPermit(ClassifyOut);
     FwpsApplyModifiedLayerData0(ClassifyHandle, requestData, 0);
 
     return STATUS_SUCCESS;
