@@ -119,13 +119,13 @@ From the point of view of the driver, all DNS requests are made by a particular 
 
 This can be mitigated for individual apps if they can be configured to use DoT/DoH.
 
-## Localhost communications
+## Localhost UDP communications
 
-Excluded apps aren't allowed to bind to `inaddr_any`. If a client socket isn't explicitly bound prior to calling `connect()`, the socket will momentarily be seen in the system as binding/bound towards `inaddr_any`, before the correct binding is realized. The driver sees the initial bind and redirects it to the primary network interface.
+Excluded apps aren't allowed to bind to `inaddr_any`. In certain cases, if a client socket isn't explicitly bound, the socket will momentarily be seen in the system as binding/bound towards `inaddr_any`, before the correct binding is realized. The driver sees the initial bind and redirects it to the primary network interface.
 
-This means that, for excluded apps, if a socket isn't explicitly bound to `127.0.0.1` before connecting, it won't be able to talk to localhost.
+This means that, for excluded apps, if a UDP socket isn't explicitly bound to `127.0.0.1` before sending, it won't be able to talk to localhost.
 
-Because explicitly bound client sockets are rare, it can be expected that most excluded apps are affected. No generally applicable mitigations are available.
+Because explicitly bound UDP client sockets are rare, it can be expected that most excluded apps are affected. No generally applicable mitigations are available.
 
 ## Multicast reception
 
