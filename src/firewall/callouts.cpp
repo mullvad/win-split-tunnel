@@ -496,26 +496,29 @@ RewriteConnection
 	WdfSpinLockRelease(Context->IpAddresses.Lock);
 
 	//
-	// Identify the specific case we're interested in, or abort.
+	// Identify the specific cases we're interested in, or abort.
 	//
+
+	bool shouldRedirect = false;
 
 	if (ipv4)
 	{
 		auto src = RtlUlongByteSwap(FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_LOCAL_ADDRESS].value.uint32);
 
-		if (!IN4_ADDR_EQUAL(reinterpret_cast<IN_ADDR*>(&src), &ipAddresses.TunnelIpv4))
-		{
-			return;
-		}
+		shouldRedirect = IN4_ADDR_EQUAL(reinterpret_cast<IN_ADDR*>(&src), &ipAddresses.TunnelIpv4)
+			|| IN4_IS_ADDR_UNSPECIFIED(reinterpret_cast<IN_ADDR*>(&src));
 	}
 	else
 	{
 		auto src = FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_LOCAL_ADDRESS].value.byteArray16;
 
-		if (!IN6_ADDR_EQUAL(reinterpret_cast<IN6_ADDR*>(src), &ipAddresses.TunnelIpv6))
-		{
-			return;
-		}
+		shouldRedirect = IN6_ADDR_EQUAL(reinterpret_cast<IN6_ADDR*>(src), &ipAddresses.TunnelIpv6)
+			|| IN6_IS_ADDR_UNSPECIFIED(reinterpret_cast<IN6_ADDR*>(&src));
+	}
+
+	if (!shouldRedirect)
+	{
+		return;
 	}
 
 	//
@@ -672,6 +675,8 @@ CalloutClassifyConnect
 
 	if (verdict == PROCESS_SPLIT_VERDICT::DO_SPLIT)
 	{
+		DbgPrint("New connection in split app\n");
+
 		RewriteConnection
 		(
 			FixedValues,
