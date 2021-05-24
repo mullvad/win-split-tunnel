@@ -33,9 +33,6 @@
     <ClCompile Include="procbroker\procbroker.cpp">
       <Filter>procbroker</Filter>
     </ClCompile>
-    <ClCompile Include="firewall\asyncbind.cpp">
-      <Filter>firewall</Filter>
-    </ClCompile>
     <ClCompile Include="firewall\mode.cpp">
       <Filter>firewall</Filter>
     </ClCompile>
@@ -46,6 +43,9 @@
       <Filter>firewall</Filter>
     </ClCompile>
     <ClCompile Include="firewall\logging.cpp">
+      <Filter>firewall</Filter>
+    </ClCompile>
+    <ClCompile Include="firewall\pending.cpp">
       <Filter>firewall</Filter>
     </ClCompile>
   </ItemGroup>
@@ -131,9 +131,6 @@
     <ClInclude Include="procbroker\procbroker.h">
       <Filter>procbroker</Filter>
     </ClInclude>
-    <ClInclude Include="firewall\asyncbind.h">
-      <Filter>firewall</Filter>
-    </ClInclude>
     <ClInclude Include="procmgmt\callbacks.h">
       <Filter>procmgmt</Filter>
     </ClInclude>
@@ -151,6 +148,9 @@
     </ClInclude>
     <ClInclude Include="trace.h" />
     <ClInclude Include="firewall\logging.h">
+      <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="firewall\pending.h">
       <Filter>firewall</Filter>
     </ClInclude>
   </ItemGroup>
