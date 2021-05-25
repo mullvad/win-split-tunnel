@@ -2,8 +2,10 @@
 #include "firewall.h"
 #include "context.h"
 #include "identifiers.h"
-#include "asyncbind.h"
+#include "pending.h"
 #include "callouts.h"
+#include "logging.h"
+#include "classify.h"
 #include "../util.h"
 
 #include "../trace.h"
@@ -133,8 +135,13 @@ UnregisterCallout
 //
 // RewriteBind()
 //
-// This is where the splitting happens.
-// Move socket binds from tunnel interface to the internet connected interface.
+// Implements redirection for non-TCP socket binds.
+// 
+// If a bind is attempted (or implied) with target inaddr_any or the tunnel interface,
+// we rewrite the bind to move it to the internet interface.
+//
+// This has the unfortunate effect that client sockets which are not explicitly bound
+// to localhost are prevented from connecting to localhost.
 //
 void
 RewriteBind
@@ -183,21 +190,7 @@ RewriteBind
 		goto Cleanup_handle;
 	}
 
-	//
-	// According to documentation, FwpsAcquireWritableLayerDataPointer0() will update the
-	// `actionType` and `rights` fields with poorly chosen values:
-	//
-	// ```
-	// classifyOut->actionType = FWP_ACTION_BLOCK
-	// classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE
-	// ```
-	//
-	// However, in practice it seems to not make any changes to those fields.
-	// But if it did we'd want to ensure the fields have sane values.
-	//
-
-	ClassifyOut->actionType = FWP_ACTION_CONTINUE;
-	ClassifyOut->rights |= FWPS_RIGHT_ACTION_WRITE;
+	ClassificationReset(ClassifyOut);
 
 	//
 	// There's a list with redirection history.
@@ -225,62 +218,44 @@ RewriteBind
 
 	const bool ipv4 = FixedValues->layerId == FWPS_LAYER_ALE_BIND_REDIRECT_V4;
 
-	WdfWaitLockAcquire(Context->IpAddresses.Lock, NULL);
+	WdfSpinLockAcquire(Context->IpAddresses.Lock);
 
 	if (ipv4)
 	{
 		auto bindTarget = (SOCKADDR_IN*)&(bindRequest->localAddressAndPort);
 
-		DbgPrint("Bind request eligible for splitting: %d.%d.%d.%d:%d\n",
-			bindTarget->sin_addr.S_un.S_un_b.s_b1,
-			bindTarget->sin_addr.S_un.S_un_b.s_b2,
-			bindTarget->sin_addr.S_un.S_un_b.s_b3,
-			bindTarget->sin_addr.S_un.S_un_b.s_b4,
-			ntohs(bindTarget->sin_port)
-		);
-
 		if (IN4_IS_ADDR_UNSPECIFIED(&(bindTarget->sin_addr))
 			|| IN4_ADDR_EQUAL(&(bindTarget->sin_addr), &(Context->IpAddresses.Addresses.TunnelIpv4)))
 		{
-			DbgPrint("SPLITTING\n");
+			const auto newTarget = &Context->IpAddresses.Addresses.InternetIpv4;
 
-			bindTarget->sin_addr = Context->IpAddresses.Addresses.InternetIpv4;
+			LogBindRedirect(HANDLE(MetaValues->processId), bindTarget, newTarget);
 
-			ClassifyOut->actionType = FWP_ACTION_PERMIT;
-			ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+			bindTarget->sin_addr = *newTarget;
+
+			ClassificationApplyHardPermit(ClassifyOut);
 		}
 	}
 	else
 	{
 		auto bindTarget = (SOCKADDR_IN6*)&(bindRequest->localAddressAndPort);
 
-		DbgPrint("Bind request eligible for splitting: [%X:%X:%X:%X:%X:%X:%X:%X]:%d\n",
-			ntohs(bindTarget->sin6_addr.u.Word[0]),
-			ntohs(bindTarget->sin6_addr.u.Word[1]),
-			ntohs(bindTarget->sin6_addr.u.Word[2]),
-			ntohs(bindTarget->sin6_addr.u.Word[3]),
-			ntohs(bindTarget->sin6_addr.u.Word[4]),
-			ntohs(bindTarget->sin6_addr.u.Word[5]),
-			ntohs(bindTarget->sin6_addr.u.Word[6]),
-			ntohs(bindTarget->sin6_addr.u.Word[7]),
-			ntohs(bindTarget->sin6_port)
-		);
-
 		static const IN6_ADDR IN6_ADDR_ANY = { 0 };
 		
 		if (IN6_ADDR_EQUAL(&(bindTarget->sin6_addr), &IN6_ADDR_ANY)
 			|| IN6_ADDR_EQUAL(&(bindTarget->sin6_addr), &(Context->IpAddresses.Addresses.TunnelIpv6)))
 		{
-			DbgPrint("SPLITTING\n");
+			const auto newTarget = &Context->IpAddresses.Addresses.InternetIpv6;
 
-			bindTarget->sin6_addr = Context->IpAddresses.Addresses.InternetIpv6;
+			LogBindRedirect(HANDLE(MetaValues->processId), bindTarget, newTarget);
 
-			ClassifyOut->actionType = FWP_ACTION_PERMIT;
-			ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+			bindTarget->sin6_addr = *newTarget;
+
+			ClassificationApplyHardPermit(ClassifyOut);
 		}
 	}
 
-	WdfWaitLockRelease(Context->IpAddresses.Lock);
+	WdfSpinLockRelease(Context->IpAddresses.Lock);
 
 Cleanup_data:
 
@@ -291,33 +266,37 @@ Cleanup_data:
 	// This is the correct logic according to documentation.
 	//
 
-	FwpsApplyModifiedLayerData0(classifyHandle, (PVOID*)&bindRequest, 0);
+	FwpsApplyModifiedLayerData0(classifyHandle, bindRequest, 0);
 
 Cleanup_handle:
 
 	FwpsReleaseClassifyHandle0(classifyHandle);
 }
 
+//
+// PendClassification()
+//
+// This function is used when, for an incoming request, we don't know what the correct action is.
+// I.e. when the process making the request hasn't been categorized yet.
+//
 void
-ClassifyUnknownBind
+PendClassification
 (
-	CONTEXT *Context,
+	pending::CONTEXT *Context,
 	HANDLE ProcessId,
 	UINT64 FilterId,
+	UINT16 LayerId,
 	const void *ClassifyContext,
 	FWPS_CLASSIFY_OUT0 *ClassifyOut
 )
 {
-	//
-	// Pend the bind and wait for process to become known and classified.
-	//
-
-	auto status = PendBindRequest
+	auto status = pending::PendRequest
 	(
 		Context,
 		ProcessId,
 		const_cast<void*>(ClassifyContext),
 		FilterId,
+		LayerId,
 		ClassifyOut
 	);
 
@@ -326,13 +305,12 @@ ClassifyUnknownBind
 		return;
 	}
 
-	DbgPrint("Could not pend bind request from process %p, blocking instead\n", ProcessId);
-
-	FailBindRequest
+	pending::FailRequest
 	(
 		ProcessId,
 		const_cast<void*>(ClassifyContext),
 		FilterId,
+		LayerId,
 		ClassifyOut
 	);
 }
@@ -351,8 +329,7 @@ ClassifyUnknownBind
 // 
 // ===
 // 
-// Entry point for splitting traffic.
-// Check whether the binding process is marked for having its traffic split.
+// Entry point for splitting non-TCP socket binds.
 //
 // FWPS_LAYER_ALE_BIND_REDIRECT_V4
 // FWPS_LAYER_ALE_BIND_REDIRECT_V6
@@ -374,8 +351,17 @@ CalloutClassifyBind
 
 	NT_ASSERT
 	(
-		FixedValues->layerId == FWPS_LAYER_ALE_BIND_REDIRECT_V4
-			|| FixedValues->layerId == FWPS_LAYER_ALE_BIND_REDIRECT_V6
+		(
+			FixedValues->layerId == FWPS_LAYER_ALE_BIND_REDIRECT_V4
+			&& FixedValues->incomingValue[FWPS_FIELD_ALE_BIND_REDIRECT_V4_IP_PROTOCOL] \
+				.value.uint8 != IPPROTO_TCP
+		)
+		||
+		(
+			FixedValues->layerId == FWPS_LAYER_ALE_BIND_REDIRECT_V6
+			&& FixedValues->incomingValue[FWPS_FIELD_ALE_BIND_REDIRECT_V6_IP_PROTOCOL] \
+				.value.uint8 != IPPROTO_TCP
+		)
 	);
 
 	NT_ASSERT
@@ -428,11 +414,359 @@ CalloutClassifyBind
 		}
 		case PROCESS_SPLIT_VERDICT::UNKNOWN:
 		{
-			ClassifyUnknownBind
+			PendClassification
 			(
-				context,
+				context->PendedClassifications,
 				HANDLE(MetaValues->processId),
 				Filter->filterId,
+				FixedValues->layerId,
+				ClassifyContext,
+				ClassifyOut
+			);
+
+			break;
+		}
+	};
+}
+
+bool
+LocalAddress(const IN_ADDR *addr)
+{
+	return IN4_IS_ADDR_LOOPBACK(addr) // 127/8
+		|| IN4_IS_ADDR_LINKLOCAL(addr) // 169.254/16
+		|| IN4_IS_ADDR_RFC1918(addr) // 10/8, 172.16/12, 192.168/16
+		|| IN4_IS_ADDR_MC_LINKLOCAL(addr) // 224.0.0/24
+		|| IN4_IS_ADDR_MC_ADMINLOCAL(addr) // 239.255/16
+		|| IN4_IS_ADDR_MC_SITELOCAL(addr) // 239/8
+		|| IN4_IS_ADDR_BROADCAST(addr) // 255.255.255.255
+	;
+}
+
+bool
+IN6_IS_ADDR_ULA(const IN6_ADDR *a)
+{
+    return (a->s6_bytes[0] == 0xfd);
+
+}
+
+bool
+IN6_IS_ADDR_MC_NON_GLOBAL(const IN6_ADDR *a)
+{
+	return IN6_IS_ADDR_MULTICAST(a)
+		&& !IN6_IS_ADDR_MC_GLOBAL(a);
+}
+
+bool
+LocalAddress(const IN6_ADDR *addr)
+{
+	return IN6_IS_ADDR_LOOPBACK(addr) // ::1/128
+		|| IN6_IS_ADDR_LINKLOCAL(addr) // fe80::/10
+		|| IN6_IS_ADDR_SITELOCAL(addr) // fec0::/10
+		|| IN6_IS_ADDR_ULA(addr) // fd00::/8
+		|| IN6_IS_ADDR_MC_NON_GLOBAL(addr) // ff00::/8 && !(ffxe::/16)
+	;
+}
+
+//
+// RewriteConnection()
+//
+// See comment on CalloutClassifyConnect().
+//
+void
+RewriteConnection
+(
+	CONTEXT *Context,
+	const FWPS_INCOMING_VALUES0 *FixedValues,
+	const FWPS_INCOMING_METADATA_VALUES0 *MetaValues,
+	UINT64 FilterId,
+	const void *ClassifyContext,
+	FWPS_CLASSIFY_OUT0 *ClassifyOut
+)
+{
+	UNREFERENCED_PARAMETER(MetaValues);
+
+	WdfSpinLockAcquire(Context->IpAddresses.Lock);
+
+	const auto ipAddresses = Context->IpAddresses.Addresses;
+
+	WdfSpinLockRelease(Context->IpAddresses.Lock);
+
+	//
+	// Identify the specific cases we're interested in or abort.
+	//
+
+	const bool ipv4 = FixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4;
+
+	if (ipv4)
+	{
+		const auto rawLocalAddress = RtlUlongByteSwap(FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_LOCAL_ADDRESS].value.uint32);
+
+		const auto rawRemoteAddress = RtlUlongByteSwap(FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_REMOTE_ADDRESS].value.uint32);
+
+		auto localAddress = reinterpret_cast<const IN_ADDR*>(&rawLocalAddress);
+		auto remoteAddress = reinterpret_cast<const IN_ADDR*>(&rawRemoteAddress);
+
+		const auto shouldRedirect = IN4_ADDR_EQUAL(localAddress, &ipAddresses.TunnelIpv4)
+			|| !LocalAddress(remoteAddress);
+
+		const auto localPort = FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_LOCAL_PORT].value.uint16;
+
+		const auto remotePort = FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_REMOTE_PORT].value.uint16;
+
+		if (!shouldRedirect)
+		{
+			LogConnectRedirectPass
+			(
+				HANDLE(MetaValues->processId),
+				localAddress,
+				localPort,
+				remoteAddress,
+				remotePort
+			);
+
+			return;
+		}
+
+		LogConnectRedirect
+		(
+			HANDLE(MetaValues->processId),
+			localAddress,
+			localPort,
+			&ipAddresses.InternetIpv4,
+			remoteAddress,
+			remotePort
+		);
+	}
+	else
+	{
+		auto localAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_LOCAL_ADDRESS].value.byteArray16);
+
+		auto remoteAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_REMOTE_ADDRESS].value.byteArray16);
+
+		const auto shouldRedirect = IN6_ADDR_EQUAL(localAddress, &ipAddresses.TunnelIpv6)
+			|| !LocalAddress(remoteAddress);
+
+		const auto localPort = FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_LOCAL_PORT].value.uint16;
+
+		const auto remotePort = FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_REMOTE_PORT].value.uint16;
+
+		if (!shouldRedirect)
+		{
+			LogConnectRedirectPass
+			(
+				HANDLE(MetaValues->processId),
+				localAddress,
+				localPort,
+				remoteAddress,
+				remotePort
+			);
+
+			return;
+		}
+
+		LogConnectRedirect
+		(
+			HANDLE(MetaValues->processId),
+			localAddress,
+			localPort,
+			&ipAddresses.InternetIpv6,
+			remoteAddress,
+			remotePort
+		);
+	}
+
+	//
+	// Patch local address to force connection off of tunnel interface.
+	//
+
+	UINT64 classifyHandle = 0;
+
+    auto status = FwpsAcquireClassifyHandle0
+	(
+		const_cast<void*>(ClassifyContext),
+		0,
+		&classifyHandle
+	);
+
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("FwpsAcquireClassifyHandle0() failed 0x%X\n", status);
+
+		return;
+	}
+
+	FWPS_CONNECT_REQUEST0 *connectRequest = NULL;
+
+	status = FwpsAcquireWritableLayerDataPointer0
+	(
+		classifyHandle,
+		FilterId,
+		0,
+		(PVOID*)&connectRequest,
+		ClassifyOut
+	);
+
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("FwpsAcquireWritableLayerDataPointer0() failed 0x%X\n", status);
+
+		goto Cleanup_handle;
+	}
+
+	ClassificationReset(ClassifyOut);
+
+	//
+	// There's a list with redirection history.
+	//
+	// This only ever comes into play if several callouts are fighting to redirect the connection.
+	//
+	// To prevent recursion, we need to check if we're on the list, and abort if so.
+	//
+
+    for (auto history = connectRequest->previousVersion;
+         history != NULL;
+         history = history->previousVersion)
+    {
+        if (history->modifierFilterId == FilterId)
+        {
+            DbgPrint("Aborting connection processing because already redirected by us\n");
+
+            goto Cleanup_data;
+        }
+    }
+
+	// 
+	// Rewrite connection.
+	//
+
+	if (ipv4)
+	{
+		auto localDetails = (SOCKADDR_IN*)&connectRequest->localAddressAndPort;
+		localDetails->sin_addr = ipAddresses.InternetIpv4;
+	}
+	else
+	{
+		auto localDetails = (SOCKADDR_IN6*)&connectRequest->localAddressAndPort;
+		localDetails->sin6_addr = ipAddresses.InternetIpv6;
+	}
+
+	ClassificationApplyHardPermit(ClassifyOut);
+
+Cleanup_data:
+
+	FwpsApplyModifiedLayerData0(classifyHandle, connectRequest, 0);
+
+Cleanup_handle:
+
+	FwpsReleaseClassifyHandle0(classifyHandle);
+}
+
+//
+// CalloutClassifyConnect()
+//
+// Adjust properties on new TCP connections.
+//
+// If an app is marked for splitting, and if a new connection is explicitly made on the
+// tunnel interface, or can be assumed to be routed through the tunnel interface,
+// then move the connection to the Internet connected interface (LAN interface usually).
+//
+// FWPS_LAYER_ALE_CONNECT_REDIRECT_V4
+// FWPS_LAYER_ALE_CONNECT_REDIRECT_V6
+//
+void
+CalloutClassifyConnect
+(
+	const FWPS_INCOMING_VALUES0 *FixedValues,
+	const FWPS_INCOMING_METADATA_VALUES0 *MetaValues,
+	void *LayerData,
+	const void *ClassifyContext,
+	const FWPS_FILTER1 *Filter,
+	UINT64 FlowContext,
+	FWPS_CLASSIFY_OUT0 *ClassifyOut
+)
+{
+	UNREFERENCED_PARAMETER(LayerData);
+	UNREFERENCED_PARAMETER(FlowContext);
+
+	NT_ASSERT
+	(
+		(
+			FixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4
+			&& FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V4_IP_PROTOCOL] \
+				.value.uint8 == IPPROTO_TCP
+		)
+		||
+		(
+			FixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V6
+			&& FixedValues->incomingValue[FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_PROTOCOL] \
+				.value.uint8 == IPPROTO_TCP
+		)
+	);
+
+	NT_ASSERT
+	(
+		Filter->providerContext != NULL
+		&& Filter->providerContext->type == FWPM_GENERAL_CONTEXT
+		&& Filter->providerContext->dataBuffer->size == sizeof(CONTEXT*)
+	);
+
+	auto context = *(CONTEXT**)Filter->providerContext->dataBuffer->data;
+
+	if (0 == (ClassifyOut->rights & FWPS_RIGHT_ACTION_WRITE))
+	{
+		DbgPrint("Aborting connect-redirect processing because hard permit/block already applied\n");
+
+		return;
+	}
+
+	if (ClassifyOut->actionType == FWP_ACTION_NONE)
+	{
+		ClassifyOut->actionType = FWP_ACTION_CONTINUE;
+	}
+
+	if (!FWPS_IS_METADATA_FIELD_PRESENT(MetaValues, FWPS_METADATA_FIELD_PROCESS_ID))
+	{
+		DbgPrint("Failed to classify connection because PID was not provided\n");
+
+		return;
+	}
+
+	const CALLBACKS &callbacks = context->Callbacks;
+
+	const auto verdict = callbacks.QueryProcess(HANDLE(MetaValues->processId), callbacks.Context);
+
+	switch (verdict)
+	{
+		case PROCESS_SPLIT_VERDICT::DO_SPLIT:
+		{
+			RewriteConnection
+			(
+				context,
+				FixedValues,
+				MetaValues,
+				Filter->filterId,
+				ClassifyContext,
+				ClassifyOut
+			);
+
+			break;
+		}
+		case PROCESS_SPLIT_VERDICT::UNKNOWN:
+		{
+			PendClassification
+			(
+				context->PendedClassifications,
+				HANDLE(MetaValues->processId),
+				Filter->filterId,
+				FixedValues->layerId,
 				ClassifyContext,
 				ClassifyOut
 			);
@@ -482,13 +816,84 @@ bool IsAleReauthorize
 	return ((flags & FWP_CONDITION_FLAG_IS_REAUTHORIZE) != 0);
 }
 
+struct AuthLayerValueIndices
+{
+	SIZE_T LocalAddress;
+	SIZE_T LocalPort;
+	SIZE_T RemoteAddress;
+	SIZE_T RemotePort;
+};
+
+bool
+GetAuthLayerValueIndices
+(
+	UINT16 LayerId,
+	AuthLayerValueIndices *Indices
+)
+{
+	switch (LayerId)
+	{
+		case FWPS_LAYER_ALE_AUTH_CONNECT_V4:
+		{
+			*Indices =
+			{
+				FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_LOCAL_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_LOCAL_PORT,
+				FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_REMOTE_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_CONNECT_V4_IP_REMOTE_PORT
+			};
+
+			return true;
+		}
+		case FWPS_LAYER_ALE_AUTH_RECV_ACCEPT_V4:
+		{
+			*Indices =
+			{
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_IP_LOCAL_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_IP_LOCAL_PORT,
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_IP_REMOTE_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V4_IP_REMOTE_PORT
+			};
+
+			return true;
+		}
+		case FWPS_LAYER_ALE_AUTH_CONNECT_V6:
+		{
+			*Indices =
+			{
+				FWPS_FIELD_ALE_AUTH_CONNECT_V6_IP_LOCAL_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_CONNECT_V6_IP_LOCAL_PORT,
+				FWPS_FIELD_ALE_AUTH_CONNECT_V6_IP_REMOTE_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_CONNECT_V6_IP_REMOTE_PORT
+			};
+
+			return true;
+		}
+		case FWPS_LAYER_ALE_AUTH_RECV_ACCEPT_V6:
+		{
+			*Indices =
+			{
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_IP_LOCAL_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_IP_LOCAL_PORT,
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_IP_REMOTE_ADDRESS,
+				FWPS_FIELD_ALE_AUTH_RECV_ACCEPT_V6_IP_REMOTE_PORT
+			};
+
+			return true;
+		}
+	}
+
+	return false;
+}
+
 //
 // CalloutPermitSplitApps()
 //
-// For processes being split, the bind will have already been moved off the
-// tunnel interface.
-//
+// For processes being split, binds and connections will have already been aptly redirected.
 // So now it's only a matter of approving the connection.
+//
+// The reason we have to explicitly approve these connections is because otherwise
+// the default filters with lower weights would block all non-tunnel connections.
 //
 // FWPS_LAYER_ALE_AUTH_CONNECT_V4
 // FWPS_LAYER_ALE_AUTH_CONNECT_V6
@@ -507,12 +912,8 @@ CalloutPermitSplitApps
 	FWPS_CLASSIFY_OUT0 *ClassifyOut
 )
 {
-#if !DBG
-	UNREFERENCED_PARAMETER(FixedValues);
-#endif
 	UNREFERENCED_PARAMETER(LayerData);
 	UNREFERENCED_PARAMETER(ClassifyContext);
-	UNREFERENCED_PARAMETER(Filter);
 	UNREFERENCED_PARAMETER(FlowContext);
 
 	NT_ASSERT
@@ -534,7 +935,7 @@ CalloutPermitSplitApps
 
 	if (0 == (ClassifyOut->rights & FWPS_RIGHT_ACTION_WRITE))
 	{
-		DbgPrint("Aborting connection processing because hard permit/block already applied\n");
+		DbgPrint("Aborting auth processing because hard permit/block already applied\n");
 
 		return;
 	}
@@ -546,7 +947,7 @@ CalloutPermitSplitApps
 
 	if (!FWPS_IS_METADATA_FIELD_PRESENT(MetaValues, FWPS_METADATA_FIELD_PROCESS_ID))
 	{
-		DbgPrint("Failed to classify connection because PID was not provided\n");
+		DbgPrint("Failed to complete auth processing because PID was not provided\n");
 
 		return;
 	}
@@ -555,23 +956,82 @@ CalloutPermitSplitApps
 
 	const auto verdict = callbacks.QueryProcess(HANDLE(MetaValues->processId), callbacks.Context);
 
-	if (verdict == PROCESS_SPLIT_VERDICT::DO_SPLIT)
-	{
-		DbgPrint("APPROVING CONNECTION\n");
+	//
+	// If the process is not marked for splitting we should just abort
+	// and not attempt to classify the connection.
+	//
 
-		ClassifyOut->actionType = FWP_ACTION_PERMIT;
-		ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+	if (verdict != PROCESS_SPLIT_VERDICT::DO_SPLIT)
+	{
+		return;
+	}
+
+	//
+	// Include extensive logging.
+	//
+
+	AuthLayerValueIndices indices = {0};
+
+	const auto status = GetAuthLayerValueIndices(FixedValues->layerId, &indices);
+
+	NT_ASSERT(status);
+
+	if (!status)
+	{
+		return;
+	}
+
+	const auto localPort = FixedValues->incomingValue[indices.LocalPort].value.uint16;
+	const auto remotePort = FixedValues->incomingValue[indices.RemotePort].value.uint16;
+
+	const bool ipv4 = FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V4
+		|| FixedValues->layerId == FWPS_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
+
+	if (ipv4)
+	{
+		const auto rawLocalAddress = RtlUlongByteSwap(FixedValues->incomingValue[
+			indices.LocalAddress].value.uint32);
+
+		const auto rawRemoteAddress = RtlUlongByteSwap(FixedValues->incomingValue[
+			indices.RemoteAddress].value.uint32);
+
+		auto localAddress = reinterpret_cast<const IN_ADDR*>(&rawLocalAddress);
+		auto remoteAddress = reinterpret_cast<const IN_ADDR*>(&rawRemoteAddress);
+
+		LogPermitConnection
+		(
+			HANDLE(MetaValues->processId),
+			localAddress,
+			localPort,
+			remoteAddress,
+			remotePort,
+			(FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V4)
+		);
 	}
 	else
 	{
-#if DBG
-		if (IsAleReauthorize(FixedValues))
-		{
-			DbgPrint("[CalloutPermitSplitApps] Reauthorized connection (PID: %p) is not explicitly "\
-				"approved by callout\n", HANDLE(MetaValues->processId));
-		}
-#endif
+		auto localAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
+			indices.LocalAddress].value.byteArray16);
+
+		auto remoteAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
+			indices.RemoteAddress].value.byteArray16);
+
+		LogPermitConnection
+		(
+			HANDLE(MetaValues->processId),
+			localAddress,
+			localPort,
+			remoteAddress,
+			remotePort,
+			(FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V6)
+		);
 	}
+
+	//
+	// Apply classification.
+	//
+
+	ClassificationApplyHardPermit(ClassifyOut);
 }
 
 //
@@ -582,6 +1042,11 @@ CalloutPermitSplitApps
 //
 // These connections need to be blocked to ensure the process exists on
 // only one side of the tunnel.
+//
+// Additionally, block any processes which have not been evaluated.
+//
+// This normally isn't required because earlier callouts re-auth until the process
+// is categorized, but it makes sense as a safety measure.
 //
 // FWPS_LAYER_ALE_AUTH_CONNECT_V4
 // FWPS_LAYER_ALE_AUTH_CONNECT_V6
@@ -600,12 +1065,8 @@ CalloutBlockSplitApps
 	FWPS_CLASSIFY_OUT0 *ClassifyOut
 )
 {
-#if !DBG
-	UNREFERENCED_PARAMETER(FixedValues);
-#endif
 	UNREFERENCED_PARAMETER(LayerData);
 	UNREFERENCED_PARAMETER(ClassifyContext);
-	UNREFERENCED_PARAMETER(Filter);
 	UNREFERENCED_PARAMETER(FlowContext);
 
 	NT_ASSERT
@@ -627,7 +1088,7 @@ CalloutBlockSplitApps
 
 	if (0 == (ClassifyOut->rights & FWPS_RIGHT_ACTION_WRITE))
 	{
-		DbgPrint("Aborting connection processing because hard permit/block already applied\n");
+		DbgPrint("Aborting auth processing because hard permit/block already applied\n");
 
 		return;
 	}
@@ -639,7 +1100,7 @@ CalloutBlockSplitApps
 
 	if (!FWPS_IS_METADATA_FIELD_PRESENT(MetaValues, FWPS_METADATA_FIELD_PROCESS_ID))
 	{
-		DbgPrint("Failed to classify connection because PID was not provided\n");
+		DbgPrint("Failed to complete auth processing because PID was not provided\n");
 
 		return;
 	}
@@ -648,23 +1109,85 @@ CalloutBlockSplitApps
 
 	const auto verdict = callbacks.QueryProcess(HANDLE(MetaValues->processId), callbacks.Context);
 
-	if (verdict == PROCESS_SPLIT_VERDICT::DO_SPLIT)
-	{
-		DbgPrint("BLOCKING CONNECTION\n");
+	//
+	// Block any processes which have not yet been evaluated.
+	// This is a safety measure to prevent race conditions.
+	//
 
-		ClassifyOut->actionType = FWP_ACTION_BLOCK;
-		ClassifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+	const auto shouldBlock = (verdict == PROCESS_SPLIT_VERDICT::DO_SPLIT)
+		|| (verdict == PROCESS_SPLIT_VERDICT::UNKNOWN);
+
+	if (!shouldBlock)
+	{
+		return;
+	}
+
+	//
+	// Include extensive logging.
+	//
+
+	AuthLayerValueIndices indices = {0};
+
+	const auto status = GetAuthLayerValueIndices(FixedValues->layerId, &indices);
+
+	NT_ASSERT(status);
+
+	if (!status)
+	{
+		return;
+	}
+
+	const auto localPort = FixedValues->incomingValue[indices.LocalPort].value.uint16;
+	const auto remotePort = FixedValues->incomingValue[indices.RemotePort].value.uint16;
+
+	const bool ipv4 = FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V4
+		|| FixedValues->layerId == FWPS_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
+
+	if (ipv4)
+	{
+		const auto rawLocalAddress = RtlUlongByteSwap(FixedValues->incomingValue[
+			indices.LocalAddress].value.uint32);
+
+		const auto rawRemoteAddress = RtlUlongByteSwap(FixedValues->incomingValue[
+			indices.RemoteAddress].value.uint32);
+
+		auto localAddress = reinterpret_cast<const IN_ADDR*>(&rawLocalAddress);
+		auto remoteAddress = reinterpret_cast<const IN_ADDR*>(&rawRemoteAddress);
+
+		LogBlockConnection
+		(
+			HANDLE(MetaValues->processId),
+			localAddress,
+			localPort,
+			remoteAddress,
+			remotePort,
+			(FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V4)
+		);
 	}
 	else
 	{
-#if DBG
-		if (IsAleReauthorize(FixedValues))
-		{
-			DbgPrint("[CalloutBlockSplitApps] Reauthorized connection (PID: %p) is not explicitly "\
-				"blocked by callout\n", HANDLE(MetaValues->processId));
-		}
-#endif
+		auto localAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
+			indices.LocalAddress].value.byteArray16);
+
+		auto remoteAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
+			indices.RemoteAddress].value.byteArray16);
+
+		LogBlockConnection
+		(
+			HANDLE(MetaValues->processId),
+			localAddress,
+			localPort,
+			remoteAddress,
+			remotePort,
+			(FixedValues->layerId == FWPS_LAYER_ALE_AUTH_CONNECT_V6)
+		);
 	}
+
+	//
+	// Apply classification.
+	//
+
+	ClassificationApplyHardBlock(ClassifyOut);
 }
 
 } // anonymous namespace
@@ -725,6 +1248,69 @@ UnregisterCalloutClassifyBind
 {
     auto s1 = UnregisterCallout(&ST_FW_CALLOUT_CLASSIFY_BIND_IPV4_KEY);
 	auto s2 = UnregisterCallout(&ST_FW_CALLOUT_CLASSIFY_BIND_IPV6_KEY);
+
+	RETURN_IF_UNSUCCESSFUL(s1);
+	RETURN_IF_UNSUCCESSFUL(s2);
+
+	return STATUS_SUCCESS;
+}
+
+//
+// RegisterCalloutClassifyConnectTx()
+//
+// Register callout with WFP. In all applicable layers.
+//
+// "Tx" (in transaction) suffix means there is no clean-up in failure paths.
+//
+NTSTATUS
+RegisterCalloutClassifyConnectTx
+(
+	PDEVICE_OBJECT DeviceObject,
+	HANDLE WfpSession
+)
+{
+	auto status = RegisterCalloutTx
+	(
+		DeviceObject,
+		WfpSession,
+		CalloutClassifyConnect,
+		&ST_FW_CALLOUT_CLASSIFY_CONNECT_IPV4_KEY,
+		&FWPM_LAYER_ALE_CONNECT_REDIRECT_V4,
+		L"Mullvad Split Tunnel Connect Redirect Callout (IPv4)",
+		L"Adjusts properties on new network connections"
+	);
+
+	if (!NT_SUCCESS(status))
+	{
+		return status;
+	}
+
+	status = RegisterCalloutTx
+	(
+		DeviceObject,
+		WfpSession,
+		CalloutClassifyConnect,
+		&ST_FW_CALLOUT_CLASSIFY_CONNECT_IPV6_KEY,
+		&FWPM_LAYER_ALE_CONNECT_REDIRECT_V6,
+		L"Mullvad Split Tunnel Connect Redirect Callout (IPv6)",
+		L"Adjusts properties on new network connections"
+	);
+
+	if (!NT_SUCCESS(status))
+	{
+		UnregisterCalloutClassifyConnect();
+	}
+
+	return status;
+}
+
+NTSTATUS
+UnregisterCalloutClassifyConnect
+(
+)
+{
+    auto s1 = UnregisterCallout(&ST_FW_CALLOUT_CLASSIFY_CONNECT_IPV4_KEY);
+	auto s2 = UnregisterCallout(&ST_FW_CALLOUT_CLASSIFY_CONNECT_IPV6_KEY);
 
 	RETURN_IF_UNSUCCESSFUL(s1);
 	RETURN_IF_UNSUCCESSFUL(s2);

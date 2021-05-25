@@ -5,7 +5,8 @@
 #include "filters.h"
 #include "callouts.h"
 #include "constants.h"
-#include "asyncbind.h"
+#include "pending.h"
+#include "logging.h"
 #include "../util.h"
 #include "../eventing/builder.h"
 #include "firewall.h"
@@ -129,7 +130,8 @@ UnregisterCallouts
 {
 	auto s1 = UnregisterCalloutBlockSplitApps();
 	auto s2 = UnregisterCalloutPermitSplitApps();
-	auto s3 = UnregisterCalloutClassifyBind();
+	auto s3 = UnregisterCalloutClassifyConnect();
+	auto s4 = UnregisterCalloutClassifyBind();
 
 	if (!NT_SUCCESS(s1))
 	{
@@ -147,9 +149,16 @@ UnregisterCallouts
 
 	if (!NT_SUCCESS(s3))
 	{
-		DbgPrint("Could not unregister bind-redirect callout\n");
+		DbgPrint("Could not unregister connect-redirect callout\n");
 
 		return s3;
+	}
+
+	if (!NT_SUCCESS(s4))
+	{
+		DbgPrint("Could not unregister bind-redirect callout\n");
+
+		return s4;
 	}
 
 	return STATUS_SUCCESS;
@@ -177,6 +186,15 @@ RegisterCallouts
 		DbgPrint("Could not register bind-redirect callout\n");
 
 		return status;
+	}
+
+	status = RegisterCalloutClassifyConnectTx(DeviceObject, WfpSession);
+
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("Could not register connect-redirect callout\n");
+
+		goto Unregister_callouts;
 	}
 
 	status = RegisterCalloutPermitSplitAppsTx(DeviceObject, WfpSession);
@@ -320,6 +338,8 @@ ResetStructure
 {
 	ActiveFilters->BindRedirectIpv4 = false;
 	ActiveFilters->BindRedirectIpv6 = false;
+	ActiveFilters->ConnectRedirectIpv4 = false;
+	ActiveFilters->ConnectRedirectIpv6 = false;
 	ActiveFilters->BlockTunnelIpv4 = false;
 	ActiveFilters->BlockTunnelIpv6 = false;
 	ActiveFilters->PermitNonTunnelIpv4 = false;
@@ -359,6 +379,12 @@ RegisterFiltersForModeTx
 
 			RFFM_SUCCEED_OR_RETURN
 			(
+				RegisterFilterConnectRedirectIpv4Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
 				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
 				&ActiveFilters->PermitNonTunnelIpv4
 			);
@@ -373,6 +399,12 @@ RegisterFiltersForModeTx
 			(
 				RegisterFilterBindRedirectIpv6Tx(WfpSession),
 				&ActiveFilters->BindRedirectIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterConnectRedirectIpv6Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
@@ -399,6 +431,12 @@ RegisterFiltersForModeTx
 
 			RFFM_SUCCEED_OR_RETURN
 			(
+				RegisterFilterConnectRedirectIpv4Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
 				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
 				&ActiveFilters->PermitNonTunnelIpv4
 			);
@@ -417,6 +455,12 @@ RegisterFiltersForModeTx
 			(
 				RegisterFilterBindRedirectIpv4Tx(WfpSession),
 				&ActiveFilters->BindRedirectIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterConnectRedirectIpv4Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
@@ -453,6 +497,12 @@ RegisterFiltersForModeTx
 
 			RFFM_SUCCEED_OR_RETURN
 			(
+				RegisterFilterConnectRedirectIpv4Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv4
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
 				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
 				&ActiveFilters->PermitNonTunnelIpv4
 			);
@@ -481,6 +531,12 @@ RegisterFiltersForModeTx
 
 			RFFM_SUCCEED_OR_RETURN
 			(
+				RegisterFilterConnectRedirectIpv6Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
 				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
 				&ActiveFilters->PermitNonTunnelIpv6
 			);
@@ -499,6 +555,12 @@ RegisterFiltersForModeTx
 			(
 				RegisterFilterBindRedirectIpv6Tx(WfpSession),
 				&ActiveFilters->BindRedirectIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterConnectRedirectIpv6Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
@@ -532,6 +594,13 @@ RegisterFiltersForModeTx
 				RegisterFilterBindRedirectIpv6Tx(WfpSession),
 				&ActiveFilters->BindRedirectIpv6
 			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterConnectRedirectIpv6Tx(WfpSession),
+				&ActiveFilters->ConnectRedirectIpv6
+			);
+
 
 			RFFM_SUCCEED_OR_RETURN
 			(
@@ -622,6 +691,22 @@ RemoveActiveFiltersTx
 		RAF_SUCCEED_OR_RETURN
 		(
 			RemoveFilterBindRedirectIpv6Tx(WfpSession)
+		);
+	}
+
+	if (ActiveFilters->ConnectRedirectIpv4)
+	{
+		RAF_SUCCEED_OR_RETURN
+		(
+			RemoveFilterConnectRedirectIpv4Tx(WfpSession)
+		);
+	}
+
+	if (ActiveFilters->ConnectRedirectIpv6)
+	{
+		RAF_SUCCEED_OR_RETURN
+		(
+			RemoveFilterConnectRedirectIpv6Tx(WfpSession)
 		);
 	}
 
@@ -897,32 +982,18 @@ Initialize
 
 	RtlZeroMemory(context, sizeof(*context));
 
-	InitializeListHead(&context->PendedBinds.Records);
-
 	context->Callbacks = *Callbacks;
-	context->ProcessEventBroker = ProcessEventBroker;
 	context->Eventing = Eventing;
 
-    auto status = WdfWaitLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &context->IpAddresses.Lock);
+    auto status = WdfSpinLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &context->IpAddresses.Lock);
 
     if (!NT_SUCCESS(status))
     {
-        DbgPrint("WdfWaitLockCreate() failed 0x%X\n", status);
+        DbgPrint("WdfSpinLockCreate() failed 0x%X\n", status);
 
 		context->IpAddresses.Lock = NULL;
 
 		goto Abort;
-    }
-
-	status = WdfWaitLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &context->PendedBinds.Lock);
-
-    if (!NT_SUCCESS(status))
-    {
-        DbgPrint("WdfWaitLockCreate() failed 0x%X\n", status);
-
-		context->PendedBinds.Lock = NULL;
-
-		goto Abort_delete_ip_lock;
     }
 
 	status = WdfWaitLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &context->Transaction.Lock);
@@ -933,14 +1004,31 @@ Initialize
 
 		context->Transaction.Lock = NULL;
 
-		goto Abort_delete_bind_lock;
+		goto Abort_delete_ip_lock;
     }
+
+	status = pending::Initialize
+	(
+		&context->PendedClassifications,
+		ProcessEventBroker
+	);
+
+	if (!NT_SUCCESS(status))
+	{
+        DbgPrint("pending::Initialize failed 0x%X\n", status);
+
+		context->PendedClassifications = NULL;
+
+		goto Abort_delete_transaction_lock;
+	}
 
 	status = CreateWfpSession(&context->WfpSession);
 
 	if (!NT_SUCCESS(status))
 	{
-		goto Abort_delete_transaction_lock;
+		context->WfpSession = NULL;
+
+		goto Abort_teardown_pending;
 	}
 
 	status = ConfigureWfpTx(context->WfpSession, context);
@@ -964,20 +1052,9 @@ Initialize
 		goto Abort_unregister_callouts;
 	}
 
-	status = procbroker::Subscribe(ProcessEventBroker, HandleProcessEvent, context);
-
-	if (!NT_SUCCESS(status))
-	{
-		goto Abort_teardown_appfilters;
-	}
-
 	*Context = context;
 
 	return STATUS_SUCCESS;
-
-Abort_teardown_appfilters:
-
-	appfilters::TearDown(&context->AppFiltersContext);
 
 Abort_unregister_callouts:
 
@@ -994,13 +1071,13 @@ Abort_destroy_session:
 
 	DestroyWfpSession(context->WfpSession);
 
+Abort_teardown_pending:
+
+	pending::TearDown(&context->PendedClassifications);
+
 Abort_delete_transaction_lock:
 
 	WdfObjectDelete(context->Transaction.Lock);
-
-Abort_delete_bind_lock:
-
-	WdfObjectDelete(context->PendedBinds.Lock);
 
 Abort_delete_ip_lock:
 
@@ -1034,6 +1111,20 @@ TearDown
 	CONTEXT **Context
 )
 {
+	const bool preConditions =
+	(
+		(Context != NULL)
+		&& (*Context != NULL)
+		&& ((*Context)->SplittingEnabled == false)
+	);
+
+	NT_ASSERT(preConditions);
+
+	if (!preConditions)
+	{
+		return STATUS_INVALID_DISPOSITION;
+	}
+
 	auto context = *Context;
 
 	*Context = NULL;
@@ -1042,11 +1133,7 @@ TearDown
 	// Clean up adjacent systems.
 	//
 
-	procbroker::CancelSubscription(context->ProcessEventBroker, HandleProcessEvent);
-
-	FailPendedBinds(context);
-
-	WdfObjectDelete(context->PendedBinds.Lock);
+	pending::TearDown(&context->PendedClassifications);
 
 	appfilters::TearDown(&context->AppFiltersContext);
 
@@ -1176,6 +1263,8 @@ EnableSplitting
 
 	Context->SplittingEnabled = true;
 	Context->ActiveFilters = activeFilters;
+
+	LogActivatedSplittingMode(Context->IpAddresses.SplittingMode);
 
 	return STATUS_SUCCESS;
 
@@ -1345,14 +1434,18 @@ RegisterUpdatedIpAddresses
 		goto Abort;
 	}
 
-	WdfWaitLockAcquire(Context->IpAddresses.Lock, NULL);
+	auto intermediateNonPagedAddresses = *IpAddresses;
 
-	Context->IpAddresses.Addresses = *IpAddresses;
+	WdfSpinLockAcquire(Context->IpAddresses.Lock);
+
+	Context->IpAddresses.Addresses = intermediateNonPagedAddresses;
 	Context->IpAddresses.SplittingMode = newMode;
 
-	WdfWaitLockRelease(Context->IpAddresses.Lock);
+	WdfSpinLockRelease(Context->IpAddresses.Lock);
 
 	Context->ActiveFilters = newActiveFilters;
+
+	LogActivatedSplittingMode(newMode);
 
 	return STATUS_SUCCESS;
 
