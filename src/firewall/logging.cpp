@@ -323,11 +323,11 @@ LogActivatedSplittingMode
 
 	NT_ASSERT
 	(
-		static_cast<SIZE_T>(SPLITTING_MODE::MODE_1) == 1
-		&& static_cast<SIZE_T>(SPLITTING_MODE::MODE_9) == 9
+		static_cast<size_t>(SPLITTING_MODE::MODE_1) == 1
+		&& static_cast<size_t>(SPLITTING_MODE::MODE_9) == 9
 	);
 
-	DbgPrint("Activated splitting mode: %d\n", Mode);
+	DbgPrint("Activated splitting mode: %u\n", static_cast<size_t>(Mode));
 }
 
 }; // namespace firewall
