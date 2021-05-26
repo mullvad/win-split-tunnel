@@ -20,6 +20,8 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+
+## [1.1.0.0] - 2021-05-26
 ### Changed
 Use improved model to determine when to split traffic. This has the following effects:
   - TCP client sockets connecting to localhost can now be used successfully.
@@ -32,7 +34,6 @@ uninstallation of the driver, since uninstallers typically are not ran as SYSTEM
 
 ### Fixed
 Various minor code changes to improve both source code and runtime consistency.
-
 
 ## [1.0.1.0] - 2021-03-12
 ### Fixed
