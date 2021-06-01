@@ -13,6 +13,10 @@ set TIMESTAMP_SERVER=http://timestamp.digicert.com
 
 set ROOT=%~dp0
 
+:: Force complete rebuild
+
+rmdir /s /q %ROOT%bin
+
 :: Build driver but do not sign it
 :: It's not possible to control all arguments to signtool through msbuild
 
