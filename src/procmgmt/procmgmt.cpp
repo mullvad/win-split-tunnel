@@ -14,6 +14,56 @@ namespace
 {
 
 //
+// EmitAddEntryErrorEvents()
+//
+// During process arrival event processing, it may happen that `procregistry::AddEntry()`
+// fails to complete successfully.
+// 
+// This has to be communicated through an event.
+// 
+// Additionally, if the arriving process would have been split, then this is a compound
+// failure that is communicated separately.
+//
+void
+EmitAddEntryErrorEvents
+(
+    eventing::CONTEXT *Eventing,
+    NTSTATUS ErrorCode,
+    HANDLE ProcessId,
+    LOWER_UNICODE_STRING *ImageName,
+    bool EmitSplittingEvent
+)
+{
+    NT_ASSERT(!NT_SUCCESS(ErrorCode));
+
+    DbgPrint("Failed to add entry for arriving process\n");
+    DbgPrint("  Status: 0x%X\n", ErrorCode);
+    DbgPrint("  PID: %p\n", ProcessId);
+    DbgPrint("  Imagename: %wZ\n", (UNICODE_STRING*)ImageName);
+
+    util::StopIfDebugBuild();
+
+    DECLARE_CONST_UNICODE_STRING(errorMessage, L"Failed in call to procregistry::AddEntry()");
+
+    auto errorEvent = eventing::BuildErrorMessageEvent(ErrorCode, &errorMessage);
+
+    eventing::Emit(Eventing, &errorEvent);
+
+    if (!EmitSplittingEvent)
+    {
+        return;
+    }
+
+    auto splittingErrorEvent = eventing::BuildStartSplittingErrorEvent
+    (
+        ProcessId,
+        ImageName
+    );
+
+    eventing::Emit(Eventing, &splittingErrorEvent);
+}
+
+//
 // ValidateCollision()
 //
 // Find and validate existing entry in process registry that prevented the insertion
@@ -159,10 +209,6 @@ HandleProcessArriving
     const procmon::PROCESS_EVENT *Record
 )
 {
-    //DbgPrint("Process arriving: 0x%X\n", Record->ProcessId);
-    //DbgPrint("  Parent: 0x%X\n", Record->Details->ParentProcessId);
-    //DbgPrint("  Path: %wZ\n", Record->Details->Path);
-
     //
     // State lock is held and is locking out IOCTL handlers.
     //
@@ -186,8 +232,10 @@ HandleProcessArriving
 
     if (!NT_SUCCESS(status))
     {
-        DbgPrint("Failed to initialize entry for arriving process: status 0x%X\n", status);
-        DbgPrint("  PID of arriving process %p\n", Record->ProcessId);
+        DbgPrint("Failed to initialize entry for arriving process\n");
+        DbgPrint("  Status: 0x%X\n", status);
+        DbgPrint("  PID: %p\n", Record->ProcessId);
+        DbgPrint("  Imagename: %wZ\n", &(Record->Details->ImageName));
 
         return;
     }
@@ -195,7 +243,8 @@ HandleProcessArriving
     ArrivalEvent arrivalEvent =
     {
         .SplittingReason = ST_SPLITTING_REASON_PROCESS_ARRIVING,
-        .EmitEvent = false
+        .EmitEvent = false,
+        .Imagename = { 0, 0, NULL }
     };
 
     if (Context->EngagedStateActive(Context->CallbackContext))
@@ -248,17 +297,12 @@ HandleProcessArriving
         // event will already have been emitted.
         //
 
-        auto validationStatus = ValidateCollision(Context, &registryEntry);
+        const auto validationStatus = ValidateCollision(Context, &registryEntry);
 
-        if (!validationStatus && arrivalEvent.EmitEvent)
+        if (!validationStatus)
         {
-            auto splittingErrorEvent = eventing::BuildStartSplittingErrorEvent
-            (
-                Record->ProcessId,
-                &registryEntry.ImageName
-            );
-
-            eventing::Emit(Context->Eventing, &splittingErrorEvent);
+            EmitAddEntryErrorEvents(Context->Eventing, status, registryEntry.ProcessId,
+                &registryEntry.ImageName, arrivalEvent.EmitEvent);
         }
 
         procregistry::ReleaseEntry(&registryEntry);
@@ -269,19 +313,8 @@ HandleProcessArriving
         // General error handling.
         //
 
-        DbgPrint("Failed to add entry for arriving process: status 0x%X.\n", status);
-        DbgPrint("  PID of arriving process %p\n", Record->ProcessId);
-
-        if (arrivalEvent.EmitEvent)
-        {
-            auto splittingErrorEvent = eventing::BuildStartSplittingErrorEvent
-            (
-                Record->ProcessId,
-                &registryEntry.ImageName
-            );
-
-            eventing::Emit(Context->Eventing, &splittingErrorEvent);
-        }
+        EmitAddEntryErrorEvents(Context->Eventing, status, registryEntry.ProcessId,
+            &registryEntry.ImageName, arrivalEvent.EmitEvent);
 
         procregistry::ReleaseEntry(&registryEntry);
     }
