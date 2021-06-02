@@ -20,6 +20,9 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+### Fixed
+Correct unfortunate application of NT_ASSERT, the illustrious. Critical logic that updates the
+  process tree was being omitted from release builds.
 
 ## [1.1.0.0] - 2021-05-26
 ### Changed
