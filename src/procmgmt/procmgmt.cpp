@@ -414,9 +414,25 @@ HandleProcessDeparting
 
     WdfSpinLockAcquire(processRegistry->Lock);
 
-    NT_ASSERT(procregistry::DeleteEntry(processRegistry->Instance, registryEntry));
+    const bool deleteSuccessful = procregistry::DeleteEntry(processRegistry->Instance, registryEntry);
 
     WdfSpinLockRelease(processRegistry->Lock);
+
+    NT_ASSERT(deleteSuccessful);
+
+    //
+    // This is unlikely to ever be an issue,
+    // but if it was, we'd want to know about it.
+    //
+
+    if (!deleteSuccessful)
+    {
+        DECLARE_CONST_UNICODE_STRING(errorMessage, L"Failed in call to procregistry::DeleteEntry()");
+
+        auto errorEvent = eventing::BuildErrorMessageEvent(STATUS_UNSUCCESSFUL, &errorMessage);
+
+        eventing::Emit(Context->Eventing, &errorEvent);
+    }
 }
 
 void
