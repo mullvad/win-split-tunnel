@@ -40,6 +40,36 @@ EVT_WDF_DRIVER_UNLOAD StEvtDriverUnload;
 #define ST_SYMBOLIC_NAME_STRING L"\\Global??\\MULLVADSPLITTUNNEL"
 
 //
+// RaiseDispatchForwardRequest()
+// 
+// Raise to DISPATCH level and forward to IO queue.
+//
+// As it turns out, WdfRequestForwardToIoQueue() will borrow the calling thread to service the
+// queue whenever it determines this is more efficient.
+// 
+// This becomes a problem if we're in our topmost IOCTL handler and are trying to forward the
+// request so we can return and unblock the client.
+// 
+// If the destination queue is configured to service requests at PASSIVE, we can raise to DISPATCH
+// to prevent our thread from being borrowed :-)
+//
+NTSTATUS
+RaiseDispatchForwardRequest
+(
+    WDFREQUEST Request,
+    WDFQUEUE Queue
+)
+{
+    const auto oldIrql = KeRaiseIrqlToDpcLevel();
+
+    const auto status = WdfRequestForwardToIoQueue(Request, Queue);
+
+    KeLowerIrql(oldIrql);
+
+    return status;
+}
+
+//
 // DriverEntry
 //
 // Creates a single device with associated symbolic link.
@@ -372,7 +402,7 @@ StEvtIoDeviceControl
     // Forward to serialized queue.
     //
 
-    auto status = WdfRequestForwardToIoQueue(Request, context->IoCtlQueue);
+    const auto status = RaiseDispatchForwardRequest(Request, context->IoCtlQueue);
 
     if (NT_SUCCESS(status))
     {
