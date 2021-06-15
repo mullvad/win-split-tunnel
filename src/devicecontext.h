@@ -20,7 +20,7 @@ typedef struct tag_ST_DEVICE_CONTEXT
 	DRIVER_STATE_MGMT DriverState;
 
 	// Serialized queue for processing of most IOCTLs.
-	WDFQUEUE IoCtlQueue;
+	WDFQUEUE SerializedRequestQueue;
 
 	ST_IP_ADDRESSES IpAddresses;
 

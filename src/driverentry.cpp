@@ -321,7 +321,7 @@ StCreateDevice
 
     context->DriverState.State = ST_DRIVER_STATE_STARTED;
 
-    context->IoCtlQueue = serialQueue;
+    context->SerializedRequestQueue = serialQueue;
 
     WdfControlFinishInitializing(wdfDevice);
 
@@ -402,7 +402,7 @@ StEvtIoDeviceControl
     // Forward to serialized queue.
     //
 
-    const auto status = RaiseDispatchForwardRequest(Request, context->IoCtlQueue);
+    const auto status = RaiseDispatchForwardRequest(Request, context->SerializedRequestQueue);
 
     if (NT_SUCCESS(status))
     {
