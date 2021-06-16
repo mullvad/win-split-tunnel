@@ -26,7 +26,7 @@ StCreateDevice
 );
 
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL StEvtIoDeviceControl;
-
+EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL StEvtIoDeviceControlParallel;
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL StEvtIoDeviceControlSerial;
 
 EVT_WDF_DRIVER_UNLOAD StEvtDriverUnload;
@@ -38,6 +38,9 @@ EVT_WDF_DRIVER_UNLOAD StEvtDriverUnload;
 
 #define ST_DEVICE_NAME_STRING L"\\Device\\MULLVADSPLITTUNNEL"
 #define ST_SYMBOLIC_NAME_STRING L"\\Global??\\MULLVADSPLITTUNNEL"
+
+namespace
+{
 
 //
 // RaiseDispatchForwardRequest()
@@ -68,6 +71,22 @@ RaiseDispatchForwardRequest
 
     return status;
 }
+
+//
+// IoControlRequiresParallelProcessing()
+// 
+// Evaluate whether `IoControlCode` uses inverted call.
+//
+bool
+IoControlRequiresParallelProcessing
+(
+    ULONG IoControlCode
+)
+{
+    return IoControlCode == IOCTL_ST_DEQUEUE_EVENT;
+}
+
+} // anonymous namespace
 
 //
 // DriverEntry
@@ -271,7 +290,40 @@ StCreateDevice
     }
 
     //
-    // Create a secondary queue that is serialized.
+    // Create a secondary queue which is also using parallel dispatching.
+    // This enables us to forward incoming requests and return before processing completes.
+    //
+
+    WDF_IO_QUEUE_CONFIG_INIT
+    (
+        &queueConfig,
+        WdfIoQueueDispatchParallel
+    );
+
+    queueConfig.EvtIoDeviceControl = StEvtIoDeviceControlParallel;
+    queueConfig.PowerManaged = WdfFalse;
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    attributes.ExecutionLevel = WdfExecutionLevelPassive;
+
+    WDFQUEUE parallelQueue;
+
+    status = WdfIoQueueCreate
+    (
+        wdfDevice,
+        &queueConfig,
+        &attributes,
+        &parallelQueue
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint("WdfIoQueueCreate() for parallel queue failed 0x%X\n", status);
+        goto Cleanup;
+    }
+
+    //
+    // Create a third queue that uses serialized dispatching.
     // Commands that need to be serialized can then be forwarded to this queue.
     //
 
@@ -299,7 +351,7 @@ StCreateDevice
 
     if (!NT_SUCCESS(status))
     {
-        DbgPrint("WdfIoQueueCreate() for secondary queue failed 0x%X\n", status);
+        DbgPrint("WdfIoQueueCreate() for serialized queue failed 0x%X\n", status);
         goto Cleanup;
     }
 
@@ -321,6 +373,7 @@ StCreateDevice
 
     context->DriverState.State = ST_DRIVER_STATE_STARTED;
 
+    context->ParallelRequestQueue = parallelQueue;
     context->SerializedRequestQueue = serialQueue;
 
     WdfControlFinishInitializing(wdfDevice);
@@ -354,7 +407,8 @@ StEvtIoDeviceControl
     auto context = DeviceGetSplitTunnelContext(device);
 
     //
-    // Querying the current driver state is always a valid operation.
+    // Querying the current driver state is always a valid operation, regardless of state.
+    // This is safe to service inline because it doesn't acquire any locks.
     //
 
     if (IoControlCode == IOCTL_ST_GET_STATE)
@@ -365,53 +419,97 @@ StEvtIoDeviceControl
     }
 
     //
-    // Once the basic initialization is out of the way
-    // it's always valid for the client to attempt to dequeue an event.
-    //
-    // TODO: This approach is slightly broken.
-    //
-    // CollectOne() may enqueue the request in anticipation of an event arriving.
-    // That means the request completion may come at a later time when the asserted
-    // driver state has changed.
-    //
-    // But this probably doesn't matter.
+    // Select which queue the request is forwarded to.
     //
 
-    if (IoControlCode == IOCTL_ST_DEQUEUE_EVENT)
-    {
-        WdfWaitLockAcquire(context->DriverState.Lock, NULL);
+    auto targetQueue = IoControlRequiresParallelProcessing(IoControlCode)
+        ? context->ParallelRequestQueue
+        : context->SerializedRequestQueue;
 
-        if (context->DriverState.State >= ST_DRIVER_STATE_INITIALIZED
-            && context->DriverState.State < ST_DRIVER_STATE_ZOMBIE)
-        {
-            eventing::CollectOne(context->Eventing, Request);
-        }
-        else
-        {
-            DbgPrint("Cannot dequeue event at current driver state\n");
-
-            WdfRequestComplete(Request, STATUS_INVALID_DEVICE_REQUEST);
-        }
-
-        WdfWaitLockRelease(context->DriverState.Lock);
-
-        return;
-    }
-
-    //
-    // Forward to serialized queue.
-    //
-
-    const auto status = RaiseDispatchForwardRequest(Request, context->SerializedRequestQueue);
+    const auto status = RaiseDispatchForwardRequest(Request, targetQueue);
 
     if (NT_SUCCESS(status))
     {
         return;
     }
 
-    DbgPrint("Failed to forward request to serialized queue\n");
+    DbgPrint("Failed to forward request to secondary IOCTL queue\n");
 
     WdfRequestComplete(Request, status);
+}
+
+bool
+StEvtIoDeviceControlParallelInner
+(
+    WDFREQUEST Request,
+    ULONG IoControlCode,
+    ST_DEVICE_CONTEXT *Context
+)
+{
+    switch (IoControlCode)
+    {
+        case IOCTL_ST_DEQUEUE_EVENT:
+        {
+            //
+            // TODO: This approach is slightly broken.
+            //
+            // CollectOne() may enqueue the request in anticipation of an event arriving.
+            // That means the request completion may come at a later time when the asserted
+            // driver state has changed.
+            //
+            // But this probably doesn't matter.
+            //
+
+            if (Context->DriverState.State >= ST_DRIVER_STATE_INITIALIZED
+                && Context->DriverState.State <= ST_DRIVER_STATE_ENGAGED)
+            {
+                eventing::CollectOne(Context->Eventing, Request);
+
+                return true;
+            }
+        
+            break;
+        }
+    };
+
+    return false;
+}
+
+VOID
+StEvtIoDeviceControlParallel
+(
+    WDFQUEUE Queue,
+    WDFREQUEST Request,
+    size_t OutputBufferLength,
+    size_t InputBufferLength,
+    ULONG IoControlCode
+)
+{
+    UNREFERENCED_PARAMETER(OutputBufferLength);
+    UNREFERENCED_PARAMETER(InputBufferLength);
+
+    auto device = WdfIoQueueGetDevice(Queue);
+    auto context = DeviceGetSplitTunnelContext(device);
+
+    //
+    // Keep state lock acquired for the duration of processing.
+    // This prevents serialized IOCTL handlers from transitioning the state.
+    //
+
+    WdfWaitLockAcquire(context->DriverState.Lock, NULL);
+
+    bool servicedRequest = StEvtIoDeviceControlParallelInner(Request, IoControlCode, context);
+
+    WdfWaitLockRelease(context->DriverState.Lock);
+
+    if (servicedRequest)
+    {
+        return;
+    }
+
+    DbgPrint("Invalid IOCTL or not valid for current driver state\n");
+
+    WdfRequestComplete(Request, STATUS_INVALID_DEVICE_REQUEST);
 }
 
 VOID

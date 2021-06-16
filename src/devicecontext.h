@@ -19,6 +19,9 @@ typedef struct tag_ST_DEVICE_CONTEXT
 {
 	DRIVER_STATE_MGMT DriverState;
 
+	// Parallel queue for processing IOCTLs which use inverted call.
+	WDFQUEUE ParallelRequestQueue;
+
 	// Serialized queue for processing of most IOCTLs.
 	WDFQUEUE SerializedRequestQueue;
 
