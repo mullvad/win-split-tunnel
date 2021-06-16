@@ -20,6 +20,9 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+### Fixed
+Ensure IOCTL requests are always processed on worker thread to prevent client from getting stuck
+  inside DeviceIoControl API call.
 
 ## [1.1.1.0] - 2021-06-04
 ### Fixed
