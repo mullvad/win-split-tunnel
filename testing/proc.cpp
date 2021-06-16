@@ -1,4 +1,5 @@
 #include <vector>
+#include <iterator>
 #include <cstdint>
 #include <windows.h>
 #include <tlhelp32.h>
