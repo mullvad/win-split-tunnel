@@ -467,6 +467,47 @@ LocalAddress(const IN6_ADDR *addr)
 	;
 }
 
+bool
+IntoIpv4Address
+(
+	const IN6_ADDR *from,
+	IN_ADDR *to
+)
+{
+	static const UCHAR prefix[] =
+	{
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0xFF, 0xFF
+	};
+
+	if (FALSE == RtlEqualMemory(from->u.Byte, prefix, sizeof(prefix)))
+	{
+		return false;
+	}
+
+	to->s_addr = *(ULONG*)&from->u.Byte[12];
+
+	return true;
+}
+
+void
+IntoIpv6Address
+(
+	const IN_ADDR *from,
+	IN6_ADDR *to
+)
+{
+	static const UCHAR prefix[] =
+	{
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0xFF, 0xFF
+	};
+
+	RtlCopyMemory(to->u.Byte, prefix, sizeof(prefix));
+
+	*(ULONG*)&to->u.Byte[12] = from->s_addr;
+}
+
 //
 // RewriteConnection()
 //
@@ -548,6 +589,10 @@ RewriteConnection
 
 		auto remoteAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
 			FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_REMOTE_ADDRESS].value.byteArray16);
+
+		//
+		// Extend logic here to consider that addresses may be v6 encoded ipv4 addresses.
+		//
 
 		const auto shouldRedirect = IN6_ADDR_EQUAL(localAddress, &ipAddresses.TunnelIpv6)
 			|| !LocalAddress(remoteAddress);
@@ -655,7 +700,55 @@ RewriteConnection
 	else
 	{
 		auto localDetails = (SOCKADDR_IN6*)&connectRequest->localAddressAndPort;
-		localDetails->sin6_addr = ipAddresses.InternetIpv6;
+
+		auto remoteAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
+			FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_REMOTE_ADDRESS].value.byteArray16);
+
+		IN_ADDR remoteIpv4;
+
+		if (IntoIpv4Address(remoteAddress, &remoteIpv4))
+		{
+			DbgPrint("Pending IPv6 connection is using IPv6-encoded IPv4 destination address\n");
+
+			//
+			// Patch local address to use IPv6-encoded non-tunnel IPv4 address.
+			//
+
+			IN6_ADDR newLocalAddress;
+
+			IntoIpv6Address(&ipAddresses.InternetIpv4, &newLocalAddress);
+
+			localDetails->sin6_addr = newLocalAddress;
+
+			//
+			// Temporary logging until logging way above is fixed
+			//
+
+			{
+				auto localAddress = reinterpret_cast<const IN6_ADDR*>(FixedValues->incomingValue[
+					FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_LOCAL_ADDRESS].value.byteArray16);
+
+				const auto localPort = FixedValues->incomingValue[
+					FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_LOCAL_PORT].value.uint16;
+
+				const auto remotePort = FixedValues->incomingValue[
+					FWPS_FIELD_ALE_CONNECT_REDIRECT_V6_IP_REMOTE_PORT].value.uint16;
+			
+				LogConnectRedirect
+				(
+					HANDLE(MetaValues->processId),
+					localAddress,
+					localPort,
+					&newLocalAddress,
+					remoteAddress,
+					remotePort
+				);
+			}
+		}
+		else
+		{
+			localDetails->sin6_addr = ipAddresses.InternetIpv6;
+		}
 	}
 
 	ClassificationApplyHardPermit(ClassifyOut);
