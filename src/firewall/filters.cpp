@@ -248,7 +248,7 @@ RegisterFilterPermitNonTunnelIpv4Tx
 	filter.filterKey = ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_CONN_KEY;
 	filter.displayData.name = const_cast<wchar_t*>(filterName);
 	filter.displayData.description = const_cast<wchar_t*>(filterDescription);
-	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
+	filter.flags = FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
 	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
@@ -329,7 +329,7 @@ RegisterFilterPermitNonTunnelIpv6Tx
 	filter.filterKey = ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_CONN_KEY;
 	filter.displayData.name = const_cast<wchar_t*>(filterName);
 	filter.displayData.description = const_cast<wchar_t*>(filterDescription);
-	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
+	filter.flags = FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
 	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
