@@ -3,6 +3,8 @@
 #include "constants.h"
 #include "filters.h"
 
+#define SUCCEED_OR_RETURN(status) if(!NT_SUCCESS(status)){ return status; }
+
 namespace firewall
 {
 
@@ -248,7 +250,7 @@ RegisterFilterPermitNonTunnelIpv4Tx
 	filter.filterKey = ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_CONN_KEY;
 	filter.displayData.name = const_cast<wchar_t*>(filterName);
 	filter.displayData.description = const_cast<wchar_t*>(filterDescription);
-	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
+	filter.flags = FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
 	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
@@ -258,7 +260,7 @@ RegisterFilterPermitNonTunnelIpv4Tx
 	filter.action.calloutKey = ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV4_CONN_KEY;
 	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
 
-	FWPM_FILTER_CONDITION0 cond;
+	FWPM_FILTER_CONDITION0 cond = { 0 };
 
 	//
 	// If there's no tunnel IPv4 interface then traffic on all interfaces
@@ -276,18 +278,69 @@ RegisterFilterPermitNonTunnelIpv4Tx
 		filter.numFilterConditions = 1;
 	}
 
-	auto status = FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
-
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
+	SUCCEED_OR_RETURN
+	(
+		FwpmFilterAdd0(WfpSession, &filter, NULL, NULL)
+	);
 
 	//
 	// Ipv4 inbound.
 	//
 
 	filter.filterKey = ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_RECV_KEY;
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
+	filter.action.calloutKey = ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV4_RECV_KEY;
+
+	SUCCEED_OR_RETURN
+	(
+		FwpmFilterAdd0(WfpSession, &filter, NULL, NULL)
+	);
+
+	//
+	// Create corresponding filters in the DNS sublayer.
+	// By convention, these filters should include a condition on the destination port.
+	//
+	// I.e. we'll be using 1 or 2 conditions.
+	//
+
+	FWPM_FILTER_CONDITION0 dnscond[2] = { 0, 0 };
+
+	dnscond[0].fieldKey = FWPM_CONDITION_IP_REMOTE_PORT;
+	dnscond[0].matchType = FWP_MATCH_EQUAL;
+	dnscond[0].conditionValue.type = FWP_UINT16;
+	dnscond[0].conditionValue.uint16 = DNS_SERVER_PORT;
+
+	filter.filterCondition = dnscond;
+
+	if (TunnelIpv4 != NULL)
+	{
+		dnscond[1] = cond;
+		filter.numFilterConditions = 2;
+	}
+	else
+	{
+		filter.numFilterConditions = 1;
+	}
+
+	//
+	// Ipv4 outbound DNS.
+	//
+
+	filter.filterKey = ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_DNS_CONN_KEY;
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
+	filter.subLayerKey = ST_FW_WINFW_DNS_SUBLAYER_KEY;
+	filter.action.calloutKey = ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV4_CONN_KEY;
+
+	SUCCEED_OR_RETURN
+	(
+		FwpmFilterAdd0(WfpSession, &filter, NULL, NULL)
+	);
+
+	//
+	// Ipv4 inbound DNS.
+	//
+
+	filter.filterKey = ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_DNS_RECV_KEY;
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
 	filter.action.calloutKey = ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV4_RECV_KEY;
 
@@ -300,14 +353,22 @@ RemoveFilterPermitNonTunnelIpv4Tx
 	HANDLE WfpSession
 )
 {
-	auto status = FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_CONN_KEY);
+	SUCCEED_OR_RETURN
+	(
+		FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_CONN_KEY)
+	);
 
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
+	SUCCEED_OR_RETURN
+	(
+		FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_RECV_KEY)
+	);
 
-	return FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_RECV_KEY);
+	SUCCEED_OR_RETURN
+	(
+		FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_DNS_CONN_KEY)
+	);
+
+	return FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_DNS_RECV_KEY);
 }
 
 NTSTATUS
@@ -329,7 +390,7 @@ RegisterFilterPermitNonTunnelIpv6Tx
 	filter.filterKey = ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_CONN_KEY;
 	filter.displayData.name = const_cast<wchar_t*>(filterName);
 	filter.displayData.description = const_cast<wchar_t*>(filterDescription);
-	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
+	filter.flags = FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
 	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
@@ -339,7 +400,7 @@ RegisterFilterPermitNonTunnelIpv6Tx
 	filter.action.calloutKey = ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV6_CONN_KEY;
 	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
 
-	FWPM_FILTER_CONDITION0 cond;
+	FWPM_FILTER_CONDITION0 cond = { 0 };
 
 	//
 	// If there's no tunnel IPv6 interface then traffic on all interfaces
@@ -357,18 +418,66 @@ RegisterFilterPermitNonTunnelIpv6Tx
 		filter.numFilterConditions = 1;
 	}
 
-	auto status = FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
-
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
+	SUCCEED_OR_RETURN
+	(
+		FwpmFilterAdd0(WfpSession, &filter, NULL, NULL)
+	);
 
 	//
 	// IPv6 inbound.
 	//
 
 	filter.filterKey = ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_RECV_KEY;
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6;
+	filter.action.calloutKey = ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV6_RECV_KEY;
+
+	SUCCEED_OR_RETURN
+	(
+		FwpmFilterAdd0(WfpSession, &filter, NULL, NULL)
+	);
+
+	//
+	// Create corresponding filters in the DNS sublayer.
+	//
+
+	FWPM_FILTER_CONDITION0 dnscond[2] = { 0, 0 };
+
+	dnscond[0].fieldKey = FWPM_CONDITION_IP_REMOTE_PORT;
+	dnscond[0].matchType = FWP_MATCH_EQUAL;
+	dnscond[0].conditionValue.type = FWP_UINT16;
+	dnscond[0].conditionValue.uint16 = DNS_SERVER_PORT;
+
+	filter.filterCondition = dnscond;
+
+	if (TunnelIpv6 != NULL)
+	{
+		dnscond[1] = cond;
+		filter.numFilterConditions = 2;
+	}
+	else
+	{
+		filter.numFilterConditions = 1;
+	}
+
+	//
+	// Ipv6 outbound DNS.
+	//
+
+	filter.filterKey = ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_DNS_CONN_KEY;
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
+	filter.subLayerKey = ST_FW_WINFW_DNS_SUBLAYER_KEY;
+	filter.action.calloutKey = ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV6_CONN_KEY;
+
+	SUCCEED_OR_RETURN
+	(
+		FwpmFilterAdd0(WfpSession, &filter, NULL, NULL)
+	);
+
+	//
+	// Ipv6 inbound DNS.
+	//
+
+	filter.filterKey = ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_DNS_RECV_KEY;
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6;
 	filter.action.calloutKey = ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV6_RECV_KEY;
 
@@ -381,14 +490,22 @@ RemoveFilterPermitNonTunnelIpv6Tx
 	HANDLE WfpSession
 )
 {
-	auto status = FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_CONN_KEY);
+	SUCCEED_OR_RETURN
+	(
+		FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_CONN_KEY)
+	);
 
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
+	SUCCEED_OR_RETURN
+	(
+		FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_RECV_KEY)
+	);
 
-	return FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_RECV_KEY);
+	SUCCEED_OR_RETURN
+	(
+		FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_DNS_CONN_KEY)
+	);
+
+	return FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_DNS_RECV_KEY);
 }
 
 NTSTATUS

@@ -21,8 +21,10 @@ Line wrap the file at 100 chars.                                              Th
 
 ## [Unreleased]
 ### Fixed
-Ensure IOCTL requests are always processed on worker thread to prevent client from getting stuck
+- Ensure IOCTL requests are always processed on worker thread to prevent client from getting stuck
   inside DeviceIoControl API call.
+- Apply a soft permit on excluded traffic, rather than a hard permit. This allows firewall filters
+  added by other software (e.g. Windows Defender) to evaluate and block traffic.
 
 ## [1.1.1.0] - 2021-06-04
 ### Fixed

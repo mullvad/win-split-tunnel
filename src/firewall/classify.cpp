@@ -37,6 +37,16 @@ ClassificationApplyHardPermit
 }
 
 void
+ClassificationApplySoftPermit
+(
+	FWPS_CLASSIFY_OUT0 *ClassifyOut
+)
+{
+	ClassifyOut->actionType = FWP_ACTION_PERMIT;
+	ClassifyOut->rights |= FWPS_RIGHT_ACTION_WRITE;
+}
+
+void
 ClassificationApplyHardBlock
 (
 	FWPS_CLASSIFY_OUT0 *ClassifyOut

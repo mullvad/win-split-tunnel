@@ -233,7 +233,7 @@ RewriteBind
 
 			bindTarget->sin_addr = *newTarget;
 
-			ClassificationApplyHardPermit(ClassifyOut);
+			ClassificationApplySoftPermit(ClassifyOut);
 		}
 	}
 	else
@@ -251,7 +251,7 @@ RewriteBind
 
 			bindTarget->sin6_addr = *newTarget;
 
-			ClassificationApplyHardPermit(ClassifyOut);
+			ClassificationApplySoftPermit(ClassifyOut);
 		}
 	}
 
@@ -658,7 +658,7 @@ RewriteConnection
 		localDetails->sin6_addr = ipAddresses.InternetIpv6;
 	}
 
-	ClassificationApplyHardPermit(ClassifyOut);
+	ClassificationApplySoftPermit(ClassifyOut);
 
 Cleanup_data:
 
@@ -1031,7 +1031,7 @@ CalloutPermitSplitApps
 	// Apply classification.
 	//
 
-	ClassificationApplyHardPermit(ClassifyOut);
+	ClassificationApplySoftPermit(ClassifyOut);
 }
 
 //

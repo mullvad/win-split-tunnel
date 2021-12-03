@@ -15,8 +15,13 @@ void
 ClassificationApplyHardPermit
 (
 	FWPS_CLASSIFY_OUT0 *ClassifyOut
-)
-;
+);
+
+void
+ClassificationApplySoftPermit
+(
+	FWPS_CLASSIFY_OUT0 *ClassifyOut
+);
 
 void
 ClassificationApplyHardBlock
