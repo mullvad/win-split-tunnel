@@ -46,16 +46,10 @@ IF %ERRORLEVEL% NEQ 0 goto ERROR
 
 rmdir /s /q %ROOT%bin\dist
 
-mkdir %ROOT%bin\dist\legacy
-copy /b %ROOT%bin\x64-Release\mullvad-split-tunnel\* %ROOT%bin\dist\legacy\
-
 mkdir %ROOT%bin\dist\meta
-move %ROOT%bin\dist\legacy\mullvad-split-tunnel.pdb %ROOT%bin\dist\meta\
+copy /b %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.pdb %ROOT%bin\dist\meta\
 
-::
 :: Build a CAB file for submission to the MS Hardware Dev Center
-:: The co-installer has to be included (?) because it's referenced in the inf file
-::
 
 mkdir %ROOT%bin\dist\win10
 
@@ -73,16 +67,13 @@ mkdir %ROOT%bin\dist\win10
     echo .Set CabinetNameTemplate=mullvad-split-tunnel-amd64.cab
     echo .Set DestinationDir=Package
     echo .Set DiskDirectoryTemplate=%ROOT%bin\dist\win10
-    echo %ROOT%bin\dist\legacy\mullvad-split-tunnel.cat
-    echo %ROOT%bin\dist\legacy\mullvad-split-tunnel.inf
-    echo %ROOT%bin\dist\legacy\mullvad-split-tunnel.sys
-    echo %ROOT%bin\dist\legacy\WdfCoinstaller01011.dll
+    echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
+    echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.inf
+    echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.sys
 )
 
-::
 :: makecab produces several garbage files
-:: force current working directory to prevent spreading them out
-::
+:: Force current working directory to prevent spreading them out
 
 pushd %ROOT%bin\dist\win10
 
