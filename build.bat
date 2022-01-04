@@ -8,7 +8,6 @@ if [%VisualStudioVersion%]==[] (
 if [%1]==[] goto USAGE
 
 set CERT_THUMBPRINT=%1
-set CROSSCERT=digicert-high-assurance-ev.crt
 set TIMESTAMP_SERVER=http://timestamp.digicert.com
 
 set ROOT=%~dp0
@@ -26,7 +25,7 @@ IF %ERRORLEVEL% NEQ 0 goto ERROR
 
 :: Sign driver
 
-signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v /ac %ROOT%resources\%CROSSCERT% %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.sys
+signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.sys
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
@@ -39,7 +38,7 @@ IF %ERRORLEVEL% NEQ 0 goto ERROR
 
 :: Sign catalog
 
-signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v /ac %ROOT%resources\%CROSSCERT% %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
+signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
@@ -93,7 +92,7 @@ popd
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
-signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v /ac %ROOT%resources\%CROSSCERT% %ROOT%bin\dist\win10\mullvad-split-tunnel-amd64.cab
+signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v %ROOT%bin\dist\win10\mullvad-split-tunnel-amd64.cab
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
