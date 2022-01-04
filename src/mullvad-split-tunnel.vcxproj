@@ -125,10 +125,10 @@
       <TimeStamp>0.0.0.1</TimeStamp>
     </Inf>
     <PostBuildEvent>
-      <Command>fixup-driver-package.bat "$(OutDir)"</Command>
+      <Command>scripts\fixup-driver-package.bat "$(OutDir)"</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>clean-driver-package.bat "$(OutDir)" &amp;&amp; custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
+      <Command>scripts\clean-driver-package.bat "$(OutDir)" &amp;&amp; scripts\custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
@@ -143,10 +143,10 @@
       <AdditionalOptions>/INTEGRITYCHECK %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PostBuildEvent>
-      <Command>fixup-driver-package.bat "$(OutDir)"</Command>
+      <Command>scripts\fixup-driver-package.bat "$(OutDir)"</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>clean-driver-package.bat "$(OutDir)" &amp;&amp; custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
+      <Command>scripts\clean-driver-package.bat "$(OutDir)" &amp;&amp; scripts\custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
     </PreBuildEvent>
     <Inf>
       <TimeStamp>0.0.0.1</TimeStamp>
@@ -163,10 +163,10 @@
       <WppScanConfigurationData>trace.h</WppScanConfigurationData>
     </ClCompile>
     <PostBuildEvent>
-      <Command>fixup-driver-package.bat "$(OutDir)"</Command>
+      <Command>scripts\fixup-driver-package.bat "$(OutDir)"</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>clean-driver-package.bat "$(OutDir)" &amp;&amp; custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
+      <Command>scripts\clean-driver-package.bat "$(OutDir)" &amp;&amp; scripts\custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
     </PreBuildEvent>
     <Inf>
       <TimeStamp>0.0.0.1</TimeStamp>
@@ -188,10 +188,10 @@
       <TimeStamp>0.0.0.1</TimeStamp>
     </Inf>
     <PostBuildEvent>
-      <Command>fixup-driver-package.bat "$(OutDir)"</Command>
+      <Command>scripts\fixup-driver-package.bat "$(OutDir)"</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>clean-driver-package.bat "$(OutDir)" &amp;&amp; custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
+      <Command>scripts\clean-driver-package.bat "$(OutDir)" &amp;&amp; scripts\custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
