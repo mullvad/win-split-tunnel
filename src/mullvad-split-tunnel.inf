@@ -36,9 +36,9 @@ WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1
 ;*****************************************
 
 [Manufacturer]
-%ManufacturerName%=Standard,NT$ARCH$
+%ManufacturerName%=Standard,NT$ARCH$.10.0
 
-[Standard.NT$ARCH$]
+[Standard.NT$ARCH$.10.0]
 %mullvad-split-tunnel.DeviceDesc%=mullvad-split-tunnel_Device, Root\mullvad-split-tunnel
 
 [mullvad-split-tunnel_Device.NT]
