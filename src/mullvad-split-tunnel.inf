@@ -13,7 +13,6 @@ DriverVer=
 
 [DestinationDirs]
 DefaultDestDir = 12
-mullvad-split-tunnel_Device_CoInstaller_CopyFiles = 11
 
 ; ================= Class section =====================
 
@@ -29,7 +28,6 @@ HKR,,Icon,,-5
 
 [SourceDisksFiles]
 mullvad-split-tunnel.sys  = 1,,
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1
 
 ;*****************************************
 ; Install Section
@@ -58,25 +56,6 @@ ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %12%\mullvad-split-tunnel.sys
-
-;
-;--- mullvad-split-tunnel_Device Coinstaller installation ------
-;
-
-[mullvad-split-tunnel_Device.NT.CoInstallers]
-AddReg=mullvad-split-tunnel_Device_CoInstaller_AddReg
-CopyFiles=mullvad-split-tunnel_Device_CoInstaller_CopyFiles
-
-[mullvad-split-tunnel_Device_CoInstaller_AddReg]
-HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
-
-[mullvad-split-tunnel_Device_CoInstaller_CopyFiles]
-WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
-
-[mullvad-split-tunnel_Device.NT.Wdf]
-KmdfService =  mullvad-split-tunnel, mullvad-split-tunnel_wdfsect
-[mullvad-split-tunnel_wdfsect]
-KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
 SPSVCINST_ASSOCSERVICE= 0x00000002
