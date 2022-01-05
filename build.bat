@@ -70,6 +70,7 @@ mkdir %ROOT%bin\dist\win10
     echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
     echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.inf
     echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.sys
+    echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.pdb
 )
 
 :: makecab produces several garbage files
