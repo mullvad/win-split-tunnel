@@ -32,7 +32,7 @@ IF %ERRORLEVEL% NEQ 0 goto ERROR
 :: Re-generate catalog file now that driver binary has changed
 
 del %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
-"%WindowsSdkVerBinPath%x86\inf2cat.exe" /driver:%ROOT%bin\x64-Release\mullvad-split-tunnel /os:"10_x64" /verbose
+"%WindowsSdkBinPath%x86\inf2cat.exe" /driver:%ROOT%bin\x64-Release\mullvad-split-tunnel /os:"10_x64" /verbose
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
