@@ -90,6 +90,7 @@ copy /b %ROOT%bin\temp\cab\mullvad-split-tunnel-amd64.cab %ROOT%bin\dist\
 
 echo;
 echo BUILD COMPLETED SUCCESSFULLY
+echo ARTIFACTS ARE IN --^> bin/dist/ ^<--
 echo;
 
 exit /b 0
