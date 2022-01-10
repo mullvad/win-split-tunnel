@@ -20,6 +20,9 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+### Changed
+- Update build and release procedure to remove support for pre-Windows 10 systems.
+
 ### Fixed
 - Ensure IOCTL requests are always processed on worker thread to prevent client from getting stuck
   inside DeviceIoControl API call.
