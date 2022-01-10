@@ -21,7 +21,7 @@ BEGIN
         VALUE "FileDescription", "Split Tunnel Kernel Driver"
         VALUE "FileVersion", DRIVER_VERSION_STR
         VALUE "InternalName", "mullvad-split-tunnel"
-        VALUE "LegalCopyright", "(c) 2021 Mullvad VPN AB"
+        VALUE "LegalCopyright", "(c) 2022 Mullvad VPN AB"
         VALUE "OriginalFilename", "mullvad-split-tunnel.sys"
         VALUE "ProductName", "Mullvad VPN"
         VALUE "ProductVersion", DRIVER_VERSION_STR

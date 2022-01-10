@@ -137,7 +137,7 @@ No generally applicable mitigations are available.
 
 # License
 
-Copyright (C) 2021  Mullvad VPN AB
+Copyright (C) 2022  Mullvad VPN AB
 
 Licensed under either of
 
