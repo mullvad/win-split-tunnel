@@ -25,7 +25,7 @@ setlocal enabledelayedexpansion
 
 :: Import version defines into environment
 
-for /f "tokens=1-3 delims= " %%i in (%~dp0\version.h) do (
+for /f "tokens=1-3 delims= " %%i in (%~dp0\..\version.h) do (
 	if /i "%%i"=="#define" (
 		set %%j=%%k
 	)

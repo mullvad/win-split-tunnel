@@ -30,7 +30,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <TargetVersion>Windows7</TargetVersion>
+    <TargetVersion>Windows10</TargetVersion>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <ConfigurationType>Driver</ConfigurationType>
@@ -42,7 +42,7 @@
     </KMDF_MINIMUM_VERSION_REQUIRED>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <TargetVersion>Windows7</TargetVersion>
+    <TargetVersion>Windows10</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <ConfigurationType>Driver</ConfigurationType>
@@ -54,7 +54,7 @@
     </KMDF_MINIMUM_VERSION_REQUIRED>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
-    <TargetVersion>Windows7</TargetVersion>
+    <TargetVersion>Windows10</TargetVersion>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <ConfigurationType>Driver</ConfigurationType>
@@ -66,7 +66,7 @@
     </KMDF_MINIMUM_VERSION_REQUIRED>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
-    <TargetVersion>Windows7</TargetVersion>
+    <TargetVersion>Windows10</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <ConfigurationType>Driver</ConfigurationType>
@@ -125,10 +125,10 @@
       <TimeStamp>0.0.0.1</TimeStamp>
     </Inf>
     <PostBuildEvent>
-      <Command>copy /y $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
+      <Command>scripts\fixup-driver-package.bat "$(OutDir)"</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
+      <Command>scripts\clean-driver-package.bat "$(OutDir)" &amp;&amp; scripts\custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
@@ -143,10 +143,10 @@
       <AdditionalOptions>/INTEGRITYCHECK %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PostBuildEvent>
-      <Command>copy /y $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
+      <Command>scripts\fixup-driver-package.bat "$(OutDir)"</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
+      <Command>scripts\clean-driver-package.bat "$(OutDir)" &amp;&amp; scripts\custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
     </PreBuildEvent>
     <Inf>
       <TimeStamp>0.0.0.1</TimeStamp>
@@ -163,10 +163,10 @@
       <WppScanConfigurationData>trace.h</WppScanConfigurationData>
     </ClCompile>
     <PostBuildEvent>
-      <Command>copy /y $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
+      <Command>scripts\fixup-driver-package.bat "$(OutDir)"</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
+      <Command>scripts\clean-driver-package.bat "$(OutDir)" &amp;&amp; scripts\custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
     </PreBuildEvent>
     <Inf>
       <TimeStamp>0.0.0.1</TimeStamp>
@@ -188,10 +188,10 @@
       <TimeStamp>0.0.0.1</TimeStamp>
     </Inf>
     <PostBuildEvent>
-      <Command>copy /y $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel.pdb $(SolutionDir)\..\bin\$(Platform)-$(Configuration)\mullvad-split-tunnel\mullvad-split-tunnel.pdb</Command>
+      <Command>scripts\fixup-driver-package.bat "$(OutDir)"</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
+      <Command>scripts\clean-driver-package.bat "$(OutDir)" &amp;&amp; scripts\custom-stampinf.bat "$(InfToolPath)stampinf.exe" $(InfArch) $(KMDF_VERSION_MAJOR).$(KMDF_VERSION_MINOR) "$(IntDir)mullvad-split-tunnel.inf" "$(OutDir)mullvad-split-tunnel.inf"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

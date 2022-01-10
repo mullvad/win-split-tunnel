@@ -8,7 +8,6 @@ if [%VisualStudioVersion%]==[] (
 if [%1]==[] goto USAGE
 
 set CERT_THUMBPRINT=%1
-set CROSSCERT=digicert-high-assurance-ev.crt
 set TIMESTAMP_SERVER=http://timestamp.digicert.com
 
 set ROOT=%~dp0
@@ -26,41 +25,28 @@ IF %ERRORLEVEL% NEQ 0 goto ERROR
 
 :: Sign driver
 
-signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%1" /v /ac %ROOT%resources\%CROSSCERT% %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.sys
+signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.sys
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
 :: Re-generate catalog file now that driver binary has changed
 
 del %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
-"%WindowsSdkVerBinPath%x86\inf2cat.exe" /driver:%ROOT%bin\x64-Release\mullvad-split-tunnel /os:"7_x64" /verbose
+"%WindowsSdkBinPath%x86\inf2cat.exe" /driver:%ROOT%bin\x64-Release\mullvad-split-tunnel /os:"10_x64" /verbose
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
 :: Sign catalog
 
-signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%1" /v /ac %ROOT%resources\%CROSSCERT% %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
+signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
-:: Copy artifacts
-
-rmdir /s /q %ROOT%bin\dist
-
-mkdir %ROOT%bin\dist\legacy
-copy /b %ROOT%bin\x64-Release\mullvad-split-tunnel\* %ROOT%bin\dist\legacy\
-
-mkdir %ROOT%bin\dist\meta
-move %ROOT%bin\dist\legacy\mullvad-split-tunnel.pdb %ROOT%bin\dist\meta\
-
-::
 :: Build a CAB file for submission to the MS Hardware Dev Center
-:: The co-installer has to be included (?) because it's referenced in the inf file
-::
 
-mkdir %ROOT%bin\dist\win10
+mkdir %ROOT%bin\temp\cab
 
->"%ROOT%bin\dist\win10\mullvad-split-tunnel-amd64.ddf" (
+>"%ROOT%bin\temp\cab\mullvad-split-tunnel-amd64.ddf" (
     echo .OPTION EXPLICIT     ; Generate errors
     echo .Set CabinetFileCountThreshold=0
     echo .Set FolderFileCountThreshold=0
@@ -73,32 +59,38 @@ mkdir %ROOT%bin\dist\win10
     echo .Set Compress=on
     echo .Set CabinetNameTemplate=mullvad-split-tunnel-amd64.cab
     echo .Set DestinationDir=Package
-    echo .Set DiskDirectoryTemplate=%ROOT%bin\dist\win10
-    echo %ROOT%bin\dist\legacy\mullvad-split-tunnel.cat
-    echo %ROOT%bin\dist\legacy\mullvad-split-tunnel.inf
-    echo %ROOT%bin\dist\legacy\mullvad-split-tunnel.sys
-    echo %ROOT%bin\dist\legacy\WdfCoinstaller01011.dll
+    echo .Set DiskDirectoryTemplate=%ROOT%bin\temp\cab
+    echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
+    echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.inf
+    echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.sys
+    echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.pdb
 )
 
-::
 :: makecab produces several garbage files
-:: force current working directory to prevent spreading them out
-::
+:: Force current working directory to prevent spreading them out
 
-pushd %ROOT%bin\dist\win10
+pushd %ROOT%bin\temp\cab
 
-makecab /f "%ROOT%bin\dist\win10\mullvad-split-tunnel-amd64.ddf"
+makecab /f "%ROOT%bin\temp\cab\mullvad-split-tunnel-amd64.ddf"
 
 popd
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
-signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%1" /v /ac %ROOT%resources\%CROSSCERT% %ROOT%bin\dist\win10\mullvad-split-tunnel-amd64.cab
+signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v %ROOT%bin\temp\cab\mullvad-split-tunnel-amd64.cab
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
+:: Collect artifacts
+
+mkdir %ROOT%bin\dist
+
+copy /b %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.pdb %ROOT%bin\dist\
+copy /b %ROOT%bin\temp\cab\mullvad-split-tunnel-amd64.cab %ROOT%bin\dist\
+
 echo;
 echo BUILD COMPLETED SUCCESSFULLY
+echo ARTIFACTS ARE IN --^> bin/dist/ ^<--
 echo;
 
 exit /b 0
