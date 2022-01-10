@@ -20,6 +20,8 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+
+## [1.2.0.0] - 2022-01-10
 ### Changed
 - Update build and release procedure to remove support for pre-Windows 10 systems.
 
