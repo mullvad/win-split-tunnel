@@ -1,6 +1,6 @@
 # Mullvad split tunnel driver for Windows
 
-This is a non-PnP KMDF driver suitable for implementing split tunneling in VPN client software. The driver works on Windows 7 through 10.
+This is a non-PnP KMDF driver suitable for implementing split tunneling in VPN client software. The driver works on Windows 10 and later versions of Windows.
 
 Main features:
 
