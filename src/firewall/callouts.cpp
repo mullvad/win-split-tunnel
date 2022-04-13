@@ -380,10 +380,7 @@ CalloutClassifyBind
 		return;
 	}
 
-	if (ClassifyOut->actionType == FWP_ACTION_NONE)
-	{
-		ClassifyOut->actionType = FWP_ACTION_CONTINUE;
-	}
+	ClassificationReset(ClassifyOut);
 
 	if (!FWPS_IS_METADATA_FIELD_PRESENT(MetaValues, FWPS_METADATA_FIELD_PROCESS_ID))
 	{
@@ -727,10 +724,7 @@ CalloutClassifyConnect
 		return;
 	}
 
-	if (ClassifyOut->actionType == FWP_ACTION_NONE)
-	{
-		ClassifyOut->actionType = FWP_ACTION_CONTINUE;
-	}
+	ClassificationReset(ClassifyOut);
 
 	if (!FWPS_IS_METADATA_FIELD_PRESENT(MetaValues, FWPS_METADATA_FIELD_PROCESS_ID))
 	{
@@ -940,10 +934,7 @@ CalloutPermitSplitApps
 		return;
 	}
 
-	if (ClassifyOut->actionType == FWP_ACTION_NONE)
-	{
-		ClassifyOut->actionType = FWP_ACTION_CONTINUE;
-	}
+	ClassificationReset(ClassifyOut);
 
 	if (!FWPS_IS_METADATA_FIELD_PRESENT(MetaValues, FWPS_METADATA_FIELD_PROCESS_ID))
 	{
@@ -1093,10 +1084,7 @@ CalloutBlockSplitApps
 		return;
 	}
 
-	if (ClassifyOut->actionType == FWP_ACTION_NONE)
-	{
-		ClassifyOut->actionType = FWP_ACTION_CONTINUE;
-	}
+	ClassificationReset(ClassifyOut);
 
 	if (!FWPS_IS_METADATA_FIELD_PRESENT(MetaValues, FWPS_METADATA_FIELD_PROCESS_ID))
 	{
