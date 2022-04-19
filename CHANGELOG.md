@@ -20,6 +20,9 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+### Security
+- For non-excluded DNS traffic, evaluate all appropriate filters within the DNS sublayer when a soft
+  permit has been applied in a higher-priority sublayer.
 
 ## [1.2.0.0] - 2022-01-10
 ### Changed
