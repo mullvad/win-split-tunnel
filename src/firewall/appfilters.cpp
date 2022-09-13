@@ -104,7 +104,7 @@ PushTransactionEvent
 	BLOCK_CONNECTIONS_ENTRY *Target
 )
 {
-	auto evt = (TRANSACTION_EVENT*)ExAllocatePoolWithTag(NonPagedPool, sizeof(TRANSACTION_EVENT), ST_POOL_TAG);
+	auto evt = (TRANSACTION_EVENT*)ExAllocatePoolUninitialized(NonPagedPool, sizeof(TRANSACTION_EVENT), ST_POOL_TAG);
 
 	if (evt == NULL)
 	{
@@ -175,7 +175,7 @@ TransactionRemovedEntry
 )
 {
 	auto evt = (TRANSACTION_EVENT_ADD_ENTRY*)
-		ExAllocatePoolWithTag(NonPagedPool, sizeof(TRANSACTION_EVENT_ADD_ENTRY), ST_POOL_TAG);
+		ExAllocatePoolUninitialized(NonPagedPool, sizeof(TRANSACTION_EVENT_ADD_ENTRY), ST_POOL_TAG);
 
 	if (evt == NULL)
 	{
@@ -201,7 +201,7 @@ TransactionSwappedLists
 )
 {
 	auto evt = (TRANSACTION_EVENT_SWAP_LISTS*)
-		ExAllocatePoolWithTag(NonPagedPool, sizeof(TRANSACTION_EVENT_SWAP_LISTS), ST_POOL_TAG);
+		ExAllocatePoolUninitialized(NonPagedPool, sizeof(TRANSACTION_EVENT_SWAP_LISTS), ST_POOL_TAG);
 
 	if (evt == NULL)
 	{
@@ -246,7 +246,7 @@ CustomGetAppIdFromFileName
 	auto allocationSize = offsetStringBuffer + copiedStringLength;
 
 	auto blob = (FWP_BYTE_BLOB*)
-		ExAllocatePoolWithTag(PagedPool, allocationSize, ST_POOL_TAG);
+		ExAllocatePoolUninitialized(PagedPool, allocationSize, ST_POOL_TAG);
 
 	if (blob == NULL)
 	{
@@ -519,7 +519,7 @@ AddBlockFiltersCreateEntryTx
 	auto allocationSize = offsetStringBuffer + ImageName->Length;
 
 	auto entry = (BLOCK_CONNECTIONS_ENTRY*)
-		ExAllocatePoolWithTag(PagedPool, allocationSize, ST_POOL_TAG);
+		ExAllocatePoolUninitialized(PagedPool, allocationSize, ST_POOL_TAG);
 
 	if (entry == NULL)
 	{
@@ -695,7 +695,7 @@ Initialize
 )
 {
 	auto context = (APP_FILTERS_CONTEXT*)
-		ExAllocatePoolWithTag(PagedPool, sizeof(APP_FILTERS_CONTEXT), ST_POOL_TAG);
+		ExAllocatePoolUninitialized(PagedPool, sizeof(APP_FILTERS_CONTEXT), ST_POOL_TAG);
 
 	if (context == NULL)
 	{

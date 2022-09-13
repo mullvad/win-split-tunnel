@@ -14,7 +14,7 @@ Initialize
 	CONTEXT **Context
 )
 {
-    auto context = (CONTEXT*)ExAllocatePoolWithTag(PagedPool, sizeof(CONTEXT), ST_POOL_TAG);
+    auto context = (CONTEXT*)ExAllocatePoolUninitialized(PagedPool, sizeof(CONTEXT), ST_POOL_TAG);
 
     if (NULL == context)
     {
@@ -71,7 +71,7 @@ Subscribe
     void *ClientContext
 )
 {
-    auto sub = (SUBSCRIPTION*)ExAllocatePoolWithTag(PagedPool, sizeof(SUBSCRIPTION), ST_POOL_TAG);
+    auto sub = (SUBSCRIPTION*)ExAllocatePoolUninitialized(PagedPool, sizeof(SUBSCRIPTION), ST_POOL_TAG);
 
     if (NULL == sub)
     {

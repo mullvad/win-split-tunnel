@@ -21,7 +21,7 @@ BuildSplittingEvent
 	auto eventSize = FIELD_OFFSET(ST_SPLITTING_EVENT, ImageName) + ImageName->Length;
 	auto allocationSize = headerSize + eventSize;
 
-	auto buffer = ExAllocatePoolWithTag(NonPagedPool, allocationSize, ST_POOL_TAG);
+	auto buffer = ExAllocatePoolUninitialized(NonPagedPool, allocationSize, ST_POOL_TAG);
 
 	if (buffer == NULL)
 	{
@@ -60,7 +60,7 @@ BuildSplittingErrorEvent
 	auto eventSize = FIELD_OFFSET(ST_SPLITTING_ERROR_EVENT, ImageName) + ImageName->Length;
 	auto allocationSize = headerSize + eventSize;
 
-	auto buffer = ExAllocatePoolWithTag(NonPagedPool, allocationSize, ST_POOL_TAG);
+	auto buffer = ExAllocatePoolUninitialized(NonPagedPool, allocationSize, ST_POOL_TAG);
 
 	if (buffer == NULL)
 	{
@@ -91,7 +91,7 @@ WrapEvent
 	size_t BufferSize
 )
 {
-	auto evt = (RAW_EVENT*)ExAllocatePoolWithTag(NonPagedPool, sizeof(RAW_EVENT), ST_POOL_TAG);
+	auto evt = (RAW_EVENT*)ExAllocatePoolUninitialized(NonPagedPool, sizeof(RAW_EVENT), ST_POOL_TAG);
 
 	if (evt == NULL)
 	{
@@ -203,7 +203,7 @@ BuildErrorMessageEvent
 	auto eventSize = FIELD_OFFSET(ST_ERROR_MESSAGE_EVENT, ErrorMessage) + ErrorMessage->Length;
 	auto allocationSize = headerSize + eventSize;
 
-	auto buffer = ExAllocatePoolWithTag(NonPagedPool, allocationSize, ST_POOL_TAG);
+	auto buffer = ExAllocatePoolUninitialized(NonPagedPool, allocationSize, ST_POOL_TAG);
 
 	if (buffer == NULL)
 	{

@@ -49,7 +49,7 @@ TreeAllocateRoutineNonPaged
 {
 	UNREFERENCED_PARAMETER(Table);
 
-	return ExAllocatePoolWithTag(NonPagedPool, ByteSize, ST_POOL_TAG);
+	return ExAllocatePoolUninitialized(NonPagedPool, ByteSize, ST_POOL_TAG);
 }
 
 PVOID
@@ -61,7 +61,7 @@ TreeAllocateRoutinePaged
 {
 	UNREFERENCED_PARAMETER(Table);
 
-	return ExAllocatePoolWithTag(PagedPool, ByteSize, ST_POOL_TAG);
+	return ExAllocatePoolUninitialized(PagedPool, ByteSize, ST_POOL_TAG);
 }
 
 VOID
@@ -144,7 +144,7 @@ Initialize
 	const auto poolType = (Pageable == ST_PAGEABLE::YES) ? PagedPool : NonPagedPool;
 
 	*Context = (CONTEXT*)
-		ExAllocatePoolWithTag(poolType, sizeof(CONTEXT), ST_POOL_TAG);
+		ExAllocatePoolUninitialized(poolType, sizeof(CONTEXT), ST_POOL_TAG);
 
 	if (*Context == NULL)
 	{
