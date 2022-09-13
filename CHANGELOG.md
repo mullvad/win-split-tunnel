@@ -20,6 +20,8 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+### Fixed
+- Fix incomplete validation of input buffers that could result in out-of-bounds reads.
 
 ## [1.2.1.0] - 2022-04-19
 ### Security
