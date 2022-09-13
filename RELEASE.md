@@ -8,6 +8,7 @@ Ensure the following software is installed:
 
 1. `Visual Studio 2019` or later.
 1. `Windows Driver Kit (WDK)` version `10.0.18362.1` or later.
+1. `Windows 10, version 2004` or later.
 
 Configure signing locally:
 

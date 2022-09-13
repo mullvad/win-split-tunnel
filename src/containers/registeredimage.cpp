@@ -90,7 +90,7 @@ AddEntryInner
 	const auto poolType = (Context->Pageable == ST_PAGEABLE::YES) ? PagedPool : NonPagedPool;
 
     auto record = (REGISTERED_IMAGE_ENTRY*)
-		ExAllocatePoolWithTag(poolType, allocationSize, ST_POOL_TAG);
+		ExAllocatePoolUninitialized(poolType, allocationSize, ST_POOL_TAG);
 
     if (record == NULL)
     {
@@ -141,7 +141,7 @@ Initialize
 {
 	const auto poolType = (Pageable == ST_PAGEABLE::YES) ? PagedPool : NonPagedPool;
 
-	*Context = (CONTEXT*)ExAllocatePoolWithTag(poolType, sizeof(CONTEXT), ST_POOL_TAG);
+	*Context = (CONTEXT*)ExAllocatePoolUninitialized(poolType, sizeof(CONTEXT), ST_POOL_TAG);
 
 	if (*Context == NULL)
 	{

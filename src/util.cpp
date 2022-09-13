@@ -119,7 +119,7 @@ GetDevicePathImageName
 	// Allocate name buffer.
 	//
 
-	*ImageName = (UNICODE_STRING*)ExAllocatePoolWithTag(PagedPool, bufferLength, ST_POOL_TAG);
+	*ImageName = (UNICODE_STRING*)ExAllocatePoolUninitialized(PagedPool, bufferLength, ST_POOL_TAG);
 
 	if (NULL == *ImageName)
 	{
@@ -241,7 +241,7 @@ AllocateCopyDowncaseString
 
 	const auto poolType = (Pageable == ST_PAGEABLE::YES) ? PagedPool : NonPagedPool;
 
-	auto finalBuffer = (PWCH)ExAllocatePoolWithTag(poolType, lower.Length, ST_POOL_TAG);
+	auto finalBuffer = (PWCH)ExAllocatePoolUninitialized(poolType, lower.Length, ST_POOL_TAG);
 
 	if (finalBuffer == NULL)
 	{
@@ -293,7 +293,7 @@ DuplicateString
 {
 	const auto poolType = (Pageable == ST_PAGEABLE::YES) ? PagedPool : NonPagedPool;
 
-	auto buffer = (PWCH)ExAllocatePoolWithTag(poolType, Src->Length, ST_POOL_TAG);
+	auto buffer = (PWCH)ExAllocatePoolUninitialized(poolType, Src->Length, ST_POOL_TAG);
 
 	if (NULL == buffer)
 	{

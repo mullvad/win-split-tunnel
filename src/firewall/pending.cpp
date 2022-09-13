@@ -333,11 +333,11 @@ Initialize
 	procbroker::CONTEXT *ProcessEventBroker
 )
 {
-	auto context = (CONTEXT*)ExAllocatePoolWithTag(NonPagedPool, sizeof(CONTEXT), ST_POOL_TAG);
+	auto context = (CONTEXT*)ExAllocatePoolUninitialized(NonPagedPool, sizeof(CONTEXT), ST_POOL_TAG);
 
 	if (context == NULL)
 	{
-        DbgPrint("ExAllocatePoolWithTag() failed\n");
+        DbgPrint("ExAllocatePoolUninitialized() failed\n");
 
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
@@ -429,11 +429,11 @@ PendRequest
     );
 
     auto record = (PENDED_CLASSIFICATION*)
-        ExAllocatePoolWithTag(NonPagedPool, sizeof(PENDED_CLASSIFICATION), ST_POOL_TAG);
+        ExAllocatePoolUninitialized(NonPagedPool, sizeof(PENDED_CLASSIFICATION), ST_POOL_TAG);
 
     if (record == NULL)
     {
-        DbgPrint("ExAllocatePoolWithTag() failed\n");
+        DbgPrint("ExAllocatePoolUninitialized() failed\n");
 
         return STATUS_INSUFFICIENT_RESOURCES;
     }

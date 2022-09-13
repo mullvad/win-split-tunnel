@@ -15,10 +15,15 @@ Main features:
 
 # Development environment
 
+Any recent version of Visual Studio, the WDK, and Windows SDK should work.
+
 The code and project file is known to work with the following combination of software:
 
-- Visual Studio 2019 (MSVC toolset >= v14.26)
-- WDK v10.0.18362.1
+- Visual Studio 2022
+- WDK v10.0.22621.382
+- Windows SDK v10.0.22621.0
+
+It will only build on Windows 10, version 2004 or later.
 
 # Architecture
 

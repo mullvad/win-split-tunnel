@@ -973,7 +973,7 @@ Initialize
 	eventing::CONTEXT *Eventing
 )
 {
-	auto context = (CONTEXT*)ExAllocatePoolWithTag(NonPagedPool, sizeof(CONTEXT), ST_POOL_TAG);
+	auto context = (CONTEXT*)ExAllocatePoolUninitialized(NonPagedPool, sizeof(CONTEXT), ST_POOL_TAG);
 
 	if (context == NULL)
 	{

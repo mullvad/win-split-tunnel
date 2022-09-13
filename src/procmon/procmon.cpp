@@ -66,7 +66,7 @@ SystemProcessEvent
 
         auto allocationSize = offsetStringBuffer + imageName->Length;
 
-        record = (PROCESS_EVENT *)ExAllocatePoolWithTag(PagedPool, allocationSize, ST_POOL_TAG);
+        record = (PROCESS_EVENT *)ExAllocatePoolUninitialized(PagedPool, allocationSize, ST_POOL_TAG);
 
         if (record == NULL)
         {
@@ -101,7 +101,7 @@ SystemProcessEvent
         // Process is departing.
         //
 
-        record = (PROCESS_EVENT *)ExAllocatePoolWithTag(PagedPool, sizeof(PROCESS_EVENT), ST_POOL_TAG);
+        record = (PROCESS_EVENT *)ExAllocatePoolUninitialized(PagedPool, sizeof(PROCESS_EVENT), ST_POOL_TAG);
 
         if (record == NULL)
         {
@@ -198,7 +198,7 @@ Initialize
 
     bool notifyRoutineRegistered = false;
 
-    auto context = (CONTEXT*)ExAllocatePoolWithTag(NonPagedPool, sizeof(CONTEXT), ST_POOL_TAG);
+    auto context = (CONTEXT*)ExAllocatePoolUninitialized(NonPagedPool, sizeof(CONTEXT), ST_POOL_TAG);
 
     if (NULL == context)
     {
