@@ -2,6 +2,7 @@
 #include "defs/config.h"
 #include "defs/process.h"
 #include "util.h"
+#include <ntintsafe.h>
 
 bool
 ValidateUserBufferConfiguration
@@ -25,12 +26,26 @@ ValidateUserBufferConfiguration
         return false;
     }
 
-    auto stringBuffer = (UCHAR*)Buffer
-        + sizeof(ST_CONFIGURATION_HEADER)
-        + (sizeof(ST_CONFIGURATION_ENTRY) * header->NumEntries);
+    //
+    // Verify that the entries reside within the buffer
+    //
 
-    if (stringBuffer < (UCHAR*)Buffer
-        || stringBuffer >= bufferEnd)
+    SIZE_T entriesSize = 0;
+
+    if (STATUS_SUCCESS != RtlSIZETMult(sizeof(ST_CONFIGURATION_ENTRY), header->NumEntries, &entriesSize))
+    {
+        return false;
+    }
+
+    void *stringBuffer = nullptr;
+
+    const auto status = RtlULongPtrAdd(
+        (ULONG_PTR)((UCHAR*)Buffer + sizeof(ST_CONFIGURATION_HEADER)),
+        entriesSize,
+        (ULONG_PTR*)&stringBuffer
+    );
+
+    if (STATUS_SUCCESS != status || stringBuffer >= bufferEnd)
     {
         return false;
     }
@@ -77,12 +92,26 @@ ValidateUserBufferProcesses
         return false;
     }
 
-    auto stringBuffer = (UCHAR*)Buffer
-        + sizeof(ST_PROCESS_DISCOVERY_HEADER)
-        + (sizeof(ST_PROCESS_DISCOVERY_ENTRY) * header->NumEntries);
+    //
+    // Verify that the entries reside within the buffer
+    //
 
-    if (stringBuffer < (UCHAR*)Buffer
-        || stringBuffer >= bufferEnd)
+    SIZE_T entriesSize = 0;
+
+    if (STATUS_SUCCESS != RtlSIZETMult(sizeof(ST_PROCESS_DISCOVERY_ENTRY), header->NumEntries, &entriesSize))
+    {
+        return false;
+    }
+
+    void *stringBuffer = nullptr;
+
+    const auto status = RtlULongPtrAdd(
+        (ULONG_PTR)((UCHAR*)Buffer + sizeof(ST_PROCESS_DISCOVERY_HEADER)),
+        entriesSize,
+        (ULONG_PTR*)&stringBuffer
+    );
+
+    if (STATUS_SUCCESS != status || stringBuffer >= bufferEnd)
     {
         return false;
     }
