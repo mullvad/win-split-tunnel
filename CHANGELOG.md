@@ -20,8 +20,15 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+
+
+## [1.2.2.0] - 2022-09-22
+### Changed
+- Upgrade the code and build instructions to use Visual Studio 2022 instead of 2019.
+
 ### Fixed
 - Fix incomplete validation of input buffers that could result in out-of-bounds reads.
+  Fixes 2022 Mullvad app audit issue item `MUL22-01`.
 
 
 ## [1.2.1.0] - 2022-04-19
