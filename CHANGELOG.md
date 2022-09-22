@@ -23,10 +23,12 @@ Line wrap the file at 100 chars.                                              Th
 ### Fixed
 - Fix incomplete validation of input buffers that could result in out-of-bounds reads.
 
+
 ## [1.2.1.0] - 2022-04-19
 ### Security
-- For non-excluded DNS traffic, evaluate all appropriate filters within the DNS sublayer when a soft
-  permit has been applied in a higher-priority sublayer.
+- For non-excluded DNS traffic, evaluate all appropriate filters within the DNS sublayer when a
+  soft permit has been applied in a higher-priority sublayer.
+
 
 ## [1.2.0.0] - 2022-01-10
 ### Changed
@@ -38,28 +40,32 @@ Line wrap the file at 100 chars.                                              Th
 - Apply a soft permit on excluded traffic, rather than a hard permit. This allows firewall filters
   added by other software (e.g. Windows Defender) to evaluate and block traffic.
 
+
 ## [1.1.1.0] - 2021-06-04
 ### Fixed
-Correct unfortunate application of NT_ASSERT, the illustrious. Critical logic that updates the
+- Correct unfortunate application of NT_ASSERT, the illustrious. Critical logic that updates the
   process tree was being omitted from release builds.
+
 
 ## [1.1.0.0] - 2021-05-26
 ### Changed
-Use improved model to determine when to split traffic. This has the following effects:
+- Use improved model to determine when to split traffic. This has the following effects:
   - TCP client sockets connecting to localhost can now be used successfully.
   - Routing now works as expected, e.g. when being connected to multiple LANs.
 
+
 ## [1.0.2.0] - 2021-05-04
 ### Changed
-Use less strict security descriptor on device object. The previous SD could e.g. prevent
-uninstallation of the driver, since uninstallers typically are not ran as SYSTEM.
+- Use less strict security descriptor on device object. The previous SD could e.g. prevent
+  uninstallation of the driver, since uninstallers typically are not ran as SYSTEM.
 
 ### Fixed
-Various minor code changes to improve both source code and runtime consistency.
+- Various minor code changes to improve both source code and runtime consistency.
+
 
 ## [1.0.1.0] - 2021-03-12
 ### Fixed
-Force reauthorization in WFP if state has changed but WFP was not updated in the process.
+- Force reauthorization in WFP if state has changed but WFP was not updated in the process.
 
 ## [1.0.0.0] - 2021-03-10
 Initial release.
