@@ -37,7 +37,7 @@
     <DriverType>KMDF</DriverType>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
     <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
-    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
+    <KMDF_VERSION_MINOR>15</KMDF_VERSION_MINOR>
     <KMDF_MINIMUM_VERSION_REQUIRED>
     </KMDF_MINIMUM_VERSION_REQUIRED>
   </PropertyGroup>
@@ -49,7 +49,7 @@
     <DriverType>KMDF</DriverType>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
     <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
-    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
+    <KMDF_VERSION_MINOR>15</KMDF_VERSION_MINOR>
     <KMDF_MINIMUM_VERSION_REQUIRED>
     </KMDF_MINIMUM_VERSION_REQUIRED>
   </PropertyGroup>
@@ -61,7 +61,7 @@
     <DriverType>KMDF</DriverType>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
     <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
-    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
+    <KMDF_VERSION_MINOR>15</KMDF_VERSION_MINOR>
     <KMDF_MINIMUM_VERSION_REQUIRED>
     </KMDF_MINIMUM_VERSION_REQUIRED>
   </PropertyGroup>
@@ -73,7 +73,7 @@
     <DriverType>KMDF</DriverType>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
     <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
-    <KMDF_VERSION_MINOR>11</KMDF_VERSION_MINOR>
+    <KMDF_VERSION_MINOR>15</KMDF_VERSION_MINOR>
     <KMDF_MINIMUM_VERSION_REQUIRED>
     </KMDF_MINIMUM_VERSION_REQUIRED>
   </PropertyGroup>
@@ -135,6 +135,7 @@
     <ClCompile>
       <PreprocessorDefinitions>_ARM64_;ARM64;_USE_DECLSPECS_FOR_SAL=1;STD_CALL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
+      <AdditionalOptions>/permissive %(AdditionalOptions)</AdditionalOptions>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>trace.h</WppScanConfigurationData>
     </ClCompile>
@@ -159,6 +160,7 @@
     </Link>
     <ClCompile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
+      <AdditionalOptions>/permissive %(AdditionalOptions)</AdditionalOptions>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>trace.h</WppScanConfigurationData>
     </ClCompile>
@@ -263,7 +265,7 @@
     <ClInclude Include="util.h" />
     <ClInclude Include="validation.h" />
     <ClInclude Include="version.h" />
-    <ClInclude Include="x64guard.h" />
+    <ClInclude Include="win64guard.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="resource.rc" />

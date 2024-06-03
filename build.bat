@@ -9,6 +9,10 @@ if [%1]==[] goto USAGE
 
 set CERT_THUMBPRINT=%1
 set TIMESTAMP_SERVER=http://timestamp.digicert.com
+set CAB_ARCH=%VSCMD_ARG_TGT_ARCH%
+if "%CAB_ARCH%"=="x64" (
+  set CAB_ARCH=amd64
+)
 
 set ROOT=%~dp0
 
@@ -19,26 +23,26 @@ rmdir /s /q %ROOT%bin
 :: Build driver but do not sign it
 :: It's not possible to control all arguments to signtool through msbuild
 
-msbuild.exe %ROOT%src\mullvad-split-tunnel.vcxproj /p:Configuration=Release /p:Platform=x64 /p:SignMode=Off
+msbuild.exe %ROOT%src\mullvad-split-tunnel.vcxproj /p:Configuration=Release /p:Platform=%VSCMD_ARG_TGT_ARCH% /p:SignMode=Off
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
 :: Sign driver
 
-signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.sys
+signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v %ROOT%bin\%VSCMD_ARG_TGT_ARCH%-Release\mullvad-split-tunnel\mullvad-split-tunnel.sys
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
 :: Re-generate catalog file now that driver binary has changed
 
-del %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
-"%WindowsSdkBinPath%x86\inf2cat.exe" /driver:%ROOT%bin\x64-Release\mullvad-split-tunnel /os:"10_x64" /verbose
+del %ROOT%bin\%VSCMD_ARG_TGT_ARCH%-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
+"%WindowsSdkBinPath%x86\inf2cat.exe" /driver:%ROOT%bin\%VSCMD_ARG_TGT_ARCH%-Release\mullvad-split-tunnel /os:"10_%VSCMD_ARG_TGT_ARCH%" /verbose
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
 :: Sign catalog
 
-signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
+signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v %ROOT%bin\%VSCMD_ARG_TGT_ARCH%-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
@@ -46,7 +50,7 @@ IF %ERRORLEVEL% NEQ 0 goto ERROR
 
 mkdir %ROOT%bin\temp\cab
 
->"%ROOT%bin\temp\cab\mullvad-split-tunnel-amd64.ddf" (
+>"%ROOT%bin\temp\cab\mullvad-split-tunnel-%CAB_ARCH%.ddf" (
     echo .OPTION EXPLICIT     ; Generate errors
     echo .Set CabinetFileCountThreshold=0
     echo .Set FolderFileCountThreshold=0
@@ -57,13 +61,13 @@ mkdir %ROOT%bin\temp\cab
     echo .Set CompressionType=MSZIP
     echo .Set Cabinet=on
     echo .Set Compress=on
-    echo .Set CabinetNameTemplate=mullvad-split-tunnel-amd64.cab
+    echo .Set CabinetNameTemplate=mullvad-split-tunnel-%CAB_ARCH%.cab
     echo .Set DestinationDir=Package
     echo .Set DiskDirectoryTemplate=%ROOT%bin\temp\cab
-    echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
-    echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.inf
-    echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.sys
-    echo %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.pdb
+    echo %ROOT%bin\%VSCMD_ARG_TGT_ARCH%-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
+    echo %ROOT%bin\%VSCMD_ARG_TGT_ARCH%-Release\mullvad-split-tunnel\mullvad-split-tunnel.inf
+    echo %ROOT%bin\%VSCMD_ARG_TGT_ARCH%-Release\mullvad-split-tunnel\mullvad-split-tunnel.sys
+    echo %ROOT%bin\%VSCMD_ARG_TGT_ARCH%-Release\mullvad-split-tunnel\mullvad-split-tunnel.pdb
 )
 
 :: makecab produces several garbage files
@@ -71,13 +75,13 @@ mkdir %ROOT%bin\temp\cab
 
 pushd %ROOT%bin\temp\cab
 
-makecab /f "%ROOT%bin\temp\cab\mullvad-split-tunnel-amd64.ddf"
+makecab /f "%ROOT%bin\temp\cab\mullvad-split-tunnel-%CAB_ARCH%.ddf"
 
 popd
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
-signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v %ROOT%bin\temp\cab\mullvad-split-tunnel-amd64.cab
+signtool sign /tr %TIMESTAMP_SERVER% /td sha256 /fd sha256 /sha1 "%CERT_THUMBPRINT%" /v %ROOT%bin\temp\cab\mullvad-split-tunnel-%CAB_ARCH%.cab
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
@@ -85,8 +89,8 @@ IF %ERRORLEVEL% NEQ 0 goto ERROR
 
 mkdir %ROOT%bin\dist
 
-copy /b %ROOT%bin\x64-Release\mullvad-split-tunnel\mullvad-split-tunnel.pdb %ROOT%bin\dist\
-copy /b %ROOT%bin\temp\cab\mullvad-split-tunnel-amd64.cab %ROOT%bin\dist\
+copy /b %ROOT%bin\%VSCMD_ARG_TGT_ARCH%-Release\mullvad-split-tunnel\mullvad-split-tunnel.pdb %ROOT%bin\dist\
+copy /b %ROOT%bin\temp\cab\mullvad-split-tunnel-%CAB_ARCH%.cab %ROOT%bin\dist\
 
 echo;
 echo BUILD COMPLETED SUCCESSFULLY
