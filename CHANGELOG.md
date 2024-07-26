@@ -22,6 +22,11 @@ Line wrap the file at 100 chars.                                              Th
 ## [Unreleased]
 
 
+## [1.2.3.0] - 2024-07-26
+### Added
+- Add support for ARM64.
+
+
 ## [1.2.2.0] - 2022-09-22
 ### Changed
 - Upgrade the code and build instructions to use Visual Studio 2022 instead of 2019.
