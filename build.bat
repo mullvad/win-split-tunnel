@@ -14,6 +14,11 @@ if "%CAB_ARCH%"=="x64" (
   set CAB_ARCH=amd64
 )
 
+set INF2CAT_OS=10_%VSCMD_ARG_TGT_ARCH%
+if "%VSCMD_ARG_TGT_ARCH%"=="arm64" (
+  set INF2CAT_OS=10_VB_%VSCMD_ARG_TGT_ARCH%
+)
+
 set ROOT=%~dp0
 
 :: Force complete rebuild
@@ -36,7 +41,7 @@ IF %ERRORLEVEL% NEQ 0 goto ERROR
 :: Re-generate catalog file now that driver binary has changed
 
 del %ROOT%bin\%VSCMD_ARG_TGT_ARCH%-Release\mullvad-split-tunnel\mullvad-split-tunnel.cat
-"%WindowsSdkBinPath%x86\inf2cat.exe" /driver:%ROOT%bin\%VSCMD_ARG_TGT_ARCH%-Release\mullvad-split-tunnel /os:"10_%VSCMD_ARG_TGT_ARCH%" /verbose
+"%WindowsSdkVerBinPath%x86\inf2cat.exe" /driver:%ROOT%bin\%VSCMD_ARG_TGT_ARCH%-Release\mullvad-split-tunnel /os:"%INF2CAT_OS%" /verbose
 
 IF %ERRORLEVEL% NEQ 0 goto ERROR
 
