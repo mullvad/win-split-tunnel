@@ -21,6 +21,10 @@ Line wrap the file at 100 chars.                                              Th
 
 ## [Unreleased]
 
+## [1.2.4.0] - 2024-08-12
+### Fixed
+- Fix build scripts for ARM64.
+
 
 ## [1.2.3.0] - 2024-07-26
 ### Added
