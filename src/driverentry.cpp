@@ -39,6 +39,9 @@ EVT_WDF_DRIVER_UNLOAD StEvtDriverUnload;
 #define ST_DEVICE_NAME_STRING L"\\Device\\MULLVADSPLITTUNNEL"
 #define ST_SYMBOLIC_NAME_STRING L"\\Global??\\MULLVADSPLITTUNNEL"
 
+constexpr size_t MAX_IO_BUFFER_SIZE = 100000000; // 100 MB
+
+
 namespace
 {
 
@@ -400,8 +403,28 @@ StEvtIoDeviceControl
     ULONG IoControlCode
 )
 {
-    UNREFERENCED_PARAMETER(OutputBufferLength);
-    UNREFERENCED_PARAMETER(InputBufferLength);
+    //
+    // Check that the input/output buffers aren't unreasonably large to
+    // disallow userspace from exhausting kernel memory.
+    //
+
+    if (InputBufferLength > MAX_IO_BUFFER_SIZE) {
+        DbgPrint(
+            "Input buffer is too big. IOCTL=%lu InputBufferLength=%llu\n",
+            IoControlCode, InputBufferLength
+        );
+        WdfRequestComplete(Request, STATUS_INVALID_PARAMETER);
+        return;
+    }
+    if (OutputBufferLength > MAX_IO_BUFFER_SIZE) {
+        DbgPrint(
+            "Output buffer is too big. IOCTL=%lu OutputBufferLength=%llu\n",
+            IoControlCode, OutputBufferLength
+        );
+        WdfRequestComplete(Request, STATUS_INVALID_PARAMETER);
+        return;
+    }
+
 
     auto device = WdfIoQueueGetDevice(Queue);
     auto context = DeviceGetSplitTunnelContext(device);
