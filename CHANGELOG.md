@@ -20,6 +20,9 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+### Security
+- Limit I/O buffer size in IOCTLs to protect against kernel memory exhaustion attacks.
+  Fixes 2024 Mullvad app audit issue item `MLLVD-CR-24-102`.
 
 ## [1.2.4.0] - 2024-08-12
 ### Fixed
