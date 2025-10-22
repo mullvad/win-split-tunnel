@@ -1660,8 +1660,6 @@ ResetComplete
     WDFREQUEST Request
 )
 {
-    auto context = DeviceGetSplitTunnelContext(Device);
-
     //
     // We're in the serialized IOCTL handler path so handlers that might update the state are
     // locked out from executing.
@@ -1672,13 +1670,30 @@ ResetComplete
     // holding the lock while trying to tear down the process management subsystem.
     //
 
+    const auto status = Reset(Device);
+    WdfRequestComplete(Request, status);
+}
+
+NTSTATUS
+Reset
+(
+    WDFDEVICE Device
+)
+{
+    auto context = DeviceGetSplitTunnelContext(Device);
+
     NTSTATUS status = STATUS_SUCCESS;
 
     switch (context->DriverState.State)
     {
         case ST_DRIVER_STATE_STARTED:
+        {
+            break;
+        }
         case ST_DRIVER_STATE_ZOMBIE:
         {
+            DbgPrint("Rejecting reset in zombie state\n");
+            status = STATUS_CANCELLED;
             break;
         }
         default:
@@ -1696,7 +1711,7 @@ ResetComplete
         DbgPrint("Failed to reset driver state\n");
     }
 
-    WdfRequestComplete(Request, status);
+    return status;
 }
 
 } // namespace ioctl

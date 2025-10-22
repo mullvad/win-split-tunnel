@@ -89,6 +89,15 @@ IoControlRequiresParallelProcessing
     return IoControlCode == IOCTL_ST_DEQUEUE_EVENT;
 }
 
+//
+// If the driver is unloaded without being properly reset first, we must do our best to try to
+// clean up non-device related resources.
+//
+// Sadly, other cleanup routines for specifically the device appear not to run in these cases,
+// so we access it through a global variable.
+//
+WDFDEVICE g_wdfDevice = nullptr;
+
 } // anonymous namespace
 
 //
@@ -378,6 +387,8 @@ StCreateDevice
 
     context->ParallelRequestQueue = parallelQueue;
     context->SerializedRequestQueue = serialQueue;
+
+    g_wdfDevice = wdfDevice;
 
     WdfControlFinishInitializing(wdfDevice);
 
@@ -715,6 +726,26 @@ StEvtDriverUnload
     UNREFERENCED_PARAMETER(WdfDriver);
 
     DbgPrint("Unloading Mullvad split tunnel driver\n");
+
+    // The device object is necessarily set because this runs only if DriverEntry succeeded.
+    NT_ASSERT(g_wdfDevice != nullptr);
+    auto context = DeviceGetSplitTunnelContext(g_wdfDevice);
+
+    if (ST_DRIVER_STATE_STARTED != context->DriverState.State)
+    {
+        // We should never end up here if the driver is properly reset first,
+        // since we cannot guarantee that callouts will be successfully unregistered. But just
+        // in case we do, we attempt to clean up anyway.
+
+        // We can assume that no IOCTL requests are pending here because the driver will not unload
+        // if there is a handle open to our control device object.
+
+        DbgPrint("Resetting driver during unload\n");
+        const auto status = ioctl::Reset(g_wdfDevice);
+
+        // If resetting fails, we are out of luck.
+        NT_ASSERT(status == STATUS_SUCCESS);
+    }
 
     WPP_CLEANUP(WdfDriverWdmGetDriverObject(WdfDriver));
 }
