@@ -108,6 +108,7 @@ CancelSubscription
         if (((SUBSCRIPTION*)entry)->Callback == Callback)
         {
             RemoveEntryList(entry);
+            ExFreePoolWithTag((SUBSCRIPTION*)entry, ST_POOL_TAG);
 
             break;
         }
