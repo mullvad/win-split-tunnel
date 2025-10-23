@@ -744,7 +744,10 @@ StEvtDriverUnload
         const auto status = ioctl::Reset(g_wdfDevice);
 
         // If resetting fails, we are out of luck.
-        NT_ASSERT(status == STATUS_SUCCESS);
+        if (status != STATUS_SUCCESS)
+        {
+            KeBugCheckEx(MANUALLY_INITIATED_CRASH1, 0, 0, 0, 0);
+        }
     }
 
     WPP_CLEANUP(WdfDriverWdmGetDriverObject(WdfDriver));
