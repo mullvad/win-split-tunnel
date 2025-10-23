@@ -24,6 +24,7 @@ Line wrap the file at 100 chars.                                              Th
 - Attempt to clean up callouts and other resources if the driver is unexpectedly unloaded.
   In particular, the callback registered by `PsSetCreateProcessNotifyRoutineEx()` reliably
   triggered bug checks when this occurred.
+- Fix minor memory leak during cleanup.
 
 ### Security
 - Limit I/O buffer size in IOCTLs to protect against kernel memory exhaustion attacks.
