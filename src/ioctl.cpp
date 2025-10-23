@@ -1670,8 +1670,7 @@ ResetComplete
     // holding the lock while trying to tear down the process management subsystem.
     //
 
-    const auto status = Reset(Device);
-    WdfRequestComplete(Request, status);
+    WdfRequestComplete(Request, Reset(Device));
 }
 
 NTSTATUS
