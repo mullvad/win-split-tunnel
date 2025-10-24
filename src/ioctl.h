@@ -95,4 +95,10 @@ ResetComplete
     WDFREQUEST Request
 );
 
+NTSTATUS
+Reset
+(
+    WDFDEVICE Device
+);
+
 } // namespace ioctl
