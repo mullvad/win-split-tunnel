@@ -129,8 +129,9 @@ DEFINE_GUID(ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_TUNNEL_IPV6_RECV_KEY,
 // We're going to reuse it to avoid having different sublayers fight over
 // whether something should be blocked or permitted.
 //
+// {85ffa37c-663c-4bbb-a570-f006a85f0a9c}
 DEFINE_GUID(ST_FW_WINFW_BASELINE_SUBLAYER_KEY,
-	0xc78056ff, 0x2bc1, 0x4211, 0xaa, 0xdd, 0x7f, 0x35, 0x8d, 0xef, 0x20, 0x2d);
+	0x85ffa37c, 0x663c, 0x4bbb, 0xa5, 0x70, 0xf0, 0x06, 0xa8, 0x5f, 0x0a, 0x9c);
 
 //
 // This sublayer is defined and registered by `winfw`.
