@@ -8,9 +8,9 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-// {E2C114EE-F32A-4264-A6CB-3FA7996356D9}
+// {7ac1989a-431a-499f-8584-b08510a0e7df}
 DEFINE_GUID(ST_FW_PROVIDER_KEY,
-	0xe2c114ee, 0xf32a, 0x4264, 0xa6, 0xcb, 0x3f, 0xa7, 0x99, 0x63, 0x56, 0xd9);
+	0x7ac1989a, 0x431a, 0x499f, 0x85, 0x84, 0xb0, 0x85, 0x10, 0xa0, 0xe7, 0xdf);
 
 // {76653805-1972-45D1-B47C-3140AEBABC49}
 DEFINE_GUID(ST_FW_CALLOUT_CLASSIFY_BIND_IPV4_KEY,
