@@ -20,6 +20,9 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+
+
+## [1.2.5.0] - 2025-12-09
 ### Fixed
 - Attempt to clean up callouts and other resources if the driver is unexpectedly unloaded.
   In particular, the callback registered by `PsSetCreateProcessNotifyRoutineEx()` reliably
@@ -29,6 +32,7 @@ Line wrap the file at 100 chars.                                              Th
 ### Security
 - Limit I/O buffer size in IOCTLs to protect against kernel memory exhaustion attacks.
   Fixes 2024 Mullvad app audit issue item `MLLVD-CR-24-102`.
+
 
 ## [1.2.4.0] - 2024-08-12
 ### Fixed
