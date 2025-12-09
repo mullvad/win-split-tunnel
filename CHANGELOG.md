@@ -20,6 +20,8 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+
+## [1.2.5.0] - 2025-12-09
 ### Fixed
 - Attempt to clean up callouts and other resources if the driver is unexpectedly unloaded.
   In particular, the callback registered by `PsSetCreateProcessNotifyRoutineEx()` reliably
