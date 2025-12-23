@@ -177,14 +177,15 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib;$(KMDF_LIB_PATH)$(KMDF_VER_PATH)\WdfLdr.lib;$(KMDF_LIB_PATH)$(KMDF_VER_PATH)\WdfDriverEntry.lib;$(DDK_LIB_PATH)\wdmsec.lib;Fwpkclnt.lib</AdditionalDependencies>
-      <AdditionalOptions>/INTEGRITYCHECK %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/INTEGRITYCHECK /BREPRO /EMITTOOLVERSIONINFO:NO /EMITPOGOPHASEINFO /NOVCFEATURE /NOCOFFGRPINFO /DEPENDENTLOADFLAG:0x800 /CETCOMPAT /guard:retpoline /BASERELOCCLUSTERING %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <ClCompile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PreprocessorDefinitions>POOL_NX_OPTIN=1;_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalOptions>/permissive %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/permissive /d2guardretpoline %(AdditionalOptions)</AdditionalOptions>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>trace.h</WppScanConfigurationData>
+	  <IntelJCCErratum>true</IntelJCCErratum>
     </ClCompile>
     <Inf>
       <TimeStamp>0.0.0.1</TimeStamp>
