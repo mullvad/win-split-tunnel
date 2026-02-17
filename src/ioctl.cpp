@@ -155,6 +155,33 @@ ApplyFinalizeTargetSettings
     procregistry::PROCESS_REGISTRY_ENTRY *Entry
 )
 {
+    //
+    // In include mode, per-app tunnel-blocking filters are not used.
+    // The generic BlockTunnel callout filters handle all non-listed apps
+    // via the CallbackQueryProcess verdict.
+    //
+
+    if (Context->SplitTunnelMode == ST_SPLIT_TUNNEL_MODE_INCLUDE)
+    {
+        if (Entry->Settings.HasFirewallState)
+        {
+            auto status = firewall::RegisterAppBecomingUnsplitTx(Context->Firewall, &Entry->ImageName);
+
+            if (!NT_SUCCESS(status))
+            {
+                return false;
+            }
+        }
+
+        Entry->TargetSettings.HasFirewallState = false;
+
+        return true;
+    }
+
+    //
+    // Exclude mode (default): manage per-app tunnel-blocking filters.
+    //
+
     if (!util::SplittingEnabled(Entry->Settings.Split))
     {
         NT_ASSERT(!Entry->Settings.HasFirewallState);
@@ -341,11 +368,45 @@ CallbackQueryProcess
 
     firewall::PROCESS_SPLIT_VERDICT verdict = firewall::PROCESS_SPLIT_VERDICT::UNKNOWN;
 
-    if (process != NULL)
+    if (context->SplitTunnelMode == ST_SPLIT_TUNNEL_MODE_INCLUDE)
     {
-        verdict = (util::SplittingEnabled(process->Settings.Split)
-            ? firewall::PROCESS_SPLIT_VERDICT::DO_SPLIT
-            : firewall::PROCESS_SPLIT_VERDICT::DONT_SPLIT);
+        //
+        // Include mode:
+        // Listed process -> DONT_SPLIT (stay on VPN tunnel)
+        // Unlisted process -> DO_SPLIT (redirect away from tunnel)
+        // Unknown process -> DO_SPLIT (deny VPN access until categorized)
+        //
+
+        if (process != NULL)
+        {
+            verdict = (util::SplittingEnabled(process->Settings.Split)
+                ? firewall::PROCESS_SPLIT_VERDICT::DONT_SPLIT
+                : firewall::PROCESS_SPLIT_VERDICT::DO_SPLIT);
+        }
+        else
+        {
+            verdict = firewall::PROCESS_SPLIT_VERDICT::DO_SPLIT;
+        }
+    }
+    else
+    {
+        //
+        // Exclude mode (default):
+        // Listed process -> DO_SPLIT (redirect away from tunnel)
+        // Unlisted process -> DONT_SPLIT (stay on tunnel)
+        // Unknown process -> UNKNOWN (pend until categorized)
+        //
+
+        if (process != NULL)
+        {
+            verdict = (util::SplittingEnabled(process->Settings.Split)
+                ? firewall::PROCESS_SPLIT_VERDICT::DO_SPLIT
+                : firewall::PROCESS_SPLIT_VERDICT::DONT_SPLIT);
+        }
+        else
+        {
+            verdict = firewall::PROCESS_SPLIT_VERDICT::UNKNOWN;
+        }
     }
 
     WdfSpinLockRelease(context->ProcessRegistry.Lock);
@@ -831,6 +892,8 @@ ResetInner
     }
 
     RtlZeroMemory(&Context->IpAddresses, sizeof(Context->IpAddresses));
+
+    Context->SplitTunnelMode = ST_SPLIT_TUNNEL_MODE_EXCLUDE;
 
     procregistry::TearDown(&Context->ProcessRegistry.Instance);
 
@@ -1711,6 +1774,132 @@ Reset
     }
 
     return status;
+}
+
+void
+SetSplitTunnelModeComplete
+(
+    WDFDEVICE Device,
+    WDFREQUEST Request
+)
+{
+    auto context = DeviceGetSplitTunnelContext(Device);
+
+    PVOID buffer;
+    size_t bufferLength;
+
+    auto status = WdfRequestRetrieveInputBuffer
+    (
+        Request,
+        sizeof(ST_SPLIT_TUNNEL_MODE),
+        &buffer,
+        &bufferLength
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint("Could not access input buffer: 0x%X\n", status);
+
+        WdfRequestComplete(Request, status);
+
+        return;
+    }
+
+    if (bufferLength != sizeof(ST_SPLIT_TUNNEL_MODE))
+    {
+        DbgPrint("Invalid buffer size for IOCTL_ST_SET_SPLIT_TUNNEL_MODE\n");
+
+        WdfRequestComplete(Request, STATUS_INVALID_PARAMETER);
+
+        return;
+    }
+
+    auto newMode = *(ST_SPLIT_TUNNEL_MODE*)buffer;
+
+    if (newMode != ST_SPLIT_TUNNEL_MODE_EXCLUDE
+        && newMode != ST_SPLIT_TUNNEL_MODE_INCLUDE)
+    {
+        DbgPrint("Invalid split tunnel mode value: %d\n", (int)newMode);
+
+        WdfRequestComplete(Request, STATUS_INVALID_PARAMETER);
+
+        return;
+    }
+
+    WdfWaitLockAcquire(context->DriverState.Lock, NULL);
+
+    auto previousMode = context->SplitTunnelMode;
+
+    if (previousMode != newMode && context->DriverState.State == ST_DRIVER_STATE_ENGAGED)
+    {
+        //
+        // Mode changed while engaged. Set new mode, re-sync process registry
+        // so callout verdicts are re-evaluated, and force ALE reauthorization
+        // to re-classify existing connections.
+        //
+        // Mode is set before sync so that CallbackQueryProcess (which can run at
+        // DISPATCH_LEVEL from WFP callouts while holding ProcessRegistry.Lock)
+        // sees the new mode as soon as re-classification begins.
+        //
+
+        context->SplitTunnelMode = newMode;
+
+        status = SyncProcessRegistry(context, true);
+
+        if (!NT_SUCCESS(status))
+        {
+            DbgPrint("Could not sync process registry after mode change: 0x%X\n", status);
+
+            context->SplitTunnelMode = previousMode;
+        }
+    }
+    else
+    {
+        context->SplitTunnelMode = newMode;
+    }
+
+    WdfWaitLockRelease(context->DriverState.Lock);
+
+    if (NT_SUCCESS(status))
+    {
+        DbgPrint("Successfully set split tunnel mode to %d\n", (int)newMode);
+    }
+
+    WdfRequestComplete(Request, status);
+}
+
+void
+GetSplitTunnelModeComplete
+(
+    WDFDEVICE Device,
+    WDFREQUEST Request
+)
+{
+    auto context = DeviceGetSplitTunnelContext(Device);
+
+    PVOID buffer;
+    size_t bufferLength;
+
+    auto status = WdfRequestRetrieveOutputBuffer
+    (
+        Request,
+        sizeof(ST_SPLIT_TUNNEL_MODE),
+        &buffer,
+        &bufferLength
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint("Could not access output buffer: 0x%X\n", status);
+
+        WdfRequestComplete(Request, status);
+
+        return;
+    }
+
+    *(ST_SPLIT_TUNNEL_MODE*)buffer = context->SplitTunnelMode;
+
+    WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, sizeof(ST_SPLIT_TUNNEL_MODE));
 }
 
 } // namespace ioctl

@@ -1376,14 +1376,16 @@ RegisterUpdatedIpAddresses
 		return status;
 	}
 
+	ST_IP_ADDRESSES intermediateNonPagedAddresses;
+	ACTIVE_FILTERS newActiveFilters;
+	TUNNEL_ADDRESS_POINTERS addressPointers;
+
 	status = RemoveActiveFiltersTx(Context->WfpSession, &Context->ActiveFilters);
 
 	if (!NT_SUCCESS(status))
 	{
 		goto Abort;
 	}
-
-	ACTIVE_FILTERS newActiveFilters;
 
 	status = RegisterFiltersForModeTx
 	(
@@ -1401,8 +1403,6 @@ RegisterUpdatedIpAddresses
 	//
 	// Update any app-specific filters.
 	//
-
-	TUNNEL_ADDRESS_POINTERS addressPointers;
 
 	status = SelectTunnelAddresses(IpAddresses, newMode, &addressPointers);
 
@@ -1434,7 +1434,7 @@ RegisterUpdatedIpAddresses
 		goto Abort;
 	}
 
-	auto intermediateNonPagedAddresses = *IpAddresses;
+	intermediateNonPagedAddresses = *IpAddresses;
 
 	WdfSpinLockAcquire(Context->IpAddresses.Lock);
 

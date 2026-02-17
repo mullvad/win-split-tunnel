@@ -8,3 +8,4 @@
 #include "defs/process.h"
 #include "defs/queryprocess.h"
 #include "defs/events.h"
+#include "defs/types.h"

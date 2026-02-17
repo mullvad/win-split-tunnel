@@ -26,6 +26,15 @@ typedef struct tag_LOWER_UNICODE_STRING
 }
 LOWER_UNICODE_STRING;
 
+enum ST_SPLIT_TUNNEL_MODE
+{
+	// Apps in config list bypass the VPN tunnel (default, current behavior).
+	ST_SPLIT_TUNNEL_MODE_EXCLUDE = 0,
+
+	// Only apps in config list use the VPN tunnel; everything else bypasses it.
+	ST_SPLIT_TUNNEL_MODE_INCLUDE = 1
+};
+
 enum ST_PROCESS_SPLIT_STATUS
 {
 	// Traffic should be split.

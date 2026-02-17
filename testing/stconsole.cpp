@@ -555,6 +555,75 @@ void ProcessQueryProcess(const std::wstring &processId)
 	std::wcout << L"Imagename: " << r->ImageName << std::endl;
 }
 
+void ProcessSetSplitTunnelMode(const std::wstring &modeStr)
+{
+	if (INVALID_HANDLE_VALUE == g_DriverHandle)
+	{
+		THROW_ERROR("Not connected to driver");
+	}
+
+	ST_SPLIT_TUNNEL_MODE mode;
+
+	if (0 == _wcsicmp(modeStr.c_str(), L"exclude"))
+	{
+		mode = ST_SPLIT_TUNNEL_MODE_EXCLUDE;
+	}
+	else if (0 == _wcsicmp(modeStr.c_str(), L"include"))
+	{
+		mode = ST_SPLIT_TUNNEL_MODE_INCLUDE;
+	}
+	else
+	{
+		THROW_ERROR("Invalid mode. Use 'exclude' or 'include'");
+	}
+
+	DWORD bytesReturned;
+
+	auto status = SendIoControl((DWORD)IOCTL_ST_SET_SPLIT_TUNNEL_MODE,
+		&mode, sizeof(mode), nullptr, 0, &bytesReturned);
+
+	if (!status)
+	{
+		THROW_ERROR("Set split tunnel mode");
+	}
+
+	std::wcout << L"Driver state: " << MapDriverState(GetDriverState()) << std::endl;
+
+	std::wcout << L"Successfully set split tunnel mode to: " << modeStr << std::endl;
+}
+
+std::wstring MapSplitTunnelMode(ST_SPLIT_TUNNEL_MODE mode)
+{
+	switch (mode)
+	{
+		case ST_SPLIT_TUNNEL_MODE_EXCLUDE: return L"exclude";
+		case ST_SPLIT_TUNNEL_MODE_INCLUDE: return L"include";
+		default: return L"unknown";
+	}
+}
+
+void ProcessGetSplitTunnelMode()
+{
+	if (INVALID_HANDLE_VALUE == g_DriverHandle)
+	{
+		THROW_ERROR("Not connected to driver");
+	}
+
+	ST_SPLIT_TUNNEL_MODE mode;
+
+	DWORD bytesReturned;
+
+	auto status = SendIoControl((DWORD)IOCTL_ST_GET_SPLIT_TUNNEL_MODE,
+		nullptr, 0, &mode, sizeof(mode), &bytesReturned);
+
+	if (!status || bytesReturned != sizeof(mode))
+	{
+		THROW_ERROR("Get split tunnel mode");
+	}
+
+	std::wcout << L"Split tunnel mode: " << MapSplitTunnelMode(mode) << std::endl;
+}
+
 void ProcessDisplayEvents()
 {
 	g_DisplayEvents = !g_DisplayEvents;
@@ -857,6 +926,18 @@ int main()
 			if (0 == _wcsicmp(tokens[0].c_str(), L"query-process"))
 			{
 				ProcessQueryProcess(tokens[1]);
+				continue;
+			}
+
+			if (0 == _wcsicmp(tokens[0].c_str(), L"set-mode"))
+			{
+				ProcessSetSplitTunnelMode(tokens[1]);
+				continue;
+			}
+
+			if (0 == _wcsicmp(tokens[0].c_str(), L"get-mode"))
+			{
+				ProcessGetSplitTunnelMode();
 				continue;
 			}
 
