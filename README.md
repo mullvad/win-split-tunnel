@@ -134,7 +134,7 @@ In include mode, per-app tunnel-blocking firewall filters are not created for li
 
 - **Listed process** -> `DONT_SPLIT`: stays on VPN tunnel, no per-app firewall state.
 - **Unlisted process** -> `DO_SPLIT`: redirected away from tunnel (same actions as the matrix above).
-- **Unknown/new process** -> `DO_SPLIT`: denied VPN access until categorized.
+- **Unknown/new process** -> `UNKNOWN`: pended until categorized.
 
 # Limitations
 

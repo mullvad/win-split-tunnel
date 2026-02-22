@@ -182,11 +182,11 @@ ApplyFinalizeTargetSettings
     // Exclude mode (default): manage per-app tunnel-blocking filters.
     //
 
-    if (!util::SplittingEnabled(Entry->Settings.Split))
+    if (!util::IsSplitStatusEnabled(Entry->Settings.Split))
     {
         NT_ASSERT(!Entry->Settings.HasFirewallState);
 
-        if (!util::SplittingEnabled(Entry->TargetSettings.Split))
+        if (!util::IsSplitStatusEnabled(Entry->TargetSettings.Split))
         {
             Entry->TargetSettings.HasFirewallState = false;
 
@@ -207,7 +207,7 @@ ApplyFinalizeTargetSettings
         return Entry->TargetSettings.HasFirewallState = true;
     }
 
-    if (util::SplittingEnabled(Entry->TargetSettings.Split))
+    if (util::IsSplitStatusEnabled(Entry->TargetSettings.Split))
     {
         Entry->TargetSettings.HasFirewallState = Entry->Settings.HasFirewallState;
 
@@ -249,7 +249,7 @@ PropagateApplyTargetSettings
 {
     auto context = (ST_DEVICE_CONTEXT *)Context;
 
-    if (!util::SplittingEnabled(Entry->TargetSettings.Split))
+    if (!util::IsSplitStatusEnabled(Entry->TargetSettings.Split))
     {
         auto currentEntry = Entry;
 
@@ -267,7 +267,7 @@ PropagateApplyTargetSettings
                 break;
             }
 
-            if (util::SplittingEnabled(parent->TargetSettings.Split))
+            if (util::IsSplitStatusEnabled(parent->TargetSettings.Split))
             {
                 Entry->TargetSettings.Split = ST_PROCESS_SPLIT_STATUS_ON_BY_INHERITANCE;
                 break;
@@ -374,18 +374,18 @@ CallbackQueryProcess
         // Include mode:
         // Listed process -> DONT_SPLIT (stay on VPN tunnel)
         // Unlisted process -> DO_SPLIT (redirect away from tunnel)
-        // Unknown process -> DO_SPLIT (deny VPN access until categorized)
+        // Unknown process -> UNKNOWN (pend until categorized)
         //
 
         if (process != NULL)
         {
-            verdict = (util::SplittingEnabled(process->Settings.Split)
+            verdict = (util::IsSplitStatusEnabled(process->Settings.Split)
                 ? firewall::PROCESS_SPLIT_VERDICT::DONT_SPLIT
                 : firewall::PROCESS_SPLIT_VERDICT::DO_SPLIT);
         }
         else
         {
-            verdict = firewall::PROCESS_SPLIT_VERDICT::DO_SPLIT;
+            verdict = firewall::PROCESS_SPLIT_VERDICT::UNKNOWN;
         }
     }
     else
@@ -399,7 +399,7 @@ CallbackQueryProcess
 
         if (process != NULL)
         {
-            verdict = (util::SplittingEnabled(process->Settings.Split)
+            verdict = (util::IsSplitStatusEnabled(process->Settings.Split)
                 ? firewall::PROCESS_SPLIT_VERDICT::DO_SPLIT
                 : firewall::PROCESS_SPLIT_VERDICT::DONT_SPLIT);
         }
@@ -449,9 +449,9 @@ RealizeAnnounceSettingsChange
     Entry->PreviousSettings = Entry->Settings;
     Entry->Settings = Entry->TargetSettings;
 
-    if (util::SplittingEnabled(Entry->Settings.Split))
+    if (util::IsSplitStatusEnabled(Entry->Settings.Split))
     {
-        if (!util::SplittingEnabled(Entry->PreviousSettings.Split))
+        if (!util::IsSplitStatusEnabled(Entry->PreviousSettings.Split))
         {
             auto evt = eventing::BuildStartSplittingEvent(Entry->ProcessId,
                 ST_SPLITTING_REASON_BY_CONFIG, &Entry->ImageName);
@@ -461,7 +461,7 @@ RealizeAnnounceSettingsChange
     }
     else
     {
-        if (util::SplittingEnabled(Entry->PreviousSettings.Split))
+        if (util::IsSplitStatusEnabled(Entry->PreviousSettings.Split))
         {
             auto evt = eventing::BuildStopSplittingEvent(Entry->ProcessId,
                 ST_SPLITTING_REASON_BY_CONFIG, &Entry->ImageName);
@@ -1702,7 +1702,7 @@ QueryProcessComplete
 
     response->ProcessId = record->ProcessId;
     response->ParentProcessId = record->ParentProcessId;
-    response->Split = (util::SplittingEnabled(record->Settings.Split) ? TRUE : FALSE);
+    response->Split = (util::IsSplitStatusEnabled(record->Settings.Split) ? TRUE : FALSE);
     response->ImageNameLength = record->ImageName.Length;
 
     RtlCopyMemory(&response->ImageName, record->ImageName.Buffer, record->ImageName.Length);
@@ -1893,6 +1893,15 @@ GetSplitTunnelModeComplete
         DbgPrint("Could not access output buffer: 0x%X\n", status);
 
         WdfRequestComplete(Request, status);
+
+        return;
+    }
+
+    if (bufferLength < sizeof(ST_SPLIT_TUNNEL_MODE))
+    {
+        DbgPrint("Output buffer is too small for IOCTL_ST_GET_SPLIT_TUNNEL_MODE\n");
+
+        WdfRequestComplete(Request, STATUS_BUFFER_TOO_SMALL);
 
         return;
     }

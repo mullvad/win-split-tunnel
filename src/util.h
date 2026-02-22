@@ -125,7 +125,7 @@ StopIfDebugBuild
 );
 
 bool
-SplittingEnabled
+IsSplitStatusEnabled
 (
 	ST_PROCESS_SPLIT_STATUS Status
 );
