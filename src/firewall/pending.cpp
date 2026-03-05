@@ -522,12 +522,12 @@ FailRequest
 
     status = FailRequest(FilterId, LayerId, ClassifyOut, classifyHandle);
 
+    FwpsReleaseClassifyHandle0(classifyHandle);
+
     if (!NT_SUCCESS(status))
     {
         return status;
     }
-
-    FwpsReleaseClassifyHandle0(classifyHandle);
 
     return STATUS_SUCCESS;
 }
