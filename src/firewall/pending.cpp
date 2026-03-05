@@ -524,6 +524,8 @@ FailRequest
 
     if (!NT_SUCCESS(status))
     {
+        FwpsReleaseClassifyHandle0(classifyHandle);
+        
         return status;
     }
 
