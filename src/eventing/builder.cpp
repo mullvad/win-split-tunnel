@@ -21,7 +21,7 @@ BuildSplittingEvent
 	auto eventSize = FIELD_OFFSET(ST_SPLITTING_EVENT, ImageName) + ImageName->Length;
 	auto allocationSize = headerSize + eventSize;
 
-	auto buffer = ExAllocatePoolUninitialized(NonPagedPool, allocationSize, ST_POOL_TAG);
+	auto buffer = ExAllocatePoolZero(NonPagedPool, allocationSize, ST_POOL_TAG);
 
 	if (buffer == NULL)
 	{
@@ -31,7 +31,6 @@ BuildSplittingEvent
 	auto header = (ST_EVENT_HEADER*)buffer;
 	auto evt = (ST_SPLITTING_EVENT*)(((UCHAR*)buffer) + FIELD_OFFSET(ST_EVENT_HEADER, EventData));
 
-	RtlZeroMemory(header, headerSize);
 	header->EventId = (Start ? ST_EVENT_ID_START_SPLITTING_PROCESS : ST_EVENT_ID_STOP_SPLITTING_PROCESS);
 	header->EventSize = eventSize;
 
@@ -61,7 +60,7 @@ BuildSplittingErrorEvent
 	auto eventSize = FIELD_OFFSET(ST_SPLITTING_ERROR_EVENT, ImageName) + ImageName->Length;
 	auto allocationSize = headerSize + eventSize;
 
-	auto buffer = ExAllocatePoolUninitialized(NonPagedPool, allocationSize, ST_POOL_TAG);
+	auto buffer = ExAllocatePoolZero(NonPagedPool, allocationSize, ST_POOL_TAG);
 
 	if (buffer == NULL)
 	{
@@ -71,7 +70,6 @@ BuildSplittingErrorEvent
 	auto header = (ST_EVENT_HEADER*)buffer;
 	auto evt = (ST_SPLITTING_ERROR_EVENT*)(((UCHAR*)buffer) + FIELD_OFFSET(ST_EVENT_HEADER, EventData));
 
-	RtlZeroMemory(header, headerSize);
 	header->EventId = (Start ? ST_EVENT_ID_ERROR_START_SPLITTING_PROCESS : ST_EVENT_ID_ERROR_STOP_SPLITTING_PROCESS);
 	header->EventSize = eventSize;
 
@@ -205,7 +203,7 @@ BuildErrorMessageEvent
 	auto eventSize = FIELD_OFFSET(ST_ERROR_MESSAGE_EVENT, ErrorMessage) + ErrorMessage->Length;
 	auto allocationSize = headerSize + eventSize;
 
-	auto buffer = ExAllocatePoolUninitialized(NonPagedPool, allocationSize, ST_POOL_TAG);
+	auto buffer = ExAllocatePoolZero(NonPagedPool, allocationSize, ST_POOL_TAG);
 
 	if (buffer == NULL)
 	{
@@ -215,7 +213,6 @@ BuildErrorMessageEvent
 	auto header = (ST_EVENT_HEADER*)buffer;
 	auto evt = (ST_ERROR_MESSAGE_EVENT*)(((UCHAR*)buffer) + FIELD_OFFSET(ST_EVENT_HEADER, EventData));
 
-	RtlZeroMemory(header, headerSize);
 	header->EventId = ST_EVENT_ID_ERROR_MESSAGE;
 	header->EventSize = eventSize;
 
