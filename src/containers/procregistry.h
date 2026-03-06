@@ -8,7 +8,15 @@ namespace procregistry
 
 struct PROCESS_REGISTRY_ENTRY_SETTINGS
 {
-	// Whether traffic should be split.
+	//
+	// Whether this process is considered "split-enabled" (by config or inheritance).
+	//
+	// The actual routing decision depends on the current split tunnel mode:
+	//   Exclude mode: Split=ENABLED -> route away from tunnel (DO_SPLIT)
+	//   Include mode: Split=ENABLED -> keep on tunnel (DONT_SPLIT)
+	//
+	// See CallbackQueryProcess() in ioctl.cpp for the verdict logic.
+	//
 	ST_PROCESS_SPLIT_STATUS Split;
 
 	// Whether the process is associated with any firewall filters.

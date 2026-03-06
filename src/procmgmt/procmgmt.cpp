@@ -173,7 +173,7 @@ EvaluateSplitting
 
     auto parent = procregistry::GetParentEntry(processRegistry->Instance, RegistryEntry);
 
-    if (parent == NULL || !util::SplittingEnabled(parent->Settings.Split))
+    if (parent == NULL || !util::IsSplitStatusEnabled(parent->Settings.Split))
     {
         return;
     }
@@ -437,7 +437,7 @@ HandleProcessDeparting
 
         eventing::Emit(Context->Eventing, &evt);
     }
-    else if (util::SplittingEnabled(registryEntry->Settings.Split))
+    else if (util::IsSplitStatusEnabled(registryEntry->Settings.Split))
     {
         auto splittingEvent = eventing::BuildStopSplittingEvent(Record->ProcessId, 
             ST_SPLITTING_REASON_PROCESS_DEPARTING, &registryEntry->ImageName);

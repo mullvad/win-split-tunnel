@@ -101,4 +101,18 @@ Reset
     WDFDEVICE Device
 );
 
+void
+SetSplitTunnelModeComplete
+(
+    WDFDEVICE Device,
+    WDFREQUEST Request
+);
+
+void
+GetSplitTunnelModeComplete
+(
+    WDFDEVICE Device,
+    WDFREQUEST Request
+);
+
 } // namespace ioctl

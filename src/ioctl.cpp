@@ -155,11 +155,38 @@ ApplyFinalizeTargetSettings
     procregistry::PROCESS_REGISTRY_ENTRY *Entry
 )
 {
-    if (!util::SplittingEnabled(Entry->Settings.Split))
+    //
+    // In include mode, per-app tunnel-blocking filters are not used.
+    // The generic BlockTunnel callout filters handle all non-listed apps
+    // via the CallbackQueryProcess verdict.
+    //
+
+    if (Context->SplitTunnelMode == ST_SPLIT_TUNNEL_MODE_INCLUDE)
+    {
+        if (Entry->Settings.HasFirewallState)
+        {
+            auto status = firewall::RegisterAppBecomingUnsplitTx(Context->Firewall, &Entry->ImageName);
+
+            if (!NT_SUCCESS(status))
+            {
+                return false;
+            }
+        }
+
+        Entry->TargetSettings.HasFirewallState = false;
+
+        return true;
+    }
+
+    //
+    // Exclude mode (default): manage per-app tunnel-blocking filters.
+    //
+
+    if (!util::IsSplitStatusEnabled(Entry->Settings.Split))
     {
         NT_ASSERT(!Entry->Settings.HasFirewallState);
 
-        if (!util::SplittingEnabled(Entry->TargetSettings.Split))
+        if (!util::IsSplitStatusEnabled(Entry->TargetSettings.Split))
         {
             Entry->TargetSettings.HasFirewallState = false;
 
@@ -180,7 +207,7 @@ ApplyFinalizeTargetSettings
         return Entry->TargetSettings.HasFirewallState = true;
     }
 
-    if (util::SplittingEnabled(Entry->TargetSettings.Split))
+    if (util::IsSplitStatusEnabled(Entry->TargetSettings.Split))
     {
         Entry->TargetSettings.HasFirewallState = Entry->Settings.HasFirewallState;
 
@@ -222,7 +249,7 @@ PropagateApplyTargetSettings
 {
     auto context = (ST_DEVICE_CONTEXT *)Context;
 
-    if (!util::SplittingEnabled(Entry->TargetSettings.Split))
+    if (!util::IsSplitStatusEnabled(Entry->TargetSettings.Split))
     {
         auto currentEntry = Entry;
 
@@ -240,7 +267,7 @@ PropagateApplyTargetSettings
                 break;
             }
 
-            if (util::SplittingEnabled(parent->TargetSettings.Split))
+            if (util::IsSplitStatusEnabled(parent->TargetSettings.Split))
             {
                 Entry->TargetSettings.Split = ST_PROCESS_SPLIT_STATUS_ON_BY_INHERITANCE;
                 break;
@@ -341,11 +368,45 @@ CallbackQueryProcess
 
     firewall::PROCESS_SPLIT_VERDICT verdict = firewall::PROCESS_SPLIT_VERDICT::UNKNOWN;
 
-    if (process != NULL)
+    if (context->SplitTunnelMode == ST_SPLIT_TUNNEL_MODE_INCLUDE)
     {
-        verdict = (util::SplittingEnabled(process->Settings.Split)
-            ? firewall::PROCESS_SPLIT_VERDICT::DO_SPLIT
-            : firewall::PROCESS_SPLIT_VERDICT::DONT_SPLIT);
+        //
+        // Include mode:
+        // Listed process -> DONT_SPLIT (stay on VPN tunnel)
+        // Unlisted process -> DO_SPLIT (redirect away from tunnel)
+        // Unknown process -> UNKNOWN (pend until categorized)
+        //
+
+        if (process != NULL)
+        {
+            verdict = (util::IsSplitStatusEnabled(process->Settings.Split)
+                ? firewall::PROCESS_SPLIT_VERDICT::DONT_SPLIT
+                : firewall::PROCESS_SPLIT_VERDICT::DO_SPLIT);
+        }
+        else
+        {
+            verdict = firewall::PROCESS_SPLIT_VERDICT::UNKNOWN;
+        }
+    }
+    else
+    {
+        //
+        // Exclude mode (default):
+        // Listed process -> DO_SPLIT (redirect away from tunnel)
+        // Unlisted process -> DONT_SPLIT (stay on tunnel)
+        // Unknown process -> UNKNOWN (pend until categorized)
+        //
+
+        if (process != NULL)
+        {
+            verdict = (util::IsSplitStatusEnabled(process->Settings.Split)
+                ? firewall::PROCESS_SPLIT_VERDICT::DO_SPLIT
+                : firewall::PROCESS_SPLIT_VERDICT::DONT_SPLIT);
+        }
+        else
+        {
+            verdict = firewall::PROCESS_SPLIT_VERDICT::UNKNOWN;
+        }
     }
 
     WdfSpinLockRelease(context->ProcessRegistry.Lock);
@@ -388,9 +449,9 @@ RealizeAnnounceSettingsChange
     Entry->PreviousSettings = Entry->Settings;
     Entry->Settings = Entry->TargetSettings;
 
-    if (util::SplittingEnabled(Entry->Settings.Split))
+    if (util::IsSplitStatusEnabled(Entry->Settings.Split))
     {
-        if (!util::SplittingEnabled(Entry->PreviousSettings.Split))
+        if (!util::IsSplitStatusEnabled(Entry->PreviousSettings.Split))
         {
             auto evt = eventing::BuildStartSplittingEvent(Entry->ProcessId,
                 ST_SPLITTING_REASON_BY_CONFIG, &Entry->ImageName);
@@ -400,7 +461,7 @@ RealizeAnnounceSettingsChange
     }
     else
     {
-        if (util::SplittingEnabled(Entry->PreviousSettings.Split))
+        if (util::IsSplitStatusEnabled(Entry->PreviousSettings.Split))
         {
             auto evt = eventing::BuildStopSplittingEvent(Entry->ProcessId,
                 ST_SPLITTING_REASON_BY_CONFIG, &Entry->ImageName);
@@ -831,6 +892,8 @@ ResetInner
     }
 
     RtlZeroMemory(&Context->IpAddresses, sizeof(Context->IpAddresses));
+
+    Context->SplitTunnelMode = ST_SPLIT_TUNNEL_MODE_EXCLUDE;
 
     procregistry::TearDown(&Context->ProcessRegistry.Instance);
 
@@ -1639,7 +1702,7 @@ QueryProcessComplete
 
     response->ProcessId = record->ProcessId;
     response->ParentProcessId = record->ParentProcessId;
-    response->Split = (util::SplittingEnabled(record->Settings.Split) ? TRUE : FALSE);
+    response->Split = (util::IsSplitStatusEnabled(record->Settings.Split) ? TRUE : FALSE);
     response->ImageNameLength = record->ImageName.Length;
 
     RtlCopyMemory(&response->ImageName, record->ImageName.Buffer, record->ImageName.Length);
@@ -1711,6 +1774,141 @@ Reset
     }
 
     return status;
+}
+
+void
+SetSplitTunnelModeComplete
+(
+    WDFDEVICE Device,
+    WDFREQUEST Request
+)
+{
+    auto context = DeviceGetSplitTunnelContext(Device);
+
+    PVOID buffer;
+    size_t bufferLength;
+
+    auto status = WdfRequestRetrieveInputBuffer
+    (
+        Request,
+        sizeof(ST_SPLIT_TUNNEL_MODE),
+        &buffer,
+        &bufferLength
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint("Could not access input buffer: 0x%X\n", status);
+
+        WdfRequestComplete(Request, status);
+
+        return;
+    }
+
+    if (bufferLength != sizeof(ST_SPLIT_TUNNEL_MODE))
+    {
+        DbgPrint("Invalid buffer size for IOCTL_ST_SET_SPLIT_TUNNEL_MODE\n");
+
+        WdfRequestComplete(Request, STATUS_INVALID_PARAMETER);
+
+        return;
+    }
+
+    auto newMode = *(ST_SPLIT_TUNNEL_MODE*)buffer;
+
+    if (newMode != ST_SPLIT_TUNNEL_MODE_EXCLUDE
+        && newMode != ST_SPLIT_TUNNEL_MODE_INCLUDE)
+    {
+        DbgPrint("Invalid split tunnel mode value: %d\n", (int)newMode);
+
+        WdfRequestComplete(Request, STATUS_INVALID_PARAMETER);
+
+        return;
+    }
+
+    WdfWaitLockAcquire(context->DriverState.Lock, NULL);
+
+    auto previousMode = context->SplitTunnelMode;
+
+    if (previousMode != newMode && context->DriverState.State == ST_DRIVER_STATE_ENGAGED)
+    {
+        //
+        // Mode changed while engaged. Set new mode, re-sync process registry
+        // so callout verdicts are re-evaluated, and force ALE reauthorization
+        // to re-classify existing connections.
+        //
+        // Mode is set before sync so that CallbackQueryProcess (which can run at
+        // DISPATCH_LEVEL from WFP callouts while holding ProcessRegistry.Lock)
+        // sees the new mode as soon as re-classification begins.
+        //
+
+        context->SplitTunnelMode = newMode;
+
+        status = SyncProcessRegistry(context, true);
+
+        if (!NT_SUCCESS(status))
+        {
+            DbgPrint("Could not sync process registry after mode change: 0x%X\n", status);
+
+            context->SplitTunnelMode = previousMode;
+        }
+    }
+    else
+    {
+        context->SplitTunnelMode = newMode;
+    }
+
+    WdfWaitLockRelease(context->DriverState.Lock);
+
+    if (NT_SUCCESS(status))
+    {
+        DbgPrint("Successfully set split tunnel mode to %d\n", (int)newMode);
+    }
+
+    WdfRequestComplete(Request, status);
+}
+
+void
+GetSplitTunnelModeComplete
+(
+    WDFDEVICE Device,
+    WDFREQUEST Request
+)
+{
+    auto context = DeviceGetSplitTunnelContext(Device);
+
+    PVOID buffer;
+    size_t bufferLength;
+
+    auto status = WdfRequestRetrieveOutputBuffer
+    (
+        Request,
+        sizeof(ST_SPLIT_TUNNEL_MODE),
+        &buffer,
+        &bufferLength
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint("Could not access output buffer: 0x%X\n", status);
+
+        WdfRequestComplete(Request, status);
+
+        return;
+    }
+
+    if (bufferLength < sizeof(ST_SPLIT_TUNNEL_MODE))
+    {
+        DbgPrint("Output buffer is too small for IOCTL_ST_GET_SPLIT_TUNNEL_MODE\n");
+
+        WdfRequestComplete(Request, STATUS_BUFFER_TOO_SMALL);
+
+        return;
+    }
+
+    *(ST_SPLIT_TUNNEL_MODE*)buffer = context->SplitTunnelMode;
+
+    WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, sizeof(ST_SPLIT_TUNNEL_MODE));
 }
 
 } // namespace ioctl

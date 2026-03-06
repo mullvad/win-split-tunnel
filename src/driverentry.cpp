@@ -603,6 +603,8 @@ StEvtIoDeviceControlSerial
             // Valid controls:
             //
             // IOCTL_ST_REGISTER_PROCESSES
+            // IOCTL_ST_SET_SPLIT_TUNNEL_MODE
+            // IOCTL_ST_GET_SPLIT_TUNNEL_MODE
             //
 
             if (IoControlCode == IOCTL_ST_REGISTER_PROCESSES)
@@ -612,6 +614,20 @@ StEvtIoDeviceControlSerial
                 // No locking needed this early.
                 //
                 WdfRequestComplete(Request, ioctl::RegisterProcesses(device, Request));
+
+                return;
+            }
+
+            if (IoControlCode == IOCTL_ST_SET_SPLIT_TUNNEL_MODE)
+            {
+                ioctl::SetSplitTunnelModeComplete(device, Request);
+
+                return;
+            }
+
+            if (IoControlCode == IOCTL_ST_GET_SPLIT_TUNNEL_MODE)
+            {
+                ioctl::GetSplitTunnelModeComplete(device, Request);
 
                 return;
             }
@@ -630,6 +646,8 @@ StEvtIoDeviceControlSerial
             // IOCTL_ST_GET_CONFIGURATION
             // IOCTL_ST_CLEAR_CONFIGURATION
             // IOCTL_ST_QUERY_PROCESS
+            // IOCTL_ST_SET_SPLIT_TUNNEL_MODE
+            // IOCTL_ST_GET_SPLIT_TUNNEL_MODE
             //
 
             if (IoControlCode == IOCTL_ST_REGISTER_IP_ADDRESSES)
@@ -696,6 +714,20 @@ StEvtIoDeviceControlSerial
             if (IoControlCode == IOCTL_ST_QUERY_PROCESS)
             {
                 ioctl::QueryProcessComplete(device, Request);
+
+                return;
+            }
+
+            if (IoControlCode == IOCTL_ST_SET_SPLIT_TUNNEL_MODE)
+            {
+                ioctl::SetSplitTunnelModeComplete(device, Request);
+
+                return;
+            }
+
+            if (IoControlCode == IOCTL_ST_GET_SPLIT_TUNNEL_MODE)
+            {
+                ioctl::GetSplitTunnelModeComplete(device, Request);
 
                 return;
             }

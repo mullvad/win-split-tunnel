@@ -27,6 +27,8 @@ typedef struct tag_ST_DEVICE_CONTEXT
 
 	ST_IP_ADDRESSES IpAddresses;
 
+	ST_SPLIT_TUNNEL_MODE SplitTunnelMode;
+
 	PROCESS_REGISTRY_MGMT ProcessRegistry;
 
 	// Protected by state lock.
