@@ -792,19 +792,21 @@ ResetInner
     // Leave engaged state to minimize the impact if any of this fails.
     //
 
+    WdfWaitLockAcquire(Context->DriverState.Lock, NULL);
+
     if (Context->DriverState.State == ST_DRIVER_STATE_ENGAGED)
     {
-        WdfWaitLockAcquire(Context->DriverState.Lock, NULL);
-
         auto status = LeaveEngagedState(Context);
-
-        WdfWaitLockRelease(Context->DriverState.Lock);
 
         if (!NT_SUCCESS(status))
         {
             DbgPrint("Could not leave engaged state\n");
         }
     }
+
+    Context->DriverState.State = ST_DRIVER_STATE_STARTED;
+
+    WdfWaitLockRelease(Context->DriverState.Lock);
 
     //
     // Tear down everything in reverse order of initializing it.
@@ -839,8 +841,6 @@ ResetInner
     procbroker::TearDown(&Context->ProcessEventBroker);
 
     eventing::TearDown(&Context->Eventing);
-
-    Context->DriverState.State = ST_DRIVER_STATE_STARTED;
 
     return STATUS_SUCCESS;
 }
