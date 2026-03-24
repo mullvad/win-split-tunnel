@@ -20,6 +20,8 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+### Changed
+- Pass in sublayer GUIDs to use for filters instead of hardcoding them.
 
 
 ## [1.2.5.0] - 2025-12-09
