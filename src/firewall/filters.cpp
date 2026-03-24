@@ -11,7 +11,8 @@ namespace firewall
 NTSTATUS
 RegisterFilterBindRedirectIpv4Tx
 (
-	HANDLE WfpSession
+	HANDLE WfpSession,
+	const GUID *BaselineSublayerKey
 )
 {
 	//
@@ -32,7 +33,7 @@ RegisterFilterBindRedirectIpv4Tx
 	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_BIND_REDIRECT_V4;
-	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.subLayerKey = *BaselineSublayerKey;
 	filter.weight.type = FWP_UINT64;
 	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
@@ -64,7 +65,8 @@ RemoveFilterBindRedirectIpv4Tx
 NTSTATUS
 RegisterFilterBindRedirectIpv6Tx
 (
-	HANDLE WfpSession
+	HANDLE WfpSession,
+	const GUID *BaselineSublayerKey
 )
 {
 	//
@@ -85,7 +87,7 @@ RegisterFilterBindRedirectIpv6Tx
 	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_BIND_REDIRECT_V6;
-	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.subLayerKey = *BaselineSublayerKey;
 	filter.weight.type = FWP_UINT64;
 	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
@@ -117,7 +119,8 @@ RemoveFilterBindRedirectIpv6Tx
 NTSTATUS
 RegisterFilterConnectRedirectIpv4Tx
 (
-	HANDLE WfpSession
+	HANDLE WfpSession,
+	const GUID *BaselineSublayerKey
 )
 {
 	//
@@ -140,7 +143,7 @@ RegisterFilterConnectRedirectIpv4Tx
 	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_CONNECT_REDIRECT_V4;
-	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.subLayerKey = *BaselineSublayerKey;
 	filter.weight.type = FWP_UINT64;
 	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
@@ -172,7 +175,8 @@ RemoveFilterConnectRedirectIpv4Tx
 NTSTATUS
 RegisterFilterConnectRedirectIpv6Tx
 (
-	HANDLE WfpSession
+	HANDLE WfpSession,
+	const GUID *BaselineSublayerKey
 )
 {
 	//
@@ -195,7 +199,7 @@ RegisterFilterConnectRedirectIpv6Tx
 	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_CONNECT_REDIRECT_V6;
-	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.subLayerKey = *BaselineSublayerKey;
 	filter.weight.type = FWP_UINT64;
 	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
@@ -228,7 +232,9 @@ NTSTATUS
 RegisterFilterPermitNonTunnelIpv4Tx
 (
 	HANDLE WfpSession,
-	const IN_ADDR *TunnelIpv4
+	const IN_ADDR *TunnelIpv4,
+	const GUID *BaselineSublayerKey,
+	const GUID *DnsSublayerKey
 )
 {
 	//
@@ -253,7 +259,7 @@ RegisterFilterPermitNonTunnelIpv4Tx
 	filter.flags = FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
-	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.subLayerKey = *BaselineSublayerKey;
 	filter.weight.type = FWP_UINT64;
 	filter.weight.uint64 = const_cast<UINT64*>(&ST_HIGH_FILTER_WEIGHT);
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
@@ -328,7 +334,7 @@ RegisterFilterPermitNonTunnelIpv4Tx
 
 	filter.filterKey = ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV4_DNS_CONN_KEY;
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
-	filter.subLayerKey = ST_FW_WINFW_DNS_SUBLAYER_KEY;
+	filter.subLayerKey = *DnsSublayerKey;
 	filter.action.calloutKey = ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV4_CONN_KEY;
 
 	SUCCEED_OR_RETURN
@@ -375,7 +381,9 @@ NTSTATUS
 RegisterFilterPermitNonTunnelIpv6Tx
 (
 	HANDLE WfpSession,
-	const IN6_ADDR *TunnelIpv6
+	const IN6_ADDR *TunnelIpv6,
+	const GUID *BaselineSublayerKey,
+	const GUID *DnsSublayerKey
 )
 {
 	//
@@ -393,7 +401,7 @@ RegisterFilterPermitNonTunnelIpv6Tx
 	filter.flags = FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
-	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.subLayerKey = *BaselineSublayerKey;
 	filter.weight.type = FWP_UINT64;
 	filter.weight.uint64 = const_cast<UINT64*>(&ST_HIGH_FILTER_WEIGHT);
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
@@ -465,7 +473,7 @@ RegisterFilterPermitNonTunnelIpv6Tx
 
 	filter.filterKey = ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_DNS_CONN_KEY;
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
-	filter.subLayerKey = ST_FW_WINFW_DNS_SUBLAYER_KEY;
+	filter.subLayerKey = *DnsSublayerKey;
 	filter.action.calloutKey = ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV6_CONN_KEY;
 
 	SUCCEED_OR_RETURN
@@ -512,7 +520,8 @@ NTSTATUS
 RegisterFilterBlockTunnelIpv4Tx
 (
 	HANDLE WfpSession,
-	const IN_ADDR *TunnelIp
+	const IN_ADDR *TunnelIp,
+	const GUID *BaselineSublayerKey
 )
 {
 	//
@@ -533,7 +542,7 @@ RegisterFilterBlockTunnelIpv4Tx
 	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
-	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.subLayerKey = *BaselineSublayerKey;
 	filter.weight.type = FWP_UINT64;
 	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
@@ -587,7 +596,8 @@ NTSTATUS
 RegisterFilterBlockTunnelIpv6Tx
 (
 	HANDLE WfpSession,
-	const IN6_ADDR *TunnelIp
+	const IN6_ADDR *TunnelIp,
+	const GUID *BaselineSublayerKey
 )
 {
 	//
@@ -608,7 +618,7 @@ RegisterFilterBlockTunnelIpv6Tx
 	filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
-	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.subLayerKey = *BaselineSublayerKey;
 	filter.weight.type = FWP_UINT64;
 	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
 	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;

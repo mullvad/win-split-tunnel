@@ -15,7 +15,8 @@ namespace ioctl
 NTSTATUS
 Initialize
 (
-    WDFDEVICE Device
+    WDFDEVICE Device,
+    WDFREQUEST Request
 );
 
 //

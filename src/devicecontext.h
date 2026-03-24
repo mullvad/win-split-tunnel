@@ -2,6 +2,7 @@
 
 #include <wdf.h>
 #include "ipaddr.h"
+#include "defs/sublayer.h"
 #include "containers.h"
 #include "defs/state.h"
 #include "firewall/firewall.h"
@@ -26,6 +27,9 @@ typedef struct tag_ST_DEVICE_CONTEXT
 	WDFQUEUE SerializedRequestQueue;
 
 	ST_IP_ADDRESSES IpAddresses;
+
+	// Sublayer GUIDs registered during initialization.
+	ST_SUBLAYER_GUIDS SublayerGuids;
 
 	PROCESS_REGISTRY_MGMT ProcessRegistry;
 

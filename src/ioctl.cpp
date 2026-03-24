@@ -24,6 +24,7 @@ namespace
 //
 enum class MIN_REQUEST_SIZE
 {
+	INITIALIZE = sizeof(ST_SUBLAYER_GUIDS),
 	SET_CONFIGURATION = sizeof(ST_CONFIGURATION_HEADER),
 	GET_CONFIGURATION = sizeof(SIZE_T),
 	REGISTER_PROCESSES = sizeof(ST_PROCESS_DISCOVERY_HEADER),
@@ -850,9 +851,29 @@ ResetInner
 NTSTATUS
 Initialize
 (
-    WDFDEVICE Device
+    WDFDEVICE Device,
+    WDFREQUEST Request
 )
 {
+    PVOID buffer;
+    size_t bufferLength;
+
+    auto status = WdfRequestRetrieveInputBuffer(Request,
+        (size_t)MIN_REQUEST_SIZE::INITIALIZE, &buffer, &bufferLength);
+
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
+
+    if (bufferLength != sizeof(ST_SUBLAYER_GUIDS))
+    {
+        DbgPrint("Invalid data provided to IOCTL_ST_INITIALIZE\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    auto sublayerGuids = (ST_SUBLAYER_GUIDS*)buffer;
+
     auto context = DeviceGetSplitTunnelContext(Device);
 
     //
@@ -860,7 +881,7 @@ Initialize
     // Only state is set at this point.
     //
 
-    auto status = eventing::Initialize(&context->Eventing, Device);
+    status = eventing::Initialize(&context->Eventing, Device);
 
     if (!NT_SUCCESS(status))
     {
@@ -897,13 +918,17 @@ Initialize
     callbacks.QueryProcess = CallbackQueryProcess;
     callbacks.Context = context;
 
+    // Store sublayer GUIDs in device context
+    context->SublayerGuids = *sublayerGuids;
+
     status = firewall::Initialize
     (
         &context->Firewall,
         WdfDeviceWdmGetDeviceObject(Device),
         &callbacks,
         context->ProcessEventBroker,
-        context->Eventing
+        context->Eventing,
+        sublayerGuids
     );
 
     if (!NT_SUCCESS(status))
