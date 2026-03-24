@@ -41,6 +41,9 @@ struct APP_FILTERS_CONTEXT
 {
 	HANDLE WfpSession;
 
+	// Sublayer GUIDs for filter registration
+	GUID BaselineSublayerKey;
+
 	LIST_ENTRY BlockedTunnelConnections;
 
 	LIST_ENTRY TransactionEvents;
@@ -305,7 +308,8 @@ AddTunnelBlockFiltersTx
 	UINT64 *OutboundFilterIdV4,
 	UINT64 *InboundFilterIdV4,
 	UINT64 *OutboundFilterIdV6,
-	UINT64 *InboundFilterIdV6
+	UINT64 *InboundFilterIdV6,
+	const GUID *BaselineSublayerKey
 )
 {
 	NT_ASSERT
@@ -350,7 +354,7 @@ AddTunnelBlockFiltersTx
 		filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
 		filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 		filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
-		filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+		filter.subLayerKey = *BaselineSublayerKey;
 		filter.weight.type = FWP_UINT64;
 		filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
 		filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
@@ -426,7 +430,7 @@ AddTunnelBlockFiltersTx
 		filter.flags = FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT | FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
 		filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 		filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
-		filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+		filter.subLayerKey = *BaselineSublayerKey;
 		filter.weight.type = FWP_UINT64;
 		filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
 		filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
@@ -499,7 +503,8 @@ typedef NTSTATUS (*AddBlockFiltersFunc)
 	UINT64 *OutboundFilterIdV4,
 	UINT64 *InboundFilterIdV4,
 	UINT64 *OutboundFilterIdV6,
-	UINT64 *InboundFilterIdV6
+	UINT64 *InboundFilterIdV6,
+	const GUID *BaselineSublayerKey
 );
 
 NTSTATUS
@@ -510,7 +515,8 @@ AddBlockFiltersCreateEntryTx
 	const IN_ADDR *TunnelIpv4,
 	const IN6_ADDR *TunnelIpv6,
 	AddBlockFiltersFunc Blocker,
-	BLOCK_CONNECTIONS_ENTRY **Entry
+	BLOCK_CONNECTIONS_ENTRY **Entry,
+	const GUID *BaselineSublayerKey
 )
 {
 	auto offsetStringBuffer = util::RoundToMultiple(sizeof(BLOCK_CONNECTIONS_ENTRY),
@@ -537,7 +543,8 @@ AddBlockFiltersCreateEntryTx
 		&entry->OutboundFilterIdV4,
 		&entry->InboundFilterIdV4,
 		&entry->OutboundFilterIdV6,
-		&entry->InboundFilterIdV6
+		&entry->InboundFilterIdV6,
+		BaselineSublayerKey
 	);
 
 	if (!NT_SUCCESS(status))
@@ -691,7 +698,8 @@ NTSTATUS
 Initialize
 (
 	HANDLE WfpSession,
-	void **Context
+	void **Context,
+	const GUID *BaselineSublayerKey
 )
 {
 	auto context = (APP_FILTERS_CONTEXT*)
@@ -703,6 +711,7 @@ Initialize
 	}
 
 	context->WfpSession = WfpSession;
+	context->BaselineSublayerKey = *BaselineSublayerKey;
 
 	InitializeListHead(&context->BlockedTunnelConnections);
 
@@ -953,7 +962,8 @@ RegisterFilterBlockAppTunnelTrafficTx2
 		TunnelIpv4,
 		TunnelIpv6,
 		AddTunnelBlockFiltersTx,
-		&entry
+		&entry,
+		&context->BaselineSublayerKey
 	);
 
 	if (!NT_SUCCESS(status))
@@ -1147,7 +1157,8 @@ UpdateFiltersTx2
 			TunnelIpv4,
 			TunnelIpv6,
 			AddTunnelBlockFiltersTx,
-			&newEntry
+			&newEntry,
+			&context->BaselineSublayerKey
 		);
 
 		if (!NT_SUCCESS(status))

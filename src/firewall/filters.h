@@ -19,7 +19,8 @@ namespace firewall
 NTSTATUS
 RegisterFilterBindRedirectIpv4Tx
 (
-	HANDLE WfpSession
+	HANDLE WfpSession,
+	const GUID *BaselineSublayerKey
 );
 
 NTSTATUS
@@ -36,7 +37,8 @@ RemoveFilterBindRedirectIpv4Tx
 NTSTATUS
 RegisterFilterBindRedirectIpv6Tx
 (
-	HANDLE WfpSession
+	HANDLE WfpSession,
+	const GUID *BaselineSublayerKey
 );
 
 NTSTATUS
@@ -58,7 +60,8 @@ RemoveFilterBindRedirectIpv6Tx
 NTSTATUS
 RegisterFilterConnectRedirectIpv4Tx
 (
-	HANDLE WfpSession
+	HANDLE WfpSession,
+	const GUID *BaselineSublayerKey
 );
 
 NTSTATUS
@@ -75,7 +78,8 @@ RemoveFilterConnectRedirectIpv4Tx
 NTSTATUS
 RegisterFilterConnectRedirectIpv6Tx
 (
-	HANDLE WfpSession
+	HANDLE WfpSession,
+	const GUID *BaselineSublayerKey
 );
 
 NTSTATUS
@@ -101,7 +105,9 @@ NTSTATUS
 RegisterFilterPermitNonTunnelIpv4Tx
 (
 	HANDLE WfpSession,
-	const IN_ADDR *TunnelIpv4
+	const IN_ADDR *TunnelIpv4,
+	const GUID *BaselineSublayerKey,
+	const GUID *DnsSublayerKey
 );
 
 NTSTATUS
@@ -119,7 +125,9 @@ NTSTATUS
 RegisterFilterPermitNonTunnelIpv6Tx
 (
 	HANDLE WfpSession,
-	const IN6_ADDR *TunnelIpv6
+	const IN6_ADDR *TunnelIpv6,
+	const GUID *BaselineSublayerKey,
+	const GUID *DnsSublayerKey
 );
 
 NTSTATUS
@@ -138,7 +146,8 @@ NTSTATUS
 RegisterFilterBlockTunnelIpv4Tx
 (
 	HANDLE WfpSession,
-	const IN_ADDR *TunnelIp
+	const IN_ADDR *TunnelIp,
+	const GUID *BaselineSublayerKey
 );
 
 NTSTATUS
@@ -156,7 +165,8 @@ NTSTATUS
 RegisterFilterBlockTunnelIpv6Tx
 (
 	HANDLE WfpSession,
-	const IN6_ADDR *TunnelIp
+	const IN6_ADDR *TunnelIp,
+	const GUID *BaselineSublayerKey
 );
 
 NTSTATUS

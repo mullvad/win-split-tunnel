@@ -19,7 +19,8 @@ NTSTATUS
 Initialize
 (
 	HANDLE WfpSession,
-	void **Context
+	void **Context,
+	const GUID *BaselineSublayerKey
 );
 
 void

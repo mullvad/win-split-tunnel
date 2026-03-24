@@ -590,7 +590,7 @@ StEvtIoDeviceControlSerial
                 // Definitive state transition here.
                 // No locking needed this early.
                 //
-                WdfRequestComplete(Request, ioctl::Initialize(device));
+                WdfRequestComplete(Request, ioctl::Initialize(device, Request));
 
                 return;
             }

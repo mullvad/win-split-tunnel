@@ -138,7 +138,6 @@
       <Filter>procmgmt</Filter>
     </ClInclude>
     <ClInclude Include="containers.h" />
-    <ClInclude Include="x64guard.h" />
     <ClInclude Include="version.h" />
     <ClInclude Include="firewall\mode.h">
       <Filter>firewall</Filter>
@@ -158,6 +157,10 @@
     </ClInclude>
     <ClInclude Include="firewall\classify.h">
       <Filter>firewall</Filter>
+    </ClInclude>
+    <ClInclude Include="win64guard.h" />
+    <ClInclude Include="defs\sublayer.h">
+      <Filter>defs</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
