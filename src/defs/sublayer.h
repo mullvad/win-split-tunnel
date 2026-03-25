@@ -4,7 +4,8 @@
 // sublayer.h
 //
 // Sublayer GUID definitions for WFP firewall configuration.
-// These GUIDs are registered during initialize IOCTL.
+// These GUIDs are provided by the client via the initialize IOCTL and are
+// stored for use when registering filters under the corresponding sublayers.
 //
 
 typedef struct tag_ST_SUBLAYER_GUIDS

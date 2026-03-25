@@ -28,7 +28,7 @@ typedef struct tag_ST_DEVICE_CONTEXT
 
 	ST_IP_ADDRESSES IpAddresses;
 
-	// Sublayer GUIDs registered during initialization.
+	// Sublayer GUIDs provided by the client and used when registering filters.
 	ST_SUBLAYER_GUIDS SublayerGuids;
 
 	PROCESS_REGISTRY_MGMT ProcessRegistry;
