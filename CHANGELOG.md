@@ -24,7 +24,8 @@ Line wrap the file at 100 chars.                                              Th
 
 ## [1.3.0.0] - 2026-03-25
 ### Changed
-- Pass in sublayer GUIDs to use for filters instead of hardcoding them.
+- Pass in sublayer GUIDs to use for filters instead of hardcoding them. This is a breaking change to
+  the initialize IOCTL.
 
 ### Fixed
 - Fix potential BSOD when resetting driver in engaged state while collecting events.
