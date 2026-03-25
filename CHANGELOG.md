@@ -20,8 +20,21 @@ Line wrap the file at 100 chars.                                              Th
 * **Security**: in case of vulnerabilities.
 
 ## [Unreleased]
+
+
+## [1.3.0.0] - 2026-03-25
 ### Changed
-- Pass in sublayer GUIDs to use for filters instead of hardcoding them.
+- Pass in sublayer GUIDs to use for filters instead of hardcoding them. This is a breaking change to
+  the initialize IOCTL.
+
+### Fixed
+- Fix potential BSOD when resetting driver in engaged state while collecting events.
+- Fix classify handle memory leak when failing to fail a pended redirect request.
+
+### Security
+- Fix leak of 4 uninitialized padding bytes to UM in events.
+- Enable retpoline and CET. These prevent certain branch prediction and control flow attacks.
+  We are not aware of any real-world exploits.
 
 
 ## [1.2.5.0] - 2025-12-09
