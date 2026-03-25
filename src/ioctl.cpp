@@ -928,7 +928,7 @@ Initialize
         &callbacks,
         context->ProcessEventBroker,
         context->Eventing,
-        sublayerGuids
+        &context->SublayerGuids
     );
 
     if (!NT_SUCCESS(status))
