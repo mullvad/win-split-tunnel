@@ -8,6 +8,7 @@
 #include <sstream>
 #include <iomanip>
 #include <windows.h>
+#include <objbase.h>
 #include <conio.h>
 #include <ip2string.h>
 #include <winternl.h>
@@ -16,6 +17,7 @@
 #include "proc.h"
 
 #include "../src/public.h"
+#include "../src/defs/sublayer.h"
 
 #pragma comment(lib, "iphlpapi.lib")
 
@@ -129,11 +131,35 @@ void ProcessConnect()
 	std::wcout << L"Successfully connected to driver" << std::endl;
 }
 
-void ProcessInitialize()
+GUID ParseGuid(const std::wstring &guidStr)
 {
+	GUID guid = { 0 };
+
+	const HRESULT hr = CLSIDFromString(guidStr.c_str(), &guid);
+
+	if (FAILED(hr))
+	{
+		THROW_ERROR("Invalid GUID format");
+	}
+
+	return guid;
+}
+
+void ProcessInitialize(const std::wstring &baselineGuidStr, const std::wstring &dnsGuidStr)
+{
+	if (INVALID_HANDLE_VALUE == g_DriverHandle)
+	{
+		THROW_ERROR("Not connected to driver");
+	}
+
+	ST_SUBLAYER_GUIDS guids = { 0 };
+	guids.Baseline = ParseGuid(baselineGuidStr);
+	guids.Dns = ParseGuid(dnsGuidStr);
+
 	DWORD bytesReturned;
 
-	auto status = SendIoControl((DWORD)IOCTL_ST_INITIALIZE, nullptr, 0, nullptr, 0, &bytesReturned);
+	auto status = SendIoControl((DWORD)IOCTL_ST_INITIALIZE,
+		&guids, sizeof(guids), nullptr, 0, &bytesReturned);
 
 	if (!status)
 	{
@@ -791,7 +817,13 @@ int main()
 
 			if (0 == _wcsicmp(tokens[0].c_str(), L"initialize"))
 			{
-				ProcessInitialize();
+				if (tokens.size() != 3)
+				{
+					std::wcout << L"Usage: initialize <baseline-guid> <dns-guid>" << std::endl;
+					std::wcout << L"Example: initialize {c78056ff-2bc1-4211-aadd-7f358def202d} {60090787-cca1-4937-aace-51256ef481f3}" << std::endl;
+					continue;
+				}
+				ProcessInitialize(tokens[1], tokens[2]);
 				continue;
 			}
 
@@ -870,7 +902,7 @@ int main()
 				}
 
 				ProcessConnect();
-				ProcessInitialize();
+				ProcessInitialize(L"{c78056ff-2bc1-4211-aadd-7f358def202d}", L"{60090787-cca1-4937-aace-51256ef481f3}");
 				ProcessRegisterProcesses();
 				ProcessRegisterIps();
 

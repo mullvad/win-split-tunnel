@@ -360,7 +360,9 @@ RegisterFiltersForModeTx
 	HANDLE WfpSession,
 	SPLITTING_MODE Mode,
 	const ST_IP_ADDRESSES *IpAddresses,
-	ACTIVE_FILTERS *ActiveFilters
+	ACTIVE_FILTERS *ActiveFilters,
+	const GUID *BaselineSublayerKey,
+	const GUID *DnsSublayerKey
 )
 {
 #define RFFM_SUCCEED_OR_RETURN(status, record) if(NT_SUCCESS(status)){ *record = true; } else { return status; }
@@ -373,49 +375,49 @@ RegisterFiltersForModeTx
 		{
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBindRedirectIpv4Tx(WfpSession),
+				RegisterFilterBindRedirectIpv4Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->BindRedirectIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterConnectRedirectIpv4Tx(WfpSession),
+				RegisterFilterConnectRedirectIpv4Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->ConnectRedirectIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4, BaselineSublayerKey, DnsSublayerKey),
 				&ActiveFilters->PermitNonTunnelIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4, BaselineSublayerKey),
 				&ActiveFilters->BlockTunnelIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBindRedirectIpv6Tx(WfpSession),
+				RegisterFilterBindRedirectIpv6Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->BindRedirectIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterConnectRedirectIpv6Tx(WfpSession),
+				RegisterFilterConnectRedirectIpv6Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->ConnectRedirectIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6, BaselineSublayerKey, DnsSublayerKey),
 				&ActiveFilters->PermitNonTunnelIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6, BaselineSublayerKey),
 				&ActiveFilters->BlockTunnelIpv6
 			);
 
@@ -425,25 +427,25 @@ RegisterFiltersForModeTx
 		{
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBindRedirectIpv4Tx(WfpSession),
+				RegisterFilterBindRedirectIpv4Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->BindRedirectIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterConnectRedirectIpv4Tx(WfpSession),
+				RegisterFilterConnectRedirectIpv4Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->ConnectRedirectIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4, BaselineSublayerKey, DnsSublayerKey),
 				&ActiveFilters->PermitNonTunnelIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4, BaselineSublayerKey),
 				&ActiveFilters->BlockTunnelIpv4
 			);
 
@@ -453,25 +455,25 @@ RegisterFiltersForModeTx
 		{
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBindRedirectIpv4Tx(WfpSession),
+				RegisterFilterBindRedirectIpv4Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->BindRedirectIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterConnectRedirectIpv4Tx(WfpSession),
+				RegisterFilterConnectRedirectIpv4Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->ConnectRedirectIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4, BaselineSublayerKey, DnsSublayerKey),
 				&ActiveFilters->PermitNonTunnelIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4, BaselineSublayerKey),
 				&ActiveFilters->BlockTunnelIpv4
 			);
 
@@ -481,7 +483,7 @@ RegisterFiltersForModeTx
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, NULL),
+				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, NULL, BaselineSublayerKey, DnsSublayerKey),
 				&ActiveFilters->PermitNonTunnelIpv6
 			);
 
@@ -491,31 +493,31 @@ RegisterFiltersForModeTx
 		{
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBindRedirectIpv4Tx(WfpSession),
+				RegisterFilterBindRedirectIpv4Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->BindRedirectIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterConnectRedirectIpv4Tx(WfpSession),
+				RegisterFilterConnectRedirectIpv4Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->ConnectRedirectIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4, BaselineSublayerKey, DnsSublayerKey),
 				&ActiveFilters->PermitNonTunnelIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4, BaselineSublayerKey),
 				&ActiveFilters->BlockTunnelIpv4
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6, BaselineSublayerKey),
 				&ActiveFilters->BlockTunnelIpv6
 			);
 
@@ -525,25 +527,25 @@ RegisterFiltersForModeTx
 		{
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBindRedirectIpv6Tx(WfpSession),
+				RegisterFilterBindRedirectIpv6Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->BindRedirectIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterConnectRedirectIpv6Tx(WfpSession),
+				RegisterFilterConnectRedirectIpv6Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->ConnectRedirectIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6, BaselineSublayerKey, DnsSublayerKey),
 				&ActiveFilters->PermitNonTunnelIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6, BaselineSublayerKey),
 				&ActiveFilters->BlockTunnelIpv6
 			);
 
@@ -553,25 +555,25 @@ RegisterFiltersForModeTx
 		{
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBindRedirectIpv6Tx(WfpSession),
+				RegisterFilterBindRedirectIpv6Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->BindRedirectIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterConnectRedirectIpv6Tx(WfpSession),
+				RegisterFilterConnectRedirectIpv6Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->ConnectRedirectIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6, BaselineSublayerKey, DnsSublayerKey),
 				&ActiveFilters->PermitNonTunnelIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6, BaselineSublayerKey),
 				&ActiveFilters->BlockTunnelIpv6
 			);
 
@@ -581,7 +583,7 @@ RegisterFiltersForModeTx
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, NULL),
+				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, NULL, BaselineSublayerKey, DnsSublayerKey),
 				&ActiveFilters->PermitNonTunnelIpv4
 			);
 
@@ -591,32 +593,32 @@ RegisterFiltersForModeTx
 		{
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBindRedirectIpv6Tx(WfpSession),
+				RegisterFilterBindRedirectIpv6Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->BindRedirectIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterConnectRedirectIpv6Tx(WfpSession),
+				RegisterFilterConnectRedirectIpv6Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->ConnectRedirectIpv6
 			);
 
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6, BaselineSublayerKey, DnsSublayerKey),
 				&ActiveFilters->PermitNonTunnelIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6, BaselineSublayerKey),
 				&ActiveFilters->BlockTunnelIpv6
 			);
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4, BaselineSublayerKey),
 				&ActiveFilters->BlockTunnelIpv4
 			);
 
@@ -626,7 +628,7 @@ RegisterFiltersForModeTx
 		{
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4),
+				RegisterFilterBlockTunnelIpv4Tx(WfpSession, &IpAddresses->TunnelIpv4, BaselineSublayerKey),
 				&ActiveFilters->BlockTunnelIpv4
 			);
 
@@ -636,7 +638,7 @@ RegisterFiltersForModeTx
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, NULL),
+				RegisterFilterPermitNonTunnelIpv6Tx(WfpSession, NULL, BaselineSublayerKey, DnsSublayerKey),
 				&ActiveFilters->PermitNonTunnelIpv6
 			);
 
@@ -646,7 +648,7 @@ RegisterFiltersForModeTx
 		{
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6),
+				RegisterFilterBlockTunnelIpv6Tx(WfpSession, &IpAddresses->TunnelIpv6, BaselineSublayerKey),
 				&ActiveFilters->BlockTunnelIpv6
 			);
 
@@ -656,7 +658,7 @@ RegisterFiltersForModeTx
 
 			RFFM_SUCCEED_OR_RETURN
 			(
-				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, NULL),
+				RegisterFilterPermitNonTunnelIpv4Tx(WfpSession, NULL, BaselineSublayerKey, DnsSublayerKey),
 				&ActiveFilters->PermitNonTunnelIpv4
 			);
 
@@ -823,7 +825,8 @@ NTSTATUS
 AddAleReauthorizationFiltersTx
 (
 	HANDLE WfpSession,
-	ALE_REAUTHORIZATION_FILTER_IDS *ReauthFilters
+	ALE_REAUTHORIZATION_FILTER_IDS *ReauthFilters,
+	const GUID *BaselineSublayerKey
 )
 {
 	RtlZeroMemory(ReauthFilters, sizeof(*ReauthFilters));
@@ -845,7 +848,7 @@ AddAleReauthorizationFiltersTx
 	filter.displayData.description = const_cast<wchar_t*>(FilterDescription);
 	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
 	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
-	filter.subLayerKey = ST_FW_WINFW_BASELINE_SUBLAYER_KEY;
+	filter.subLayerKey = *BaselineSublayerKey;
 	filter.weight.type = FWP_UINT64;
 	filter.weight.uint64 = const_cast<UINT64*>(&ST_MAX_FILTER_WEIGHT);
 	filter.action.type = FWP_ACTION_BLOCK;
@@ -970,7 +973,8 @@ Initialize
 	PDEVICE_OBJECT DeviceObject,
 	const CALLBACKS *Callbacks,
 	procbroker::CONTEXT *ProcessEventBroker,
-	eventing::CONTEXT *Eventing
+	eventing::CONTEXT *Eventing,
+	const ST_SUBLAYER_GUIDS *SublayerGuids
 )
 {
 	auto context = (CONTEXT*)ExAllocatePoolUninitialized(NonPagedPool, sizeof(CONTEXT), ST_POOL_TAG);
@@ -984,6 +988,7 @@ Initialize
 
 	context->Callbacks = *Callbacks;
 	context->Eventing = Eventing;
+	context->SublayerGuids = *SublayerGuids;
 
     auto status = WdfSpinLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &context->IpAddresses.Lock);
 
@@ -1045,7 +1050,7 @@ Initialize
 		goto Abort_destroy_session;
 	}
 
-	status = appfilters::Initialize(context->WfpSession, &context->AppFiltersContext);
+	status = appfilters::Initialize(context->WfpSession, &context->AppFiltersContext, &context->SublayerGuids.Baseline);
 
 	if (!NT_SUCCESS(status))
 	{
@@ -1242,7 +1247,9 @@ EnableSplitting
 		Context->WfpSession,
 		Context->IpAddresses.SplittingMode,
 		&Context->IpAddresses.Addresses,
-		&activeFilters
+		&activeFilters,
+		&Context->SublayerGuids.Baseline,
+		&Context->SublayerGuids.Dns
 	);
 
 	if (!NT_SUCCESS(status))
@@ -1390,7 +1397,9 @@ RegisterUpdatedIpAddresses
 		Context->WfpSession,
 		newMode,
 		IpAddresses,
-		&newActiveFilters
+		&newActiveFilters,
+		&Context->SublayerGuids.Baseline,
+		&Context->SublayerGuids.Dns
 	);
 
 	if (!NT_SUCCESS(status))
@@ -1531,7 +1540,7 @@ TransactionCommit
 
 	if (ForceAleReauthorization)
 	{
-		auto status = AddAleReauthorizationFiltersTx(Context->WfpSession, &reauthFilters);
+		auto status = AddAleReauthorizationFiltersTx(Context->WfpSession, &reauthFilters, &Context->SublayerGuids.Baseline);
 
 		if (!NT_SUCCESS(status))
 		{

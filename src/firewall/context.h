@@ -6,6 +6,7 @@
 #include "mode.h"
 #include "pending.h"
 #include "../ipaddr.h"
+#include "../defs/sublayer.h"
 #include "../procbroker/procbroker.h"
 #include "../eventing/eventing.h"
 
@@ -54,6 +55,8 @@ struct CONTEXT
 	HANDLE WfpSession;
 
 	IP_ADDRESSES_MGMT IpAddresses;
+
+	ST_SUBLAYER_GUIDS SublayerGuids;
 
 	pending::CONTEXT *PendedClassifications;
 

@@ -3,6 +3,7 @@
 #include <wdm.h>
 #include "../ipaddr.h"
 #include "../defs/types.h"
+#include "../defs/sublayer.h"
 #include "../procbroker/procbroker.h"
 #include "../eventing/eventing.h"
 
@@ -55,7 +56,8 @@ Initialize
 	PDEVICE_OBJECT DeviceObject,
 	const CALLBACKS *Callbacks,
 	procbroker::CONTEXT *ProcessEventBroker,
-	eventing::CONTEXT *Eventing
+	eventing::CONTEXT *Eventing,
+	const ST_SUBLAYER_GUIDS *SublayerGuids
 );
 
 NTSTATUS

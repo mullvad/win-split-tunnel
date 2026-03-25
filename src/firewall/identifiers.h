@@ -124,22 +124,6 @@ DEFINE_GUID(ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_TUNNEL_IPV6_CONN_KEY,
 DEFINE_GUID(ST_FW_FILTER_BLOCK_ALL_SPLIT_APPS_TUNNEL_IPV6_RECV_KEY,
 	0xc854e73a, 0x81c8, 0x4814, 0x9a, 0x55, 0x55, 0xba, 0xf2, 0xc3, 0xbd, 0x17);
 
-//
-// This sublayer is defined and registered by `winfw`.
-// We're going to reuse it to avoid having different sublayers fight over
-// whether something should be blocked or permitted.
-//
-DEFINE_GUID(ST_FW_WINFW_BASELINE_SUBLAYER_KEY,
-	0xc78056ff, 0x2bc1, 0x4211, 0xaa, 0xdd, 0x7f, 0x35, 0x8d, 0xef, 0x20, 0x2d);
-
-//
-// This sublayer is defined and registered by `winfw`.
-// It's used to restrict traffic with destination port 53 (DNS).
-// We need to install a filter there to make exceptions for excluded processes.
-//
-DEFINE_GUID(ST_FW_WINFW_DNS_SUBLAYER_KEY,
-	0x60090787, 0xcca1, 0x4937, 0xaa, 0xce, 0x51, 0x25, 0x6e, 0xf4, 0x81, 0xf3);
-
 // {FDC95593-04EF-415C-AE68-46BD8B4821A8}
 DEFINE_GUID(ST_FW_PROVIDER_CONTEXT_KEY,
 	0xfdc95593, 0x4ef, 0x415c, 0xae, 0x68, 0x46, 0xbd, 0x8b, 0x48, 0x21, 0xa8);

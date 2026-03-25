@@ -233,6 +233,7 @@
     <ClInclude Include="defs\process.h" />
     <ClInclude Include="defs\queryprocess.h" />
     <ClInclude Include="defs\state.h" />
+    <ClInclude Include="defs\sublayer.h" />
     <ClInclude Include="defs\types.h" />
     <ClInclude Include="devicecontext.h" />
     <ClInclude Include="eventing\builder.h" />
