@@ -12,6 +12,7 @@ typedef struct tag_ST_CONFIGURATION_ENTRY
 
 	// Byte length for non-null terminated wide char string.
 	USHORT ImageNameLength;
+	// <-- Отсюда мы убрали SplitMode
 }
 ST_CONFIGURATION_ENTRY;
 
@@ -22,5 +23,7 @@ typedef struct tag_ST_CONFIGURATION_HEADER
 
 	// Total byte length: header + entries + string buffer.
 	SIZE_T TotalLength;
+	
+	UINT32 SplitMode;
 }
 ST_CONFIGURATION_HEADER;
