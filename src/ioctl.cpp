@@ -13,6 +13,8 @@
 #include "trace.h"
 #include "ioctl.tmh"
 
+static UINT32 g_CurrentSplitMode = 0;
+
 namespace ioctl
 {
 
@@ -24,13 +26,13 @@ namespace
 //
 enum class MIN_REQUEST_SIZE
 {
-	INITIALIZE = sizeof(ST_SUBLAYER_GUIDS),
-	SET_CONFIGURATION = sizeof(ST_CONFIGURATION_HEADER),
-	GET_CONFIGURATION = sizeof(SIZE_T),
-	REGISTER_PROCESSES = sizeof(ST_PROCESS_DISCOVERY_HEADER),
-	REGISTER_IP_ADDRESSES = sizeof(ST_IP_ADDRESSES),
-	GET_IP_ADDRESSES = sizeof(ST_IP_ADDRESSES),
-	GET_STATE = sizeof(SIZE_T),
+    INITIALIZE = sizeof(ST_SUBLAYER_GUIDS),
+    SET_CONFIGURATION = sizeof(ST_CONFIGURATION_HEADER),
+    GET_CONFIGURATION = sizeof(SIZE_T),
+    REGISTER_PROCESSES = sizeof(ST_PROCESS_DISCOVERY_HEADER),
+    REGISTER_IP_ADDRESSES = sizeof(ST_IP_ADDRESSES),
+    GET_IP_ADDRESSES = sizeof(ST_IP_ADDRESSES),
+    GET_STATE = sizeof(SIZE_T),
     QUERY_PROCESS = sizeof(ST_QUERY_PROCESS),
     QUERY_PROCESS_RESPONSE = sizeof(ST_QUERY_PROCESS_RESPONSE),
 };
@@ -47,6 +49,7 @@ InitializeProcessRegistryMgmt
 )
 {
     auto status = WdfSpinLockCreate(WDF_NO_OBJECT_ATTRIBUTES, &Mgmt->Lock);
+	DbgPrint("=== AMNEZIA CUSTOM DRIVER V2 LOADED AND RUNNING! ===\n");
 
     if (!NT_SUCCESS(status))
     {
@@ -101,11 +104,7 @@ DestroyProcessRegistryMgmt
 // UpdateTargetSplitSetting()
 //
 // Updates the target split setting on a process registry entry.
-//
-// Target state is set to split if either of:
-//
-// - Imagename is included in config.
-// - Currently split by inheritance and parent has departed.
+// Supports both Exclude (default) and Include routing modes.
 //
 bool
 NTAPI
@@ -119,14 +118,40 @@ UpdateTargetSplitSetting
 
     Entry->TargetSettings.Split = ST_PROCESS_SPLIT_STATUS_OFF;
 
-    if (registeredimage::HasEntryExact(context->RegisteredImage.Instance, &Entry->ImageName))
+    bool isMatch = registeredimage::HasEntryExact(context->RegisteredImage.Instance, &Entry->ImageName);
+
+	// ---> ПРОБИВАЕМ БЛОКИРОВКУ ЛОГОВ <---
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "[ST-KERNEL] KERNEL SEES PROCESS: %wZ | MATCH: %d | MODE: %d\n", (PCUNICODE_STRING)&Entry->ImageName, isMatch, context->SplitMode);
+
+    // Evaluate routing mode (0 = Exclude, 1 = Include)
+    if (context->SplitMode == 1) 
     {
-        Entry->TargetSettings.Split = ST_PROCESS_SPLIT_STATUS_ON_BY_CONFIG;
+        // === INCLUDE MODE ===
+        if (isMatch) 
+        {
+            // Process is IN the list -> Do not split, traffic goes THROUGH the VPN
+            Entry->TargetSettings.Split = ST_PROCESS_SPLIT_STATUS_OFF;
+        } 
+        else 
+        {
+            // Process is NOT in the list -> Split the traffic, bypass the VPN
+            Entry->TargetSettings.Split = ST_PROCESS_SPLIT_STATUS_ON_BY_CONFIG;
+        }
     }
-    else if (Entry->ParentProcessId == 0
-        && Entry->Settings.Split == ST_PROCESS_SPLIT_STATUS_ON_BY_INHERITANCE)
+    else 
     {
-        Entry->TargetSettings.Split = ST_PROCESS_SPLIT_STATUS_ON_BY_INHERITANCE;
+        // === EXCLUDE MODE (Standard Mullvad behavior) ===
+        if (isMatch)
+        {
+            // Process is IN the list -> Split the traffic, bypass the VPN
+            Entry->TargetSettings.Split = ST_PROCESS_SPLIT_STATUS_ON_BY_CONFIG;
+        }
+        else if (Entry->ParentProcessId == 0
+            && Entry->Settings.Split == ST_PROCESS_SPLIT_STATUS_ON_BY_INHERITANCE)
+        {
+            // Currently split by inheritance and parent has departed
+            Entry->TargetSettings.Split = ST_PROCESS_SPLIT_STATUS_ON_BY_INHERITANCE;
+        }
     }
 
     return true;
@@ -330,8 +355,8 @@ GetConfigurationSerialize
 firewall::PROCESS_SPLIT_VERDICT
 CallbackQueryProcess
 (
-	HANDLE ProcessId,
-	void *RawContext
+    HANDLE ProcessId,
+    void *RawContext
 )
 {
     auto context = (ST_DEVICE_CONTEXT*)RawContext;
@@ -855,33 +880,21 @@ Initialize
     WDFREQUEST Request
 )
 {
-    PVOID buffer;
-    size_t bufferLength;
+    UNREFERENCED_PARAMETER(Request);
+	
+	auto context = DeviceGetSplitTunnelContext(Device);
 
-    auto status = WdfRequestRetrieveInputBuffer(Request,
-        (size_t)MIN_REQUEST_SIZE::INITIALIZE, &buffer, &bufferLength);
-
-    if (!NT_SUCCESS(status))
-    {
-        return status;
-    }
-
-    if (bufferLength != sizeof(ST_SUBLAYER_GUIDS))
-    {
-        DbgPrint("Invalid data provided to IOCTL_ST_INITIALIZE\n");
-        return STATUS_INVALID_PARAMETER;
-    }
-
-    auto sublayerGuids = (ST_SUBLAYER_GUIDS*)buffer;
-
-    auto context = DeviceGetSplitTunnelContext(Device);
+    // === НАШ ХАК: Amnezia присылает 0 байт, поэтому мы задаем GUID сами ===
+    context->SublayerGuids.Baseline = { 0x11111111, 0x2222, 0x3333, { 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB } };
+    context->SublayerGuids.Dns      = { 0xAAAAAAAA, 0xBBBB, 0xCCCC, { 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44 } };
+    // ======================================================================
 
     //
     // The context struct is cleared.
     // Only state is set at this point.
     //
 
-    status = eventing::Initialize(&context->Eventing, Device);
+    auto status = eventing::Initialize(&context->Eventing, Device);
 
     if (!NT_SUCCESS(status))
     {
@@ -917,9 +930,6 @@ Initialize
 
     callbacks.QueryProcess = CallbackQueryProcess;
     callbacks.Context = context;
-
-    // Store sublayer GUIDs in device context
-    context->SublayerGuids = *sublayerGuids;
 
     status = firewall::Initialize
     (
@@ -984,758 +994,539 @@ Abort_teardown_eventing:
     return status;
 }
 
-//
-// SetConfigurationPrepare()
-//
-// Validate and repackage configuration data into new registered image instance.
-//
-// This runs at PASSIVE, in order to be able to downcase the strings.
-//
-NTSTATUS
-SetConfigurationPrepare
-(
-    WDFREQUEST Request,
-    registeredimage::CONTEXT **Imageset
-)
-{
-    *Imageset = NULL;
-
-    PVOID buffer;
-    size_t bufferLength;
-
-    auto status = WdfRequestRetrieveInputBuffer(Request,
-        (size_t)MIN_REQUEST_SIZE::SET_CONFIGURATION, &buffer, &bufferLength);
-
-    if (!NT_SUCCESS(status))
-    {
-        DbgPrint("Could not access configuration buffer provided to IOCTL: 0x%X\n", status);
-
-        return status;
-    }
-
-    if (!ValidateUserBufferConfiguration(buffer, bufferLength))
-    {
-        DbgPrint("Invalid configuration data in buffer provided to IOCTL\n");
-
-        return STATUS_INVALID_PARAMETER;
-    }
-
-    auto header = (ST_CONFIGURATION_HEADER*)buffer;
-    auto entry = (ST_CONFIGURATION_ENTRY*)(header + 1);
-    auto stringBuffer = (UCHAR*)(entry + header->NumEntries);
-
-    if (header->NumEntries == 0)
-    {
-        DbgPrint("Cannot assign empty configuration\n");
-
-        return STATUS_INVALID_PARAMETER;
-    }
 
     //
-    // Create new instance for storing image names.
-    //
-
-    registeredimage::CONTEXT *imageset;
-
-    status = registeredimage::Initialize(&imageset, ST_PAGEABLE::NO);
-
-    if (!NT_SUCCESS(status))
-    {
-        DbgPrint("Could not create new registered image instance: 0x%X\n", status);
-
-        return status;
-    }
-
-    //
-    // Insert each entry one by one.
-    //
-
-    for (auto i = 0; i < header->NumEntries; ++i, ++entry)
-    {
-        UNICODE_STRING s;
-
-        s.Length = entry->ImageNameLength;
-        s.MaximumLength = entry->ImageNameLength;
-        s.Buffer = (WCHAR*)(stringBuffer + entry->ImageNameOffset);
-
-        status = registeredimage::AddEntry(imageset, &s);
-
-        if (!NT_SUCCESS(status))
-        {
-            DbgPrint("Could not insert new entry into registered image instance: 0x%X\n", status);
-
-            registeredimage::TearDown(&imageset);
-
-            return status;
-        }
-    }
-
-    *Imageset = imageset;
-
-    return STATUS_SUCCESS;
-}
-
-//
-// SetConfiguration()
-//
-// Store updated configuration.
-//
-// Possibly enter/leave engaged state depending on a number of factors.
-//
-NTSTATUS
-SetConfiguration
-(
-    WDFDEVICE Device,
-    registeredimage::CONTEXT *Imageset
-)
-{
-    auto context = DeviceGetSplitTunnelContext(Device);
-
-    NTSTATUS status = STATUS_UNSUCCESSFUL;
-
-    WdfWaitLockAcquire(context->DriverState.Lock, NULL);
-
-    switch (context->DriverState.State)
-    {
-        case ST_DRIVER_STATE_READY:
-        {
-            status = RegisterConfigurationAtReady(context, Imageset);
-
-            break;
-        }
-        case ST_DRIVER_STATE_ENGAGED:
-        {
-            status = RegisterConfigurationAtEngaged(context, Imageset);
-
-            break;
-        }
-    }
-
-    WdfWaitLockRelease(context->DriverState.Lock);
-
-    if (NT_SUCCESS(status))
-    {
-        DbgPrint("Successfully processed IOCTL_ST_SET_CONFIGURATION\n");
-
-        //
-        // No locking required since we're in a serialized IOCTL handler path.
-        //
-        registeredimage::ForEach
-        (
-            context->RegisteredImage.Instance,
-            DbgPrintConfiguration,
-            NULL
-        );
-    }
-
-    return status;
-}
-
-//
-// GetConfigurationComplete()
-//
-// Return current configuration to driver client.
-//
-// Locking is not required for the following reasons:
-//
-// - We're in the serialized IOCTL handler path.
-// - Config is only read from, not written to.
-//
-void
-GetConfigurationComplete
-(
-    WDFDEVICE Device,
-    WDFREQUEST Request
-)
-{
-    PVOID buffer;
-    size_t bufferLength;
-
-    auto status = WdfRequestRetrieveOutputBuffer(Request,
-        (size_t)MIN_REQUEST_SIZE::GET_CONFIGURATION, &buffer, &bufferLength);
-
-    if (!NT_SUCCESS(status))
-    {
-        WdfRequestComplete(Request, status);
-
-        return;
-    }
-
-    //
-    // Buffer is present and meets the minimum size requirements.
-    // This means we can "complete with information".
-    //
-
-    ULONG_PTR info = 0;
-
-    //
-    // Compute required buffer length.
-    //
-
-    auto context = DeviceGetSplitTunnelContext(Device);
-
-    CONFIGURATION_COMPUTE_LENGTH_CONTEXT computeContext;
-
-    computeContext.NumEntries = 0;
-    computeContext.TotalStringLength = 0;
-
-    registeredimage::ForEach(context->RegisteredImage.Instance,
-        GetConfigurationComputeLength, &computeContext);
-
-    SIZE_T requiredLength = sizeof(ST_CONFIGURATION_HEADER)
-        + (sizeof(ST_CONFIGURATION_ENTRY) * computeContext.NumEntries)
-        + computeContext.TotalStringLength;
-
-    //
-    // It's not possible to fail the request AND provide output data.
-    //
-    // Therefore, the only two types of valid input buffers are:
-    //
-    // # A buffer large enough to contain the settings.
-    // # A buffer of exactly sizeof(SIZE_T) bytes, to learn the required length.
-    //
-
-    if (bufferLength < requiredLength)
-    {
-        if (bufferLength == sizeof(SIZE_T))
-        {
-            status = STATUS_SUCCESS;
-
-            *(SIZE_T*)buffer = requiredLength;
-
-            info = sizeof(SIZE_T);
-        }
-        else
-        {
-            status = STATUS_BUFFER_TOO_SMALL;
-
-            info = 0;
-        }
-
-        goto Complete;
-    }
-
-    //
-    // Output buffer is OK.
-    // Serialize config into buffer.
-    //
-
-    auto header = (ST_CONFIGURATION_HEADER*)buffer;
-    auto entry = (ST_CONFIGURATION_ENTRY*)(header + 1);
-    auto stringBuffer = (UCHAR*)(entry + computeContext.NumEntries);
-
-    CONFIGURATION_SERIALIZE_CONTEXT serializeContext;
-
-    serializeContext.Entry = entry;
-    serializeContext.StringOffset = 0;
-    serializeContext.StringDest = stringBuffer;
-
-    registeredimage::ForEach(context->RegisteredImage.Instance,
-        GetConfigurationSerialize, &serializeContext);
-
-    //
-    // Finalize header.
-    //
-
-    header->NumEntries = computeContext.NumEntries;
-    header->TotalLength = requiredLength;
-
-    info = requiredLength;
-
-    status = STATUS_SUCCESS;
-
-Complete:
-
-    WdfRequestCompleteWithInformation(Request, status, info);
-}
-
-//
-// ClearConfiguration()
-//
-// Mark all processes as non-split and clear configuration.
-//
-NTSTATUS
-ClearConfiguration
-(
-    WDFDEVICE Device
-)
-{
-    auto context = DeviceGetSplitTunnelContext(Device);
-
-    WdfWaitLockAcquire(context->DriverState.Lock, NULL);
-
-    if (context->DriverState.State == ST_DRIVER_STATE_ENGAGED)
-    {
-        //
-        // Leave engaged state.
-        // (This updates the process registry and sends splitting events.)
-        //
-
-        auto status = LeaveEngagedState(context);
-
-        if (!NT_SUCCESS(status))
-        {
-            WdfWaitLockRelease(context->DriverState.Lock);
-
-            DbgPrint("Could not leave engaged state: 0x%X\n", status);
-
-            return status;
-        }
-    }
-
-    registeredimage::Reset(context->RegisteredImage.Instance);
-
-    WdfWaitLockRelease(context->DriverState.Lock);
-
-    DbgPrint("Successfully processed IOCTL_ST_CLEAR_CONFIGURATION\n");
-
-    return STATUS_SUCCESS;
-}
-
-NTSTATUS
-RegisterProcesses
-(
-    WDFDEVICE Device,
-    WDFREQUEST Request
-)
-{
-    PVOID buffer;
-    size_t bufferLength;
-
-    auto status = WdfRequestRetrieveInputBuffer(Request,
-        (size_t)MIN_REQUEST_SIZE::REGISTER_PROCESSES, &buffer, &bufferLength);
-
-    if (!NT_SUCCESS(status))
-    {
-        return status;
-    }
-
-    if (!ValidateUserBufferProcesses(buffer, bufferLength))
-    {
-        DbgPrint("Invalid data provided to IOCTL_ST_REGISTER_PROCESSES\n");
-
-        return STATUS_INVALID_PARAMETER;
-    }
-
-    auto header = (ST_PROCESS_DISCOVERY_HEADER*)buffer;
-    auto entry = (ST_PROCESS_DISCOVERY_ENTRY*)(header + 1);
-    auto stringBuffer = (UCHAR*)(entry + header->NumEntries);
-
-    auto context = DeviceGetSplitTunnelContext(Device);
-
-    NT_ASSERT(procregistry::IsEmpty(context->ProcessRegistry.Instance));
-
-    //
-    // Insert records one by one.
-    //
-    // We can't check the configuration to get accurate information on whether the process being
-    // inserted should have its traffic split.
-    //
-    // Because there is no configuration yet.
-    //
-
-    for (auto i = 0; i < header->NumEntries; ++i, ++entry)
-    {
-        UNICODE_STRING imagename;
-
-        imagename.Length = entry->ImageNameLength;
-        imagename.MaximumLength = entry->ImageNameLength;
-
-        if (entry->ImageNameLength == 0)
-        {
-            imagename.Buffer = NULL;
-        }
-        else
-        {
-            imagename.Buffer = (WCHAR*)(stringBuffer + entry->ImageNameOffset);
-        }
-
-        procregistry::PROCESS_REGISTRY_ENTRY registryEntry = { 0 };
-
-        status = procregistry::InitializeEntry
-        (
-            context->ProcessRegistry.Instance,
-            entry->ParentProcessId,
-            entry->ProcessId,
-            ST_PROCESS_SPLIT_STATUS_OFF,
-            &imagename,
-            &registryEntry
-        );
-
-        if (!NT_SUCCESS(status))
-        {
-            procregistry::Reset(context->ProcessRegistry.Instance);
-
-            return status;
-        }
-
-        status = procregistry::AddEntry
-        (
-            context->ProcessRegistry.Instance,
-            &registryEntry
-        );
-
-        if (!NT_SUCCESS(status))
-        {
-            procregistry::ReleaseEntry(&registryEntry);
-
-            procregistry::Reset(context->ProcessRegistry.Instance);
-
-            return status;
-        }
-    }
-
-    context->DriverState.State = ST_DRIVER_STATE_READY;
-
-    procmgmt::Activate(context->ProcessMgmt);
-
-    DbgPrint("Successfully processed IOCTL_ST_REGISTER_PROCESSES\n");
-
-    return STATUS_SUCCESS;
-}
-
-//
-// RegisterIpAddresses()
-//
-// Store updated set of IP addresses.
-//
-// Possibly enter/leave engaged state depending on a number of factors.
-//
-NTSTATUS
-RegisterIpAddresses
-(
-    WDFDEVICE Device,
-    WDFREQUEST Request
-)
-{
-    PVOID buffer;
-    size_t bufferLength;
-
-    auto status = WdfRequestRetrieveInputBuffer(Request,
-        (size_t)MIN_REQUEST_SIZE::REGISTER_IP_ADDRESSES, &buffer, &bufferLength);
-
-    if (!NT_SUCCESS(status))
-    {
-        return status;
-    }
-
-    if (bufferLength != sizeof(ST_IP_ADDRESSES))
-    {
-        DbgPrint("Invalid data provided to IOCTL_ST_REGISTER_IP_ADDRESSES\n");
-
-        return STATUS_INVALID_PARAMETER;
-    }
-
-    auto newIpAddresses = (ST_IP_ADDRESSES*)buffer;
-
-    //
-    // New addresses seem OK, branch on current state.
-    //
-
-    status = STATUS_UNSUCCESSFUL;
-
-    auto context = DeviceGetSplitTunnelContext(Device);
-
-    WdfWaitLockAcquire(context->DriverState.Lock, NULL);
-
-    switch (context->DriverState.State)
-    {
-        case ST_DRIVER_STATE_READY:
-        {
-            status = RegisterIpAddressesAtReady(context, newIpAddresses);
-
-            break;
-        }
-        case ST_DRIVER_STATE_ENGAGED:
-        {
-            status = RegisterIpAddressesAtEngaged(context, newIpAddresses);
-
-            break;
-        }
-    }
-
-    WdfWaitLockRelease(context->DriverState.Lock);
-
-    if (NT_SUCCESS(status))
-    {
-        DbgPrint("Successfully processed IOCTL_ST_REGISTER_IP_ADDRESSES\n");
-    }
-
-    return status;
-}
-
-//
-// GetIpAddressesComplete()
-//
-// Return currently registered IP addresses to driver client.
-//
-// Locking is not required for the following reasons:
-//
-// - We're in the serialized IOCTL handler path.
-// - IP addresses struct is only read from, not written to.
-//
-void
-GetIpAddressesComplete
-(
-    WDFDEVICE Device,
-    WDFREQUEST Request
-)
-{
-    NT_ASSERT((size_t)MIN_REQUEST_SIZE::GET_IP_ADDRESSES >= sizeof(ST_IP_ADDRESSES));
-
-    PVOID buffer;
-
-    auto status = WdfRequestRetrieveOutputBuffer
-    (
-        Request,
-        (size_t)MIN_REQUEST_SIZE::GET_IP_ADDRESSES,
-        &buffer,
-        NULL
-    );
-
-    if (!NT_SUCCESS(status))
-    {
-        WdfRequestComplete(Request, status);
-
-        return;
-    }
-
-    //
-    // Copy IP addresses struct to output buffer.
-    //
-
-    auto context = DeviceGetSplitTunnelContext(Device);
-
-    RtlCopyMemory(buffer, &context->IpAddresses, sizeof(context->IpAddresses));
-
-    //
-    // Finish up.
-    //
-
-    WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, sizeof(context->IpAddresses));
-}
-
-void
-GetStateComplete
-(
-    WDFDEVICE Device,
-    WDFREQUEST Request
-)
-{
-    PVOID buffer;
-
-    auto status = WdfRequestRetrieveOutputBuffer
-    (
-        Request,
-        (size_t)MIN_REQUEST_SIZE::GET_STATE,
-        &buffer,
-        NULL
-    );
-
-    if (!NT_SUCCESS(status))
-    {
-        DbgPrint("Unable to retrieve client buffer or invalid buffer size\n");
-
-        WdfRequestComplete(Request, status);
-
-        return;
-    }
-
-    auto context = DeviceGetSplitTunnelContext(Device);
-
-    // Sample current state.
-    *(SIZE_T*)buffer = context->DriverState.State;
-
-    WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, sizeof(SIZE_T));
-}
-
-//
-// QueryProcessComplete()
-//
-// Returns information about specific process to driver client.
-//
-void
-QueryProcessComplete
-(
-    WDFDEVICE Device,
-    WDFREQUEST Request
-)
-{
-    PVOID buffer;
-    size_t bufferLength;
-
-    auto status = WdfRequestRetrieveInputBuffer
-    (
-        Request,
-        (size_t)MIN_REQUEST_SIZE::QUERY_PROCESS,
-        &buffer,
-        &bufferLength
-    );
-
-    if (!NT_SUCCESS(status))
-    {
-        DbgPrint("Unable to retrieve input buffer or buffer too small\n");
-
-        WdfRequestComplete(Request, status);
-
-        return;
-    }
-
-    if (bufferLength != (size_t)MIN_REQUEST_SIZE::QUERY_PROCESS)
-    {
-        DbgPrint("Invalid buffer size\n");
-
-        WdfRequestComplete(Request, STATUS_INVALID_BUFFER_SIZE);
-
-        return;
-    }
-
-    auto processId = ((ST_QUERY_PROCESS*)buffer)->ProcessId;
-
-    //
-    // Get the output buffer.
-    //
-    // We can't validate the buffer length just yet, because we don't know the
-    // length of the process image name.
-    //
-
-    status = WdfRequestRetrieveOutputBuffer
-    (
-        Request,
-        (size_t)MIN_REQUEST_SIZE::QUERY_PROCESS_RESPONSE,
-        &buffer,
-        &bufferLength
-    );
-
-    if (!NT_SUCCESS(status))
-    {
-        DbgPrint("Unable to retrieve output buffer or buffer too small\n");
-
-        WdfRequestComplete(Request, status);
-
-        return;
-    }
-
-    //
-    // Look up process.
-    //
-
-    auto context = DeviceGetSplitTunnelContext(Device);
-
-    WdfSpinLockAcquire(context->ProcessRegistry.Lock);
-
-    auto record = procregistry::FindEntry(context->ProcessRegistry.Instance, processId);
-
-    if (record == NULL)
-    {
-        WdfSpinLockRelease(context->ProcessRegistry.Lock);
-
-        DbgPrint("Process query for unknown process\n");
-
-        WdfRequestComplete(Request, STATUS_INVALID_HANDLE);
-
-        return;
-    }
-
-    //
-    // Definitively validate output buffer.
-    //
-
-    auto requiredLength = sizeof(ST_QUERY_PROCESS_RESPONSE)
-        - RTL_FIELD_SIZE(ST_QUERY_PROCESS_RESPONSE, ImageName)
-        + record->ImageName.Length;
-
-    if (bufferLength < requiredLength)
-    {
-        WdfSpinLockRelease(context->ProcessRegistry.Lock);
-
-        DbgPrint("Output buffer is too small\n");
-
-        WdfRequestComplete(Request, STATUS_BUFFER_TOO_SMALL);
-
-        return;
-    }
-
-    //
-    // Copy data and release lock.
-    //
-
-    auto response = (ST_QUERY_PROCESS_RESPONSE *)buffer;
-
-    response->ProcessId = record->ProcessId;
-    response->ParentProcessId = record->ParentProcessId;
-    response->Split = (util::SplittingEnabled(record->Settings.Split) ? TRUE : FALSE);
-    response->ImageNameLength = record->ImageName.Length;
-
-    RtlCopyMemory(&response->ImageName, record->ImageName.Buffer, record->ImageName.Length);
-
-    WdfSpinLockRelease(context->ProcessRegistry.Lock);
-
-    //
-    // Complete request.
-    //
-
-    WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, requiredLength);
-}
-
-void
-ResetComplete
-(
-    WDFDEVICE Device,
-    WDFREQUEST Request
-)
-{
-    //
-    // We're in the serialized IOCTL handler path so handlers that might update the state are
-    // locked out from executing.
-    //
-    // That's the first reason to not acquire the state lock.
-    //
-    // The second reason is that process management logic uses the state lock so we can't be
-    // holding the lock while trying to tear down the process management subsystem.
-    //
-
-    WdfRequestComplete(Request, Reset(Device));
-}
-
-NTSTATUS
-Reset
-(
-    WDFDEVICE Device
-)
-{
-    auto context = DeviceGetSplitTunnelContext(Device);
-
-    NTSTATUS status = STATUS_SUCCESS;
-
-    switch (context->DriverState.State)
-    {
-        case ST_DRIVER_STATE_STARTED:
-        {
-            break;
-        }
-        case ST_DRIVER_STATE_ZOMBIE:
-        {
-            DbgPrint("Rejecting reset in zombie state\n");
-            status = STATUS_CANCELLED;
-            break;
-        }
-        default:
-        {
-            status = ResetInner(context);
-        }
-    }
-
-    if (NT_SUCCESS(status))
-    {
-        DbgPrint("Successfully processed IOCTL_ST_RESET\n");
-    }
-    else
-    {
-        DbgPrint("Failed to reset driver state\n");
-    }
-
-    return status;
-}
+	// SetConfigurationPrepare()
+	//
+	// Validate and repackage configuration data into new registered image instance.
+	// Also extracts the SplitMode to be applied during the commit phase.
+	//
+	// This runs at PASSIVE, in order to be able to downcase the strings.
+	//
+	
+	NTSTATUS
+	SetConfigurationPrepare
+	(
+		WDFREQUEST Request,
+		registeredimage::CONTEXT** Imageset
+	)
+	{
+		*Imageset = NULL;
+
+		PVOID buffer;
+		size_t bufferLength;
+
+		auto status = WdfRequestRetrieveInputBuffer(Request,
+			(size_t)MIN_REQUEST_SIZE::SET_CONFIGURATION, &buffer, &bufferLength);
+		
+		if (!NT_SUCCESS(status))
+		{
+			DbgPrint("Could not access configuration buffer provided to IOCTL: 0x%X\n", status);
+			return status;
+		}
+
+		if (!ValidateUserBufferConfiguration(buffer, bufferLength))
+		{
+			DbgPrint("Invalid configuration data in buffer provided to IOCTL\n");
+			return STATUS_INVALID_PARAMETER;
+		}
+
+		auto header = (ST_CONFIGURATION_HEADER*)buffer;
+		auto entry = (ST_CONFIGURATION_ENTRY*)(header + 1);
+		auto stringBuffer = (UCHAR*)(entry + header->NumEntries);
+
+		if (header->NumEntries == 0)
+		{
+			DbgPrint("Cannot assign empty configuration\n");
+			return STATUS_INVALID_PARAMETER;
+		}
+
+		// === ЧИТАЕМ И СОХРАНЯЕМ SPLIT MODE ГЛОБАЛЬНО ===
+		DbgPrint("=== SPLIT MODE RECEIVED: %d ===\n", header->SplitMode);
+		g_CurrentSplitMode = header->SplitMode;
+		// ===================================================
+
+		// Create new instance for storing image names.
+		registeredimage::CONTEXT* imageset;
+
+		status = registeredimage::Initialize(&imageset, ST_PAGEABLE::NO);
+
+		if (!NT_SUCCESS(status))
+		{
+			DbgPrint("Could not create new registered image instance: 0x%X\n", status);
+			return status;
+		}
+
+		// Insert each entry one by one.
+		for (auto i = 0; i < header->NumEntries; ++i, ++entry)
+		{
+			UNICODE_STRING s;
+
+			s.Length = entry->ImageNameLength;
+			s.MaximumLength = entry->ImageNameLength;
+			s.Buffer = (WCHAR*)(stringBuffer + entry->ImageNameOffset);
+			
+			// ---> ПРОБИВАЕМ БЛОКИРОВКУ ЛОГОВ <---
+			DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "[ST-KERNEL] CONFIG PATH RECEIVED: %wZ\n", &s);
+
+			status = registeredimage::AddEntry(imageset, &s);
+
+			if (!NT_SUCCESS(status))
+			{
+				DbgPrint("Could not insert new entry into registered image instance: 0x%X\n", status);
+				registeredimage::TearDown(&imageset);
+				return status;
+			}
+		}
+
+		*Imageset = imageset;
+
+		return STATUS_SUCCESS;
+	}
+
+	//
+	// SetConfiguration()
+	//
+	// Store updated configuration.
+	//
+	// Possibly enter/leave engaged state depending on a number of factors.
+	//
+	NTSTATUS
+	SetConfiguration
+	(
+		WDFDEVICE Device,
+		registeredimage::CONTEXT* Imageset
+	)
+	{
+		auto context = DeviceGetSplitTunnelContext(Device);
+		
+		context->SplitMode = g_CurrentSplitMode;
+
+		NTSTATUS status = STATUS_UNSUCCESSFUL;
+
+		WdfWaitLockAcquire(context->DriverState.Lock, NULL);
+
+		switch (context->DriverState.State)
+		{
+		case ST_DRIVER_STATE_READY:
+		{
+			status = RegisterConfigurationAtReady(context, Imageset);
+			break;
+		}
+		case ST_DRIVER_STATE_ENGAGED:
+		{
+			status = RegisterConfigurationAtEngaged(context, Imageset);
+			break;
+		}
+		}
+
+		WdfWaitLockRelease(context->DriverState.Lock);
+
+		if (NT_SUCCESS(status))
+		{
+			DbgPrint("Successfully processed IOCTL_ST_SET_CONFIGURATION\n");
+
+			//
+			// No locking required since we're in a serialized IOCTL handler path.
+			//
+			registeredimage::ForEach
+			(
+				context->RegisteredImage.Instance,
+				DbgPrintConfiguration,
+				NULL
+			);
+		}
+
+		return status;
+	}
+
+	//
+	// GetConfigurationComplete()
+	//
+	void
+	GetConfigurationComplete
+	(
+		WDFDEVICE Device,
+		WDFREQUEST Request
+	)
+	{
+		PVOID buffer;
+		size_t bufferLength;
+
+		auto status = WdfRequestRetrieveOutputBuffer(Request,
+			(size_t)MIN_REQUEST_SIZE::GET_CONFIGURATION, &buffer, &bufferLength);
+
+		if (!NT_SUCCESS(status))
+		{
+			WdfRequestComplete(Request, status);
+			return;
+		}
+
+		ULONG_PTR info = 0;
+		UNREFERENCED_PARAMETER(Request);
+		auto context = DeviceGetSplitTunnelContext(Device);
+
+		CONFIGURATION_COMPUTE_LENGTH_CONTEXT computeContext;
+		computeContext.NumEntries = 0;
+		computeContext.TotalStringLength = 0;
+
+		registeredimage::ForEach(context->RegisteredImage.Instance,
+			GetConfigurationComputeLength, &computeContext);
+
+		SIZE_T requiredLength = sizeof(ST_CONFIGURATION_HEADER)
+			+ (sizeof(ST_CONFIGURATION_ENTRY) * computeContext.NumEntries)
+			+ computeContext.TotalStringLength;
+
+		if (bufferLength < requiredLength)
+		{
+			if (bufferLength == sizeof(SIZE_T))
+			{
+				status = STATUS_SUCCESS;
+				*(SIZE_T*)buffer = requiredLength;
+				info = sizeof(SIZE_T);
+			}
+			else
+			{
+				status = STATUS_BUFFER_TOO_SMALL;
+				info = 0;
+			}
+			goto Complete;
+		}
+
+		auto header = (ST_CONFIGURATION_HEADER*)buffer;
+		auto entry = (ST_CONFIGURATION_ENTRY*)(header + 1);
+		auto stringBuffer = (UCHAR*)(entry + computeContext.NumEntries);
+
+		CONFIGURATION_SERIALIZE_CONTEXT serializeContext;
+		serializeContext.Entry = entry;
+		serializeContext.StringOffset = 0;
+		serializeContext.StringDest = stringBuffer;
+
+		registeredimage::ForEach(context->RegisteredImage.Instance,
+			GetConfigurationSerialize, &serializeContext);
+
+		header->NumEntries = computeContext.NumEntries;
+		header->TotalLength = requiredLength;
+		header->SplitMode = context->SplitMode;
+
+		info = requiredLength;
+		status = STATUS_SUCCESS;
+
+	Complete:
+		WdfRequestCompleteWithInformation(Request, status, info);
+	}
+
+	//
+	// ClearConfiguration()
+	//
+	NTSTATUS
+	ClearConfiguration
+	(
+		WDFDEVICE Device
+	)
+	{
+		auto context = DeviceGetSplitTunnelContext(Device);
+
+		WdfWaitLockAcquire(context->DriverState.Lock, NULL);
+
+		if (context->DriverState.State == ST_DRIVER_STATE_ENGAGED)
+		{
+			auto status = LeaveEngagedState(context);
+			if (!NT_SUCCESS(status))
+			{
+				WdfWaitLockRelease(context->DriverState.Lock);
+				DbgPrint("Could not leave engaged state: 0x%X\n", status);
+				return status;
+			}
+		}
+
+		registeredimage::Reset(context->RegisteredImage.Instance);
+		context->SplitMode = 0;
+
+		WdfWaitLockRelease(context->DriverState.Lock);
+
+		DbgPrint("Successfully processed IOCTL_ST_CLEAR_CONFIGURATION\n");
+		return STATUS_SUCCESS;
+	}
+
+	//
+	// Остальные функции (RegisterProcesses, RegisterIpAddresses и т.д.)
+	//
+	NTSTATUS
+	RegisterProcesses
+	(
+		WDFDEVICE Device,
+		WDFREQUEST Request
+	)
+	{
+		PVOID buffer;
+		size_t bufferLength;
+
+		auto status = WdfRequestRetrieveInputBuffer(Request,
+			(size_t)MIN_REQUEST_SIZE::REGISTER_PROCESSES, &buffer, &bufferLength);
+
+		if (!NT_SUCCESS(status))
+		{
+			return status;
+		}
+
+		if (!ValidateUserBufferProcesses(buffer, bufferLength))
+		{
+			DbgPrint("Invalid data provided to IOCTL_ST_REGISTER_PROCESSES\n");
+			return STATUS_INVALID_PARAMETER;
+		}
+
+		auto header = (ST_PROCESS_DISCOVERY_HEADER*)buffer;
+		auto entry = (ST_PROCESS_DISCOVERY_ENTRY*)(header + 1);
+		auto stringBuffer = (UCHAR*)(entry + header->NumEntries);
+
+		auto context = DeviceGetSplitTunnelContext(Device);
+
+		NT_ASSERT(procregistry::IsEmpty(context->ProcessRegistry.Instance));
+
+		for (auto i = 0; i < header->NumEntries; ++i, ++entry)
+		{
+			UNICODE_STRING imagename;
+			imagename.Length = entry->ImageNameLength;
+			imagename.MaximumLength = entry->ImageNameLength;
+			imagename.Buffer = (entry->ImageNameLength == 0) ? NULL : (WCHAR*)(stringBuffer + entry->ImageNameOffset);
+
+			procregistry::PROCESS_REGISTRY_ENTRY registryEntry = { 0 };
+
+			status = procregistry::InitializeEntry
+			(
+				context->ProcessRegistry.Instance,
+				entry->ParentProcessId,
+				entry->ProcessId,
+				ST_PROCESS_SPLIT_STATUS_OFF,
+				&imagename,
+				&registryEntry
+			);
+
+			if (!NT_SUCCESS(status))
+			{
+				procregistry::Reset(context->ProcessRegistry.Instance);
+				return status;
+			}
+
+			status = procregistry::AddEntry
+			(
+				context->ProcessRegistry.Instance,
+				&registryEntry
+			);
+
+			if (!NT_SUCCESS(status))
+			{
+				procregistry::ReleaseEntry(&registryEntry);
+				procregistry::Reset(context->ProcessRegistry.Instance);
+				return status;
+			}
+		}
+
+		context->DriverState.State = ST_DRIVER_STATE_READY;
+		procmgmt::Activate(context->ProcessMgmt);
+
+		DbgPrint("Successfully processed IOCTL_ST_REGISTER_PROCESSES\n");
+		return STATUS_SUCCESS;
+	}
+
+	NTSTATUS
+	RegisterIpAddresses
+	(
+		WDFDEVICE Device,
+		WDFREQUEST Request
+	)
+	{
+		PVOID buffer;
+		size_t bufferLength;
+
+		auto status = WdfRequestRetrieveInputBuffer(Request,
+			(size_t)MIN_REQUEST_SIZE::REGISTER_IP_ADDRESSES, &buffer, &bufferLength);
+
+		if (!NT_SUCCESS(status))
+		{
+			return status;
+		}
+
+		if (bufferLength != sizeof(ST_IP_ADDRESSES))
+		{
+			DbgPrint("Invalid data provided to IOCTL_ST_REGISTER_IP_ADDRESSES\n");
+			return STATUS_INVALID_PARAMETER;
+		}
+
+		auto newIpAddresses = (ST_IP_ADDRESSES*)buffer;
+		auto context = DeviceGetSplitTunnelContext(Device);
+
+		WdfWaitLockAcquire(context->DriverState.Lock, NULL);
+
+		switch (context->DriverState.State)
+		{
+			case ST_DRIVER_STATE_READY:
+				status = RegisterIpAddressesAtReady(context, newIpAddresses);
+				break;
+			case ST_DRIVER_STATE_ENGAGED:
+				status = RegisterIpAddressesAtEngaged(context, newIpAddresses);
+				break;
+			default:
+				status = STATUS_UNSUCCESSFUL;
+				break;
+		}
+
+		WdfWaitLockRelease(context->DriverState.Lock);
+
+		if (NT_SUCCESS(status))
+		{
+			DbgPrint("Successfully processed IOCTL_ST_REGISTER_IP_ADDRESSES\n");
+		}
+
+		return status;
+	}
+
+	void
+	GetIpAddressesComplete
+	(
+		WDFDEVICE Device,
+		WDFREQUEST Request
+	)
+	{
+		PVOID buffer;
+		auto status = WdfRequestRetrieveOutputBuffer(Request,
+			(size_t)MIN_REQUEST_SIZE::GET_IP_ADDRESSES, &buffer, NULL);
+
+		if (!NT_SUCCESS(status))
+		{
+			WdfRequestComplete(Request, status);
+			return;
+		}
+
+		auto context = DeviceGetSplitTunnelContext(Device);
+		RtlCopyMemory(buffer, &context->IpAddresses, sizeof(context->IpAddresses));
+		WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, sizeof(context->IpAddresses));
+	}
+
+	void
+	GetStateComplete
+	(
+		WDFDEVICE Device,
+		WDFREQUEST Request
+	)
+	{
+		PVOID buffer;
+		auto status = WdfRequestRetrieveOutputBuffer(Request,
+			(size_t)MIN_REQUEST_SIZE::GET_STATE, &buffer, NULL);
+
+		if (!NT_SUCCESS(status))
+		{
+			WdfRequestComplete(Request, status);
+			return;
+		}
+
+		auto context = DeviceGetSplitTunnelContext(Device);
+		*(SIZE_T*)buffer = context->DriverState.State;
+		WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, sizeof(SIZE_T));
+	}
+
+	void
+	QueryProcessComplete
+	(
+		WDFDEVICE Device,
+		WDFREQUEST Request
+	)
+	{
+		PVOID buffer;
+		size_t bufferLength;
+
+		auto status = WdfRequestRetrieveInputBuffer(Request,
+			(size_t)MIN_REQUEST_SIZE::QUERY_PROCESS, &buffer, &bufferLength);
+
+		if (!NT_SUCCESS(status))
+		{
+			WdfRequestComplete(Request, status);
+			return;
+		}
+
+		auto processId = ((ST_QUERY_PROCESS*)buffer)->ProcessId;
+
+		status = WdfRequestRetrieveOutputBuffer(Request,
+			(size_t)MIN_REQUEST_SIZE::QUERY_PROCESS_RESPONSE, &buffer, &bufferLength);
+
+		if (!NT_SUCCESS(status))
+		{
+			WdfRequestComplete(Request, status);
+			return;
+		}
+
+		auto context = DeviceGetSplitTunnelContext(Device);
+		WdfSpinLockAcquire(context->ProcessRegistry.Lock);
+
+		auto record = procregistry::FindEntry(context->ProcessRegistry.Instance, processId);
+
+		if (record == NULL)
+		{
+			WdfSpinLockRelease(context->ProcessRegistry.Lock);
+			WdfRequestComplete(Request, STATUS_INVALID_HANDLE);
+			return;
+		}
+
+		auto requiredLength = sizeof(ST_QUERY_PROCESS_RESPONSE)
+			- RTL_FIELD_SIZE(ST_QUERY_PROCESS_RESPONSE, ImageName)
+			+ record->ImageName.Length;
+
+		if (bufferLength < requiredLength)
+		{
+			WdfSpinLockRelease(context->ProcessRegistry.Lock);
+			WdfRequestComplete(Request, STATUS_BUFFER_TOO_SMALL);
+			return;
+		}
+
+		auto response = (ST_QUERY_PROCESS_RESPONSE *)buffer;
+		response->ProcessId = record->ProcessId;
+		response->ParentProcessId = record->ParentProcessId;
+		response->Split = (util::SplittingEnabled(record->Settings.Split) ? TRUE : FALSE);
+		response->ImageNameLength = record->ImageName.Length;
+		RtlCopyMemory(&response->ImageName, record->ImageName.Buffer, record->ImageName.Length);
+
+		WdfSpinLockRelease(context->ProcessRegistry.Lock);
+		WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, requiredLength);
+	}
+
+	void
+	ResetComplete
+	(
+		WDFDEVICE Device,
+		WDFREQUEST Request
+	)
+	{
+		WdfRequestComplete(Request, Reset(Device));
+	}
+
+	NTSTATUS
+	Reset
+	(
+		WDFDEVICE Device
+	)
+	{
+		auto context = DeviceGetSplitTunnelContext(Device);
+		NTSTATUS status = STATUS_SUCCESS;
+
+		switch (context->DriverState.State)
+		{
+			case ST_DRIVER_STATE_STARTED:
+				break;
+			case ST_DRIVER_STATE_ZOMBIE:
+				status = STATUS_CANCELLED;
+				break;
+			default:
+				status = ResetInner(context);
+				break;
+		}
+
+		if (NT_SUCCESS(status))
+		{
+			DbgPrint("Successfully processed IOCTL_ST_RESET\n");
+		}
+
+		return status;
+	}
 
 } // namespace ioctl
