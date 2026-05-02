@@ -35,6 +35,7 @@ typedef struct tag_ST_DEVICE_CONTEXT
 
 	// Protected by state lock.
 	REGISTERED_IMAGE_MGMT RegisteredImage;
+	UINT32 SplitMode;
 
 	firewall::CONTEXT *Firewall;
 
