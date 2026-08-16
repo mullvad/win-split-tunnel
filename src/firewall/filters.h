@@ -38,7 +38,8 @@ NTSTATUS
 RegisterFilterBindRedirectIpv6Tx
 (
 	HANDLE WfpSession,
-	const GUID *BaselineSublayerKey
+	const GUID *BaselineSublayerKey,
+	bool MatchTcp = false
 );
 
 NTSTATUS

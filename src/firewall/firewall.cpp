@@ -493,6 +493,12 @@ RegisterFiltersForModeTx
 		{
 			RFFM_SUCCEED_OR_RETURN
 			(
+				RegisterFilterBindRedirectIpv6Tx(WfpSession, BaselineSublayerKey, true),
+				&ActiveFilters->BindRedirectIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
 				RegisterFilterBindRedirectIpv4Tx(WfpSession, BaselineSublayerKey),
 				&ActiveFilters->BindRedirectIpv4
 			);

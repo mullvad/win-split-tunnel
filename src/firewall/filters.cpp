@@ -66,14 +66,15 @@ NTSTATUS
 RegisterFilterBindRedirectIpv6Tx
 (
 	HANDLE WfpSession,
-	const GUID *BaselineSublayerKey
+	const GUID *BaselineSublayerKey,
+	bool MatchTcp
 )
 {
 	//
 	// Create filter that references callout.
 	//
-	// Use `protocol != TCP` as the sole condition.
-	// This is because TCP traffic is better dealt with in connect-redirect.
+	// TCP traffic is normally dealt with in connect-redirect. MODE_4 can opt into
+	// V6 TCP binds because an AF_INET6 local address can only be changed here.
 	//
 
 	FWPM_FILTER0 filter = { 0 };
@@ -97,7 +98,7 @@ RegisterFilterBindRedirectIpv6Tx
 	FWPM_FILTER_CONDITION0 cond;
 
 	cond.fieldKey = FWPM_CONDITION_IP_PROTOCOL;
-	cond.matchType = FWP_MATCH_NOT_EQUAL;
+	cond.matchType = MatchTcp ? FWP_MATCH_EQUAL : FWP_MATCH_NOT_EQUAL;
 	cond.conditionValue.type = FWP_UINT8;
 	cond.conditionValue.uint8 = IPPROTO_TCP;
 
