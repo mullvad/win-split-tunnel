@@ -137,6 +137,20 @@ RemoveFilterPermitNonTunnelIpv6Tx
 	HANDLE WfpSession
 );
 
+NTSTATUS
+RegisterFilterPermitMode4MappedIpv4TcpTx
+(
+	HANDLE WfpSession,
+	const ST_IP_ADDRESSES *IpAddresses,
+	const GUID *BaselineSublayerKey
+);
+
+NTSTATUS
+RemoveFilterPermitMode4MappedIpv4TcpTx
+(
+	HANDLE WfpSession
+);
+
 //
 // RegisterFilterBlockTunnelIpv4Tx()
 //

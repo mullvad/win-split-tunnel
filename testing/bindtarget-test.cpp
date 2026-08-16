@@ -111,6 +111,31 @@ void TestExplicitIpv6SkipsMapping()
 	Expect(targetAddress.u.Byte[0] == 0xaa, "explicit bind does not change target");
 }
 
+void TestMappedPermitAddressPolicy()
+{
+	auto addresses = AddressesWithIpv4(198, 51, 100, 17);
+	IN6_ADDR targetAddress = { 0 };
+
+	Expect
+	(
+		firewall::bindtarget::TryBuildMode4MappedIpv4Address(addresses, targetAddress),
+		"MODE_4 permit address is available"
+	);
+	Expect(targetAddress.u.Byte[10] == 0xff && targetAddress.u.Byte[11] == 0xff,
+		"permit address has mapped prefix");
+	Expect(targetAddress.u.Byte[12] == 198 && targetAddress.u.Byte[15] == 17,
+		"permit address is exact physical IPv4");
+
+	addresses.InternetIpv6.u.Byte[0] = 0x20;
+	targetAddress.u.Byte[0] = 0xaa;
+	Expect
+	(
+		!firewall::bindtarget::TryBuildMode4MappedIpv4Address(addresses, targetAddress),
+		"native IPv6 disables mapped permit"
+	);
+	Expect(targetAddress.u.Byte[0] == 0xaa, "rejected permit does not change target");
+}
+
 } // namespace
 
 int main()
@@ -119,6 +144,7 @@ int main()
 	TestZeroIpv4Blocks();
 	TestExistingIpv6SkipsMapping();
 	TestExplicitIpv6SkipsMapping();
+	TestMappedPermitAddressPolicy();
 
 	std::cout << "All MODE_4 TCP bind-target tests passed\n";
 	return EXIT_SUCCESS;

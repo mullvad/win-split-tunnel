@@ -31,22 +31,16 @@ IsZeroIpv6
 }
 
 inline
-RESULT
-SelectMode4TcpIpv6BindTarget
+bool
+TryBuildMode4MappedIpv4Address
 (
 	const ST_IP_ADDRESSES &Addresses,
-	const IN6_ADDR &LocalAddress,
 	IN6_ADDR &TargetAddress
 )
 {
-	if (!IsZeroIpv6(LocalAddress) || !IsZeroIpv6(Addresses.InternetIpv6))
+	if (!IsZeroIpv6(Addresses.InternetIpv6) || Addresses.InternetIpv4.S_un.S_addr == 0)
 	{
-		return RESULT::NO_ACTION;
-	}
-
-	if (Addresses.InternetIpv4.S_un.S_addr == 0)
-	{
-		return RESULT::BLOCK;
+		return false;
 	}
 
 	IN6_ADDR mappedAddress = { 0 };
@@ -61,6 +55,33 @@ SelectMode4TcpIpv6BindTarget
 	}
 
 	TargetAddress = mappedAddress;
+	return true;
+}
+
+inline
+RESULT
+SelectMode4TcpIpv6BindTarget
+(
+	const ST_IP_ADDRESSES &Addresses,
+	const IN6_ADDR &LocalAddress,
+	IN6_ADDR &TargetAddress
+)
+{
+	if (!IsZeroIpv6(LocalAddress))
+	{
+		return RESULT::NO_ACTION;
+	}
+
+	if (!IsZeroIpv6(Addresses.InternetIpv6))
+	{
+		return RESULT::NO_ACTION;
+	}
+
+	if (!TryBuildMode4MappedIpv4Address(Addresses, TargetAddress))
+	{
+		return RESULT::BLOCK;
+	}
+
 	return RESULT::REDIRECT;
 }
 
