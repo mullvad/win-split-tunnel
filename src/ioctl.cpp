@@ -9,6 +9,7 @@
 #include "validation.h"
 #include "eventing/eventing.h"
 #include "eventing/builder.h"
+#include "parentchain.h"
 
 #include "trace.h"
 #include "ioctl.tmh"
@@ -225,29 +226,31 @@ PropagateApplyTargetSettings
 
     if (!util::SplittingEnabled(Entry->TargetSettings.Split))
     {
-        auto currentEntry = Entry;
+        const auto parentChainResult = parentchain::Evaluate
+        (
+            context->ProcessRegistry.Instance,
+            Entry,
+            procregistry::GetParentEntry,
+            [](const auto parent)
+            {
+                return util::SplittingEnabled(parent->TargetSettings.Split);
+            }
+        );
 
-        //
-        // In the current state of changing settings,
-        // we have to follow the ancestry all the way to the root.
-        //
-
-        for (;;)
+        if (parentChainResult == parentchain::RESULT::CYCLE)
         {
-            const auto parent = procregistry::GetParentEntry(context->ProcessRegistry.Instance, currentEntry);
+            DbgPrint
+            (
+                "Cyclic process ancestry detected for PID %p; ignoring inheritance\n",
+                Entry->ProcessId
+            );
 
-            if (NULL == parent)
-            {
-                break;
-            }
+            return ApplyFinalizeTargetSettings(context, Entry);
+        }
 
-            if (util::SplittingEnabled(parent->TargetSettings.Split))
-            {
-                Entry->TargetSettings.Split = ST_PROCESS_SPLIT_STATUS_ON_BY_INHERITANCE;
-                break;
-            }
-
-            currentEntry = parent;
+        if (parentChainResult == parentchain::RESULT::SPLIT_ANCESTOR)
+        {
+            Entry->TargetSettings.Split = ST_PROCESS_SPLIT_STATUS_ON_BY_INHERITANCE;
         }
     }
 
