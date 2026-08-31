@@ -9,7 +9,7 @@ enum class RESULT
 {
 	NO_ACTION,
 	REDIRECT,
-	BLOCK,
+	BLOCK
 };
 
 inline

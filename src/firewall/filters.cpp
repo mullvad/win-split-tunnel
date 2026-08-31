@@ -526,6 +526,13 @@ RegisterFilterPermitMode4MappedIpv4TcpTx
 	const GUID *BaselineSublayerKey
 )
 {
+	//
+	// Create filter that matches TCP connections to the exact mapped
+	// physical IPv4 address.
+	//
+	// The linked callout will then permit these connections for apps being split.
+	//
+
 	IN6_ADDR mappedAddress = { 0 };
 
 	if (!bindtarget::TryBuildMode4MappedIpv4Address(*IpAddresses, mappedAddress))

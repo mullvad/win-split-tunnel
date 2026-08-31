@@ -137,6 +137,12 @@ RemoveFilterPermitNonTunnelIpv6Tx
 	HANDLE WfpSession
 );
 
+//
+// RegisterFilterPermitMode4MappedIpv4TcpTx()
+//
+// Register filter, with linked callout, that permits connections to the exact
+// mapped physical IPv4 address for MODE_4.
+//
 NTSTATUS
 RegisterFilterPermitMode4MappedIpv4TcpTx
 (

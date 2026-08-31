@@ -240,15 +240,14 @@ RewriteBind
 	else
 	{
 		auto bindTarget = (SOCKADDR_IN6*)&(bindRequest->localAddressAndPort);
-		const auto protocol = FixedValues->incomingValue
-		[
-			FWPS_FIELD_ALE_BIND_REDIRECT_V6_IP_PROTOCOL
-		].value.uint8;
+		const auto protocol = FixedValues->incomingValue[
+			FWPS_FIELD_ALE_BIND_REDIRECT_V6_IP_PROTOCOL].value.uint8;
 
 		if (Context->IpAddresses.SplittingMode == SPLITTING_MODE::MODE_4
 			&& protocol == IPPROTO_TCP)
 		{
 			IN6_ADDR newTarget = { 0 };
+
 			const auto result = bindtarget::SelectMode4TcpIpv6BindTarget
 			(
 				Context->IpAddresses.Addresses,
