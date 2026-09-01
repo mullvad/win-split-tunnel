@@ -344,6 +344,7 @@ ResetStructure
 	ActiveFilters->BlockTunnelIpv6 = false;
 	ActiveFilters->PermitNonTunnelIpv4 = false;
 	ActiveFilters->PermitNonTunnelIpv6 = false;
+	ActiveFilters->PermitMode4MappedIpv4Tcp = false;
 }
 
 //
@@ -491,6 +492,23 @@ RegisterFiltersForModeTx
 		}
 		case SPLITTING_MODE::MODE_4:
 		{
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterBindRedirectIpv6Tx(WfpSession, BaselineSublayerKey, true),
+				&ActiveFilters->BindRedirectIpv6
+			);
+
+			RFFM_SUCCEED_OR_RETURN
+			(
+				RegisterFilterPermitMode4MappedIpv4TcpTx
+				(
+					WfpSession,
+					IpAddresses,
+					BaselineSublayerKey
+				),
+				&ActiveFilters->PermitMode4MappedIpv4Tcp
+			);
+
 			RFFM_SUCCEED_OR_RETURN
 			(
 				RegisterFilterBindRedirectIpv4Tx(WfpSession, BaselineSublayerKey),
@@ -741,6 +759,14 @@ RemoveActiveFiltersTx
 		RAF_SUCCEED_OR_RETURN
 		(
 			RemoveFilterPermitNonTunnelIpv6Tx(WfpSession)
+		);
+	}
+
+	if (ActiveFilters->PermitMode4MappedIpv4Tcp)
+	{
+		RAF_SUCCEED_OR_RETURN
+		(
+			RemoveFilterPermitMode4MappedIpv4TcpTx(WfpSession)
 		);
 	}
 

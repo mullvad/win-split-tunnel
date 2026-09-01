@@ -40,6 +40,7 @@ struct ACTIVE_FILTERS
 	bool ConnectRedirectIpv6;
 	bool PermitNonTunnelIpv4;
 	bool PermitNonTunnelIpv6;
+	bool PermitMode4MappedIpv4Tcp;
 	bool BlockTunnelIpv4;
 	bool BlockTunnelIpv6;
 };

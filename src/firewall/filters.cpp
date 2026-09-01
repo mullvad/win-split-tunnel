@@ -2,6 +2,7 @@
 #include "identifiers.h"
 #include "constants.h"
 #include "filters.h"
+#include "bindtarget.h"
 
 #define SUCCEED_OR_RETURN(status) if(!NT_SUCCESS(status)){ return status; }
 
@@ -66,14 +67,15 @@ NTSTATUS
 RegisterFilterBindRedirectIpv6Tx
 (
 	HANDLE WfpSession,
-	const GUID *BaselineSublayerKey
+	const GUID *BaselineSublayerKey,
+	bool MatchTcp
 )
 {
 	//
 	// Create filter that references callout.
 	//
-	// Use `protocol != TCP` as the sole condition.
-	// This is because TCP traffic is better dealt with in connect-redirect.
+	// TCP traffic is normally dealt with in connect-redirect. MODE_4 can opt into
+	// V6 TCP binds because an AF_INET6 local address can only be changed here.
 	//
 
 	FWPM_FILTER0 filter = { 0 };
@@ -97,7 +99,7 @@ RegisterFilterBindRedirectIpv6Tx
 	FWPM_FILTER_CONDITION0 cond;
 
 	cond.fieldKey = FWPM_CONDITION_IP_PROTOCOL;
-	cond.matchType = FWP_MATCH_NOT_EQUAL;
+	cond.matchType = MatchTcp ? FWP_MATCH_EQUAL : FWP_MATCH_NOT_EQUAL;
 	cond.conditionValue.type = FWP_UINT8;
 	cond.conditionValue.uint8 = IPPROTO_TCP;
 
@@ -514,6 +516,75 @@ RemoveFilterPermitNonTunnelIpv6Tx
 	);
 
 	return FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_SPLIT_APPS_IPV6_DNS_RECV_KEY);
+}
+
+NTSTATUS
+RegisterFilterPermitMode4MappedIpv4TcpTx
+(
+	HANDLE WfpSession,
+	const ST_IP_ADDRESSES *IpAddresses,
+	const GUID *BaselineSublayerKey
+)
+{
+	//
+	// Create filter that matches TCP connections to the exact mapped
+	// physical IPv4 address.
+	//
+	// The linked callout will then permit these connections for apps being split.
+	//
+
+	IN6_ADDR mappedAddress = { 0 };
+
+	if (!bindtarget::TryBuildMode4MappedIpv4Address(*IpAddresses, mappedAddress))
+	{
+		return STATUS_INVALID_PARAMETER;
+	}
+
+	FWPM_FILTER0 filter = { 0 };
+
+	filter.filterKey = ST_FW_FILTER_PERMIT_MODE4_MAPPED_IPV4_TCP_KEY;
+	filter.displayData.name = const_cast<wchar_t*>(
+		L"Mullvad Split Tunnel MODE_4 Mapped IPv4 TCP Permit Filter");
+	filter.displayData.description = const_cast<wchar_t*>(
+		L"Permits selected TCP connections from the exact mapped physical IPv4 address");
+	filter.flags = FWPM_FILTER_FLAG_HAS_PROVIDER_CONTEXT;
+	filter.providerKey = const_cast<GUID*>(&ST_FW_PROVIDER_KEY);
+	filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
+	filter.subLayerKey = *BaselineSublayerKey;
+	filter.weight.type = FWP_UINT64;
+	filter.weight.uint64 = const_cast<UINT64*>(&ST_HIGH_FILTER_WEIGHT);
+	filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
+	filter.action.calloutKey = ST_FW_CALLOUT_PERMIT_SPLIT_APPS_IPV6_CONN_KEY;
+	filter.providerContextKey = ST_FW_PROVIDER_CONTEXT_KEY;
+
+	FWP_BYTE_ARRAY16 mappedCondition = { 0 };
+	RtlCopyMemory(mappedCondition.byteArray16, mappedAddress.u.Byte, sizeof(mappedCondition.byteArray16));
+
+	FWPM_FILTER_CONDITION0 conditions[2] = { 0, 0 };
+
+	conditions[0].fieldKey = FWPM_CONDITION_IP_PROTOCOL;
+	conditions[0].matchType = FWP_MATCH_EQUAL;
+	conditions[0].conditionValue.type = FWP_UINT8;
+	conditions[0].conditionValue.uint8 = IPPROTO_TCP;
+
+	conditions[1].fieldKey = FWPM_CONDITION_IP_LOCAL_ADDRESS;
+	conditions[1].matchType = FWP_MATCH_EQUAL;
+	conditions[1].conditionValue.type = FWP_BYTE_ARRAY16_TYPE;
+	conditions[1].conditionValue.byteArray16 = &mappedCondition;
+
+	filter.filterCondition = conditions;
+	filter.numFilterConditions = ARRAYSIZE(conditions);
+
+	return FwpmFilterAdd0(WfpSession, &filter, NULL, NULL);
+}
+
+NTSTATUS
+RemoveFilterPermitMode4MappedIpv4TcpTx
+(
+	HANDLE WfpSession
+)
+{
+	return FwpmFilterDeleteByKey0(WfpSession, &ST_FW_FILTER_PERMIT_MODE4_MAPPED_IPV4_TCP_KEY);
 }
 
 NTSTATUS
