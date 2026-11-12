@@ -1618,11 +1618,8 @@ TransactionAbort
 
 	auto status = WfpTransactionAbort(Context);
 
-	if (!NT_SUCCESS(status))
-	{
-		return status;
-	}
-	
+	// If aborting fails, we must release the lock anyway.
+
 	appfilters::TransactionAbort(Context->AppFiltersContext);
 
 	Context->Transaction.OwnerId = NULL;
@@ -1630,7 +1627,7 @@ TransactionAbort
 
 	WdfWaitLockRelease(Context->Transaction.Lock);
 
-	return STATUS_SUCCESS;
+	return status;
 }
 
 NTSTATUS
