@@ -38,7 +38,8 @@ NTSTATUS
 RegisterFilterBindRedirectIpv6Tx
 (
 	HANDLE WfpSession,
-	const GUID *BaselineSublayerKey
+	const GUID *BaselineSublayerKey,
+	bool MatchTcp = false
 );
 
 NTSTATUS
@@ -132,6 +133,26 @@ RegisterFilterPermitNonTunnelIpv6Tx
 
 NTSTATUS
 RemoveFilterPermitNonTunnelIpv6Tx
+(
+	HANDLE WfpSession
+);
+
+//
+// RegisterFilterPermitMode4MappedIpv4TcpTx()
+//
+// Register filter, with linked callout, that permits connections to the exact
+// mapped physical IPv4 address for MODE_4.
+//
+NTSTATUS
+RegisterFilterPermitMode4MappedIpv4TcpTx
+(
+	HANDLE WfpSession,
+	const ST_IP_ADDRESSES *IpAddresses,
+	const GUID *BaselineSublayerKey
+);
+
+NTSTATUS
+RemoveFilterPermitMode4MappedIpv4TcpTx
 (
 	HANDLE WfpSession
 );

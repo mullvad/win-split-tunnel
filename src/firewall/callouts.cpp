@@ -6,6 +6,7 @@
 #include "callouts.h"
 #include "logging.h"
 #include "classify.h"
+#include "bindtarget.h"
 #include "../util.h"
 
 #include "../trace.h"
@@ -239,19 +240,51 @@ RewriteBind
 	else
 	{
 		auto bindTarget = (SOCKADDR_IN6*)&(bindRequest->localAddressAndPort);
+		const auto protocol = FixedValues->incomingValue[
+			FWPS_FIELD_ALE_BIND_REDIRECT_V6_IP_PROTOCOL].value.uint8;
 
-		static const IN6_ADDR IN6_ADDR_ANY = { 0 };
-		
-		if (IN6_ADDR_EQUAL(&(bindTarget->sin6_addr), &IN6_ADDR_ANY)
-			|| IN6_ADDR_EQUAL(&(bindTarget->sin6_addr), &(Context->IpAddresses.Addresses.TunnelIpv6)))
+		if (Context->IpAddresses.SplittingMode == SPLITTING_MODE::MODE_4
+			&& protocol == IPPROTO_TCP)
 		{
-			const auto newTarget = &Context->IpAddresses.Addresses.InternetIpv6;
+			IN6_ADDR newTarget = { 0 };
 
-			LogBindRedirect(HANDLE(MetaValues->processId), bindTarget, newTarget);
+			const auto result = bindtarget::SelectMode4TcpIpv6BindTarget
+			(
+				Context->IpAddresses.Addresses,
+				bindTarget->sin6_addr,
+				newTarget
+			);
 
-			bindTarget->sin6_addr = *newTarget;
+			if (result == bindtarget::RESULT::REDIRECT)
+			{
+				LogBindRedirect(HANDLE(MetaValues->processId), bindTarget, &newTarget);
 
-			ClassificationApplySoftPermit(ClassifyOut);
+				bindTarget->sin6_addr = newTarget;
+
+				ClassificationApplySoftPermit(ClassifyOut);
+			}
+			else if (result == bindtarget::RESULT::BLOCK)
+			{
+				DbgPrint("Blocking MODE_4 IPv6 TCP wildcard bind without physical IPv4\n");
+
+				ClassificationApplyHardBlock(ClassifyOut);
+			}
+		}
+		else
+		{
+			static const IN6_ADDR IN6_ADDR_ANY = { 0 };
+
+			if (IN6_ADDR_EQUAL(&(bindTarget->sin6_addr), &IN6_ADDR_ANY)
+				|| IN6_ADDR_EQUAL(&(bindTarget->sin6_addr), &(Context->IpAddresses.Addresses.TunnelIpv6)))
+			{
+				const auto newTarget = &Context->IpAddresses.Addresses.InternetIpv6;
+
+				LogBindRedirect(HANDLE(MetaValues->processId), bindTarget, newTarget);
+
+				bindTarget->sin6_addr = *newTarget;
+
+				ClassificationApplySoftPermit(ClassifyOut);
+			}
 		}
 	}
 
@@ -329,7 +362,7 @@ PendClassification
 // 
 // ===
 // 
-// Entry point for splitting non-TCP socket binds.
+// Entry point for splitting non-TCP socket binds and MODE_4 IPv6 TCP binds.
 //
 // FWPS_LAYER_ALE_BIND_REDIRECT_V4
 // FWPS_LAYER_ALE_BIND_REDIRECT_V6
@@ -359,8 +392,6 @@ CalloutClassifyBind
 		||
 		(
 			FixedValues->layerId == FWPS_LAYER_ALE_BIND_REDIRECT_V6
-			&& FixedValues->incomingValue[FWPS_FIELD_ALE_BIND_REDIRECT_V6_IP_PROTOCOL] \
-				.value.uint8 != IPPROTO_TCP
 		)
 	);
 
